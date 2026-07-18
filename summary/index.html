@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航班运量汇总</title>
+<style>
+  :root{
+    --blue1:#0b1f4d; --blue2:#1e3a8a; --blue3:#2563eb;
+    --muted:#64748b; --line:#e5e7eb;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+        background:#f1f5f9; color:#0f172a; min-height:100vh; }
+  .hero{ background:linear-gradient(135deg,var(--blue1),var(--blue2) 58%,var(--blue3));
+         color:#fff; padding:52px 24px 60px; text-align:center; position:relative; overflow:hidden; }
+  .hero::before{ content:""; position:absolute; left:-80px; bottom:-120px; width:320px; height:320px;
+                 background:radial-gradient(circle, rgba(96,165,250,.28), transparent 70%); border-radius:50%; }
+  .hero::after{ content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
+                background:radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); border-radius:50%; }
+  .plane{ font-size:42px; position:relative; z-index:1; display:inline-block; animation:float 4s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{ transform:translateY(0) rotate(-8deg);} 50%{ transform:translateY(-12px) rotate(-8deg);} }
+  .hero h1{ position:relative; z-index:1; font-size:30px; font-weight:800; letter-spacing:.5px; margin-top:12px; }
+  .hero p{ position:relative; z-index:1; margin-top:10px; color:#c7d2fe; font-size:15px; }
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 20px 56px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(15,23,42,.06);
+         padding:22px 24px; margin-top:24px; }
+  .card h2{ font-size:17px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .card h2 .dot{ width:8px; height:8px; border-radius:50%; background:var(--blue3); }
+
+  /* 折叠规则 */
+  .notice summary{ cursor:pointer; list-style:none; padding:18px 24px; font-weight:600; font-size:15px;
+                   display:flex; align-items:center; justify-content:space-between; user-select:none; }
+  .notice summary::-webkit-details-marker{ display:none; }
+  .notice summary .chev{ transition:transform .25s; color:var(--muted); }
+  .notice[open] summary .chev{ transform:rotate(180deg); }
+  .notice .nbody{ padding:0 24px 22px; color:#475569; font-size:14px; line-height:1.75; }
+  .notice .nbody ul{ padding-left:20px; margin:8px 0; } .notice .nbody li{ margin:6px 0; }
+  .notice .nbody b{ color:#1e293b; }
+
+  table.io-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.io-table th, table.io-table td{ border:1px solid var(--line); padding:9px 10px; text-align:center; }
+  table.io-table th{ background:#f8fafc; color:#334155; font-weight:600; }
+  table.io-table td.al{ background:#f8fafc; font-weight:600; color:#1e293b; white-space:nowrap; }
+  table.io-table input{ width:100%; min-width:90px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:7px;
+                        font-size:14px; text-align:center; outline:none; transition:border .15s; }
+  table.io-table input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  .hint{ font-size:12.5px; color:#94a3b8; margin-top:10px; }
+
+  .seat-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .seat-cell{ background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:14px; text-align:center; }
+  .seat-cell .lab{ font-size:13px; color:#475569; margin-bottom:8px; font-weight:600; }
+  .seat-cell input{ width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:15px;
+                    text-align:center; outline:none; transition:border .15s; }
+  .seat-cell input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+
+  .actions{ text-align:center; margin-top:26px; }
+  .btn{ background:linear-gradient(135deg,var(--blue2),var(--blue3)); color:#fff; border:none; cursor:pointer;
+        font-size:16px; font-weight:700; padding:14px 38px; border-radius:12px; box-shadow:0 8px 20px rgba(37,99,235,.32);
+        transition:transform .15s, box-shadow .15s; }
+  .btn:hover{ transform:translateY(-2px); box-shadow:0 12px 26px rgba(37,99,235,.4); }
+  .btn:active{ transform:translateY(0); }
+
+  .error-box{ display:none; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:10px;
+              padding:14px 16px; margin-top:18px; font-size:14px; line-height:1.7; }
+  .error-box.show{ display:block; }
+
+  /* 统计卡片 */
+  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-top:6px; }
+  .stat{ background:linear-gradient(135deg,#eff6ff,#dbeafe); border:1px solid #bfdbfe; border-radius:12px; padding:16px 18px; }
+  .stat .lab{ font-size:13px; color:#1e40af; }
+  .stat .val{ font-size:24px; font-weight:800; color:#1e3a8a; margin-top:6px; }
+
+  /* 输出表格 */
+  .out-wrap{ overflow-x:auto; margin-top:6px; border-radius:10px; border:1px solid var(--line); }
+  table.out-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:920px; }
+  table.out-table th, table.out-table td{ border:1px solid var(--line); padding:10px 12px; text-align:center; white-space:nowrap; }
+  table.out-table thead th{ background:var(--blue1); color:#fff; font-weight:600; position:sticky; top:0; }
+  table.out-table td.rowname{ background:#f8fafc; font-weight:700; color:#1e293b; position:sticky; left:0; }
+  table.out-table tr.total td{ background:#fef9c3; font-weight:700; }
+  table.out-table tr.eastsup td.rowname{ color:#1d4ed8; }
+
+  .out-actions{ margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .btn-sm{ background:#fff; color:var(--blue3); border:1px solid var(--blue3); cursor:pointer; font-size:14px;
+           font-weight:600; padding:10px 20px; border-radius:10px; transition:background .15s; }
+  .btn-sm:hover{ background:#eff6ff; }
+  .out-card{ display:none; } .out-card.show{ display:block; animation:fade .4s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  footer{ text-align:center; color:#94a3b8; font-size:13px; padding:8px 20px 40px; }
+  @media (max-width:620px){ .seat-row{ grid-template-columns:1fr; } }
+</head>
+<body>
+  <header class="hero">
+    <div class="plane">✈️</div>
+    <h1>航班运量汇总</h1>
+    <p>输入东航 / 上航 / 中联航数据，一键汇总东上航、联航与总计</p>
+  </header>
+
+  <div class="wrap">
+    <details class="notice card" style="padding:0;">
+      <summary>计算规则说明 <span class="chev">▾</span></summary>
+      <div class="nbody">
+        <ul>
+          <li><b>东上航</b> = 东航 + 上航（逐字段相加）。</li>
+          <li><b>联航</b> = 中联航（直接取中联航数据）。</li>
+          <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
+          <li><b>出港客座率</b>：东上航 = (东航客座率 + 上航客座率) ÷ 2；联航 = 中联航客座率；总计 = (东上航客座率 + 联航客座率) ÷ 2。结果均带 <b>%</b> 单位。</li>
+          <li><b>输入框表达式</b>：支持纯加减，例如填 <code>11+65+231</code> 会自动求和得 307；也支持减法如 <code>100-20</code>。</li>
+          <li>所有计算均在浏览器本地完成，数据不上传任何服务器。</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- 区块A：出港 & 托运 -->
+    <div class="card">
+      <h2><span class="dot"></span>① 出港 & 托运（东航 / 上航 / 中联航）</h2>
+      <div style="overflow-x:auto;">
+        <table class="io-table" id="tblA">
+          <thead><tr><th>航司</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th></tr></thead>
+          <tbody><!-- JS 填充 --></tbody>
+        </table>
+      </div>
+      <p class="hint">提示：每格可直接填数字，或填加减表达式（如 11+65+231）。</p>
+    </div>
+
+    <!-- 区块B：进港 & 行李 -->
+    <div class="card">
+      <h2><span class="dot"></span>② 进港 & 行李（东航 / 上航 / 中联航）</h2>
+      <div style="overflow-x:auto;">
+        <table class="io-table" id="tblB">
+          <thead><tr><th>航司</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+          <tbody><!-- JS 填充 --></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 区块C：客座率 -->
+    <div class="card">
+      <h2><span class="dot"></span>③ 出港客座率（填纯数字，如 85）</h2>
+      <div class="seat-row" id="seatRow"><!-- JS 填充 --></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="calcBtn">🚀 开始计算</button>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- 输出 -->
+    <div class="card out-card" id="outCard">
+      <h2><span class="dot"></span>汇总结果</h2>
+      <div class="stat-grid" id="statCards"></div>
+      <div class="out-wrap" style="margin-top:18px;">
+        <table class="out-table" id="outTable">
+          <thead><tr><th>项目</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th><th>出港客座率</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+          <tbody id="outBody"></tbody>
+        </table>
+      </div>
+      <div class="out-actions">
+        <button class="btn-sm" id="downloadBtn">⬇ 下载 Excel</button>
+        <span class="hint" style="margin:0;">数据在本地生成，不会上传。</span>
+      </div>
+    </div>
+
+    <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages</footer>
+  </div>
+
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  var AIRLINES = ['东航','上航','中联航'];
+  var FIELDS_A = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数'];
+  var FIELDS_B = ['国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
+  var COLS = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数','出港客座率','国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
+
+  // 仅加减表达式求值（安全：不执行任何代码，不执行任何动态代码）
+  function evalExpr(s){
+    s = String(s == null ? '' : s).trim();
+    if(s === '') return NaN;
+    if(!/^[\d\s.+\-]+$/.test(s)) return NaN;          // 仅允许数字、小数点、+、-、空格
+    var parts = s.split(/([+\-])/);                   // 以 + - 为分隔符并保留
+    var total = 0, started = false;
+    for(var i=0;i<parts.length;i++){
+      var p = parts[i].trim();
+      if(p === '') continue;
+      if(p === '+' || p === '-'){
+        if(i+1 >= parts.length) return NaN;
+        var n = parseFloat(parts[i+1].trim());
+        if(isNaN(n)) return NaN;
+        if(!started){ total = (p === '-') ? -n : n; started = true; }
+        else { total = (p === '+') ? total + n : total - n; }
+        i++;
+      } else {
+        var v = parseFloat(p);
+        if(isNaN(v)) return NaN;
+        if(!started){ total = v; started = true; }
+      }
+    }
+    return total;
+  }
+
+  function val(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+
+  // 构建输入表格
+  function buildInput(tableId, prefix, fields){
+    var tbody = document.querySelector('#' + tableId + ' tbody');
+    var html = '';
+    for(var a=0;a<3;a++){
+      html += '<tr><td class="al">' + AIRLINES[a] + '</td>';
+      for(var f=0;f<4;f++){
+        html += '<td><input id="' + prefix + '_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></td>';
+      }
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+  buildInput('tblA','inA',FIELDS_A);
+  buildInput('tblB','inB',FIELDS_B);
+
+  // 客座率输入
+  (function(){
+    var row = document.getElementById('seatRow');
+    var html = '';
+    for(var a=0;a<3;a++){
+      html += '<div class="seat-cell"><div class="lab">' + AIRLINES[a] + '</div>' +
+              '<input id="inS_' + a + '" placeholder="如 85" inputmode="decimal"></div>';
+    }
+    row.innerHTML = html;
+  })();
+
+  // 读取一个区块 3x4
+  function readGrid(prefix, fields){
+    var g = [], bad = [];
+    for(var a=0;a<3;a++){
+      var row = [];
+      for(var f=0;f<4;f++){
+        var v = evalExpr(val(prefix + '_' + a + '_' + f));
+        if(isNaN(v)) bad.push(AIRLINES[a] + ' · ' + fields[f]);
+        row.push(v);
+      }
+      g.push(row);
+    }
+    return { grid:g, bad:bad };
+  }
+
+  function fmtNum(v){ return (Math.round(v)).toLocaleString('zh-CN'); }
+  function fmtSeat(v){ return v.toFixed(1) + '%'; }
+
+  // 组合成输出一行 [9列]
+  function compose(arrA, arrB, seatVal){
+    return [arrA[0], arrA[1], arrA[2], arrA[3], seatVal, arrB[0], arrB[1], arrB[2], arrB[3]];
+  }
+
+  var lastOut = null; // 供下载使用
+
+  document.getElementById('calcBtn').addEventListener('click', function(){
+    var eA = readGrid('inA', FIELDS_A);
+    var eB = readGrid('inB', FIELDS_B);
+    var seat = [], seatBad = [];
+    for(var a=0;a<3;a++){
+      var v = evalExpr(val('inS_' + a));
+      if(isNaN(v)) seatBad.push(AIRLINES[a] + ' · 出港客座率');
+      seat.push(v);
+    }
+    var bad = eA.bad.concat(eB.bad, seatBad);
+    var errBox = document.getElementById('errorBox');
+    if(bad.length){
+      errBox.innerHTML = '❌ 以下格子内容无法识别（请输入数字或加减表达式）：<br>· ' + bad.join('<br>· ');
+      errBox.classList.add('show');
+      return;
+    }
+    errBox.classList.remove('show');
+
+    var A = eA.grid, B = eB.grid;
+    var eastSupA = A[0].map(function(v,f){ return v + A[1][f]; });
+    var eastSupB = B[0].map(function(v,f){ return v + B[1][f]; });
+    var lianA = A[2], lianB = B[2];
+    var totalA = eastSupA.map(function(v,f){ return v + lianA[f]; });
+    var totalB = eastSupB.map(function(v,f){ return v + lianB[f]; });
+
+    var eastSupSeat = (seat[0] + seat[1]) / 2;
+    var lianSeat = seat[2];
+    var totalSeat = (eastSupSeat + lianSeat) / 2;
+
+    var rows = [
+      { name:'东上航', cls:'eastsup', data: compose(eastSupA, eastSupB, eastSupSeat) },
+      { name:'联航',   cls:'',        data: compose(lianA, lianB, lianSeat) },
+      { name:'总计',   cls:'total',   data: compose(totalA, totalB, totalSeat) }
+    ];
+
+    // 渲染表格
+    var body = document.getElementById('outBody');
+    var html = '';
+    rows.forEach(function(r){
+      html += '<tr class="' + r.cls + '"><td class="rowname">' + r.name + '</td>';
+      r.data.forEach(function(v, i){
+        html += '<td>' + (i === 4 ? fmtSeat(v) : fmtNum(v)) + '</td>';
+      });
+      html += '</tr>';
+    });
+    body.innerHTML = html;
+
+    // 统计卡片（总计关键指标）
+    var cards = [
+      { lab:'总计·国内国际出港旅客', val: fmtNum(totalA[0]) },
+      { lab:'总计·国际出港旅客', val: fmtNum(totalA[1]) },
+      { lab:'总计·出港客座率', val: fmtSeat(totalSeat) },
+      { lab:'总计·国内国际进港人数', val: fmtNum(totalB[0]) }
+    ];
+    document.getElementById('statCards').innerHTML = cards.map(function(c){
+      return '<div class="stat"><div class="lab">' + c.lab + '</div><div class="val">' + c.val + '</div></div>';
+    }).join('');
+
+    lastOut = { rows: rows };
+    document.getElementById('outCard').classList.add('show');
+    document.getElementById('outCard').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
+  // 下载 Excel
+  document.getElementById('downloadBtn').addEventListener('click', function(){
+    if(!lastOut) return;
+    var aoa = [['航班运量汇总'], COLS.slice()];
+    lastOut.rows.forEach(function(r){
+      var line = [r.name];
+      r.data.forEach(function(v, i){
+        line.push(i === 4 ? fmtSeat(v) : Math.round(v));
+      });
+      aoa.push(line);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:10}].concat(COLS.map(function(){ return {wch:16}; }));
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '运量汇总');
+    XLSX.writeFile(wb, '航班运量汇总.xlsx');
+  });
+</script>
+</body>
+</html>
