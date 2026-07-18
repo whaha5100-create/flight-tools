@@ -44,7 +44,9 @@
   table.io-table td.al{ background:#f8fafc; font-weight:600; color:#1e293b; white-space:nowrap; }
   table.io-table input{ width:100%; min-width:90px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:7px;
                         font-size:14px; text-align:center; outline:none; transition:border .15s; }
+  table.io-table input::placeholder{ color:#cbd5e1; }
   table.io-table input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  table.io-table input:focus::placeholder{ color:transparent; }
   .hint{ font-size:12.5px; color:#94a3b8; margin-top:10px; }
 
   .seat-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
@@ -52,7 +54,9 @@
   .seat-cell .lab{ font-size:13px; color:#475569; margin-bottom:8px; font-weight:600; }
   .seat-cell input{ width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:15px;
                     text-align:center; outline:none; transition:border .15s; }
+  .seat-cell input::placeholder{ color:#cbd5e1; }
   .seat-cell input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  .seat-cell input:focus::placeholder{ color:transparent; }
 
   .actions{ text-align:center; margin-top:26px; }
   .btn{ background:linear-gradient(135deg,var(--blue2),var(--blue3)); color:#fff; border:none; cursor:pointer;
@@ -107,7 +111,7 @@
           <li><b>联航</b> = 中联航（直接取中联航数据）。</li>
           <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
           <li><b>出港客座率</b>：东上航 = (东航客座率 + 上航客座率) ÷ 2；联航 = 中联航客座率；总计 = (东上航客座率 + 联航客座率) ÷ 2。结果均带 <b>%</b> 单位。</li>
-          <li><b>输入框表达式</b>：支持纯加减，例如填 <code>11+65+231</code> 会自动求和得 307；也支持减法如 <code>100-20</code>。</li>
+          <li><b>输入框表达式</b>：支持 <code>+ - * /</code> 四则运算（按先乘除后加减），例如 <code>11+65+231</code> 求和得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
           <li>所有计算均在浏览器本地完成，数据不上传任何服务器。</li>
         </ul>
       </div>
@@ -174,28 +178,44 @@
   var FIELDS_B = ['国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
   var COLS = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数','出港客座率','国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
 
-  // 仅加减表达式求值（安全：不执行任何代码，不执行任何动态代码）
+  // 表达式求值（支持 + - * / 含运算符优先级；空值视为 0；不使用 eval，安全）
   function evalExpr(s){
     s = String(s == null ? '' : s).trim();
-    if(s === '') return NaN;
-    if(!/^[\d\s.+\-]+$/.test(s)) return NaN;          // 仅允许数字、小数点、+、-、空格
-    var parts = s.split(/([+\-])/);                   // 以 + - 为分隔符并保留
-    var total = 0, started = false;
-    for(var i=0;i<parts.length;i++){
-      var p = parts[i].trim();
-      if(p === '') continue;
-      if(p === '+' || p === '-'){
-        if(i+1 >= parts.length) return NaN;
-        var n = parseFloat(parts[i+1].trim());
-        if(isNaN(n)) return NaN;
-        if(!started){ total = (p === '-') ? -n : n; started = true; }
-        else { total = (p === '+') ? total + n : total - n; }
-        i++;
+    if(s === '') return 0;                                  // 空单元格 = 0
+    if(!/^[\d\s.+\-*/]+$/.test(s)) return NaN;              // 仅允许数字、小数点、+-*/、空格
+    var raw = s.match(/(\d+\.?\d*|\.\d+|[+\-*/])/g);
+    if(!raw || raw.length === 0) return NaN;
+    var nums = [], ops = [], pendingSign = 1;
+    for(var i=0;i<raw.length;i++){
+      var t = raw[i];
+      if(t === '*' || t === '/'){
+        ops.push(t);
+      } else if(t === '+' || t === '-'){
+        if(nums.length === 0 || ops.length === nums.length){
+          pendingSign *= (t === '-') ? -1 : 1;             // 一元正负号（如 -5、16*-3）
+        } else {
+          ops.push(t);
+        }
       } else {
-        var v = parseFloat(p);
+        var v = parseFloat(t);
         if(isNaN(v)) return NaN;
-        if(!started){ total = v; started = true; }
+        nums.push(v * pendingSign);
+        pendingSign = 1;
       }
+    }
+    if(nums.length === 0 || ops.length !== nums.length - 1) return NaN;   // 格式不合法
+    // 第一遍：先算 * 和 /
+    var stack = [nums[0]], sop = [];
+    for(var j=0;j<ops.length;j++){
+      var op = ops[j], n = nums[j+1];
+      if(op === '*'){ stack[stack.length-1] *= n; }
+      else if(op === '/'){ if(n === 0) return NaN; stack[stack.length-1] /= n; }
+      else { stack.push(n); sop.push(op); }
+    }
+    // 第二遍：再算 + 和 -
+    var total = stack[0];
+    for(var k=0;k<sop.length;k++){
+      total = (sop[k] === '+') ? total + stack[k+1] : total - stack[k+1];
     }
     return total;
   }
