@@ -5,169 +5,236 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>航班工作工具集 · 导航</title>
 <style>
-  :root{
-    --blue1:#0b1f4d; --blue2:#1e3a8a; --blue3:#2563eb;
-    --muted:#64748b; --line:#e5e7eb;
-    --c-blue:#2563eb; --c-gold:#d97706; --c-teal:#0d9488;
+  /* ============ Design Tokens（与升舱/名单/统计/汇总四页统一）============ */
+  :root {
+    --brand:        #2563eb;
+    --brand-dark:   #1d4ed8;
+    --brand-deep:   #1e3a8a;
+    --brand-light:  #eff6ff;
+    --brand-soft:   #dbeafe;
+    --ink:          #0f172a;
+    --ink-2:        #334155;
+    --muted:        #64748b;
+    --muted-2:      #94a3b8;
+    --line:         #e2e8f0;
+    --bg:           #f1f5f9;
+    --card:         #ffffff;
+    --radius:       16px;
+    --radius-sm:    10px;
+    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
+    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
+    --c-blue:  #2563eb; --c-gold: #d97706; --c-teal: #0d9488; --c-purple: #7c3aed;
   }
-  *{ box-sizing:border-box; margin:0; padding:0; }
-  html{ scroll-behavior:smooth; }
-  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-        background:#f1f5f9; color:#0f172a; min-height:100vh; }
 
-  /* ===== Hero ===== */
-  .hero{ background:linear-gradient(135deg,var(--blue1),var(--blue2) 58%,var(--blue3));
-         color:#fff; padding:64px 24px 96px; text-align:center; position:relative; overflow:hidden; }
-  .hero::before{ content:""; position:absolute; left:-80px; bottom:-120px; width:320px; height:320px;
-                 background:radial-gradient(circle, rgba(96,165,250,.28), transparent 70%); border-radius:50%; }
-  .hero::after{ content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
-                background:radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); border-radius:50%; }
-  .plane{ font-size:46px; position:relative; z-index:1; display:inline-block; animation:float 4s ease-in-out infinite; }
-  @keyframes float{ 0%,100%{ transform:translateY(0) rotate(-8deg);} 50%{ transform:translateY(-12px) rotate(-8deg);} }
-  .hero h1{ position:relative; z-index:1; font-size:34px; font-weight:800; letter-spacing:.5px; margin-top:14px; }
-  .hero p{ position:relative; z-index:1; margin-top:12px; color:#c7d2fe; font-size:15.5px; }
-  .badges{ position:relative; z-index:1; margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  .badge{ background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); color:#e0e7ff;
-          padding:7px 14px; border-radius:999px; font-size:13px; backdrop-filter:blur(4px); }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
+      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
+      var(--bg);
+  }
 
-  /* ===== Cards ===== */
-  .grid{ max-width:980px; margin:-22px auto 40px; padding:0 20px;
-         display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; }
-  .card{ background:#fff; border-radius:18px; overflow:hidden; text-decoration:none; color:inherit;
-         box-shadow:0 10px 30px rgba(15,23,42,.08); border:1px solid var(--line);
-         opacity:0; transform:translateY(18px); animation:rise .6s ease forwards;
-         transition:transform .22s, box-shadow .22s; display:flex; flex-direction:column; }
-  .card:nth-child(1){ animation-delay:.05s; } .card:nth-child(2){ animation-delay:.18s; } .card:nth-child(3){ animation-delay:.31s; }
-  @keyframes rise{ to{ opacity:1; transform:translateY(0);} }
-  .card:hover{ transform:translateY(-6px); box-shadow:0 22px 48px rgba(15,23,42,.16); }
-  .card .topbar{ height:6px; }
-  .card.c1 .topbar{ background:linear-gradient(90deg,#3b82f6,#2563eb); }
-  .card.c2 .topbar{ background:linear-gradient(90deg,#f59e0b,#d97706); }
-  .card.c3 .topbar{ background:linear-gradient(90deg,#14b8a6,#0d9488); }
-  .card .body{ padding:26px 24px 22px; flex:1; display:flex; flex-direction:column; }
-  .card .badge-ico{ width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:16px; }
-  .card.c1 .badge-ico{ background:linear-gradient(135deg,#dbeafe,#bfdbfe); }
-  .card.c2 .badge-ico{ background:linear-gradient(135deg,#fef3c7,#fde68a); }
-  .card.c3 .badge-ico{ background:linear-gradient(135deg,#ccfbf1,#99f6e4); }
-  .card h3{ font-size:19px; margin-bottom:8px; }
-  .card p{ color:var(--muted); font-size:14px; line-height:1.65; flex:1; }
-  .card .tags{ margin:14px 0 16px; display:flex; gap:8px; flex-wrap:wrap; }
-  .tag{ font-size:12px; padding:4px 10px; border-radius:999px; background:#f1f5f9; color:#475569; }
-  .card .go{ display:flex; align-items:center; gap:6px; color:var(--blue3); font-weight:600; font-size:14px; }
-  .card.c2 .go{ color:var(--c-gold); } .card.c3 .go{ color:var(--c-teal); }
-  .card .go .arrow{ transition:transform .2s; }
-  .card:hover .go .arrow{ transform:translateX(5px); }
+  /* ============ Animations ============ */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes rise { to { opacity: 1; transform: translateY(0); } }
+  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
 
-  /* ===== Notice panel ===== */
-  .notice-wrap{ max-width:980px; margin:0 auto 56px; padding:0 20px; }
-  .notice{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(15,23,42,.06); overflow:hidden; }
-  .notice summary{ cursor:pointer; list-style:none; padding:18px 22px; font-weight:600; font-size:15px;
-                   display:flex; align-items:center; justify-content:space-between; user-select:none; }
-  .notice summary::-webkit-details-marker{ display:none; }
-  .notice summary .chev{ transition:transform .25s; color:var(--muted); }
-  .notice[open] summary .chev{ transform:rotate(180deg); }
-  .notice .nbody{ padding:0 22px 22px; color:#475569; font-size:14px; line-height:1.75; }
-  .notice .nbody ul{ padding-left:20px; margin:8px 0; }
-  .notice .nbody li{ margin:6px 0; }
-  .notice .nbody b{ color:#1e293b; }
+  /* ============ Header（与四页统一）============ */
+  .header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff; padding: 40px 40px; border-radius: 22px; margin: 28px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  }
+  .header::before {
+    content: ""; position: absolute; top: -60px; right: -30px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
+  }
+  .header::after {
+    content: ""; position: absolute; bottom: -80px; left: 20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+  }
+  .header .header-main { position: relative; z-index: 1; }
+  .header .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
+    backdrop-filter: blur(6px); margin-bottom: 14px;
+  }
+  .header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+  .header p { font-size: 14.5px; opacity: 0.9; margin-top: 8px; max-width: 640px; }
+  .header .plane {
+    position: relative; z-index: 1; font-size: 60px; line-height: 1;
+    animation: floaty 4s ease-in-out infinite; flex-shrink: 0;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2));
+  }
 
-  footer{ text-align:center; color:#94a3b8; font-size:13px; padding:0 20px 44px; }
+  .container { max-width: 1440px; margin: 0 auto; padding: 0 24px 48px; }
 
-  @media (max-width:560px){ .hero h1{ font-size:27px; } .hero{ padding:48px 18px 84px; } }
-  .card.c4 .topbar{ background:linear-gradient(90deg,#8b5cf6,#7c3aed); }
-  .card.c4 .badge-ico{ background:linear-gradient(135deg,#ede9fe,#ddd6fe); }
-  .card.c4 .go{ color:#7c3aed; }
+  /* ============ Cards（summary-card 风格，与四页统一）============ */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 22px; margin-top: 4px; }
+  .card {
+    position: relative; overflow: hidden;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); text-decoration: none; color: inherit;
+    padding: 24px 24px 22px; display: flex; flex-direction: column;
+    opacity: 0; transform: translateY(18px); animation: rise .6s ease forwards;
+    transition: transform 0.22s, box-shadow 0.22s;
+  }
+  .card:nth-child(1){ animation-delay:.05s; } .card:nth-child(2){ animation-delay:.18s; }
+  .card:nth-child(3){ animation-delay:.31s; } .card:nth-child(4){ animation-delay:.44s; }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa);
+  }
+  .card.c2::before { background: linear-gradient(90deg, var(--c-gold), #f59e0b); }
+  .card.c3::before { background: linear-gradient(90deg, var(--c-teal), #14b8a6); }
+  .card.c4::before { background: linear-gradient(90deg, var(--c-purple), #8b5cf6); }
+  .card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+  .card .card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .card .card-ic {
+    width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 24px;
+    background: var(--brand-light); color: var(--brand-dark);
+  }
+  .card.c2 .card-ic { background: #fef3c7; color: var(--c-gold); }
+  .card.c3 .card-ic { background: #ccfbf1; color: var(--c-teal); }
+  .card.c4 .card-ic { background: #ede9fe; color: var(--c-purple); }
+  .card h3 { font-size: 18px; font-weight: 700; color: var(--ink); }
+  .card p { color: var(--muted); font-size: 14px; line-height: 1.65; margin-top: 8px; flex: 1; }
+  .card .tags { margin: 14px 0 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--bg); color: #475569; }
+  .card .go { display: flex; align-items: center; gap: 6px; color: var(--brand); font-weight: 600; font-size: 14px; }
+  .card.c2 .go { color: var(--c-gold); } .card.c3 .go { color: var(--c-teal); } .card.c4 .go { color: var(--c-purple); }
+  .card .go .arrow { transition: transform .2s; }
+  .card:hover .go .arrow { transform: translateX(5px); }
+
+  /* ============ Notice panel（同 rules-panel 外观）============ */
+  .notice {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); overflow: hidden; margin-top: 28px;
+  }
+  .notice > summary {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px; cursor: pointer; user-select: none; list-style: none;
+    font-size: 16px; font-weight: 700; color: var(--ink);
+  }
+  .notice > summary::-webkit-details-marker { display: none; }
+  .notice > summary .title { display: flex; align-items: center; gap: 10px; }
+  .notice > summary .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 17px;
+    box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+  }
+  .notice > summary .chev { transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); color: var(--muted); }
+  .notice[open] > summary .chev { transform: rotate(180deg); }
+  .notice .nbody { padding: 0 26px 24px; color: var(--ink-2); font-size: 14px; line-height: 1.75; }
+  .notice .nbody ul { padding-left: 20px; margin: 8px 0; }
+  .notice .nbody li { margin: 6px 0; }
+  .notice .nbody b { color: var(--ink); }
+  .notice .nbody code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  footer { text-align: center; color: var(--muted-2); font-size: 13px; padding: 0 20px 44px; }
+  @media (max-width:560px){ .header{ padding:32px 24px; flex-direction:column; text-align:center; } .header h1{ font-size:26px; } }
 </style>
 </head>
 <body>
-  <header class="hero">
-    <div class="plane">✈️</div>
-    <h1>航班工作工具集</h1>
-    <p>三个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
-    <div class="badges">
-      <span class="badge">🔒 数据本地处理</span>
-      <span class="badge">⚡ 纯前端 · 即开即用</span>
-      <span class="badge">🌐 永久免费 · GitHub Pages</span>
+  <header class="header">
+    <div class="header-main">
+      <span class="eyebrow">✈ 航班工作工具集</span>
+      <h1>航班工作工具集</h1>
+      <p>四个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
     </div>
+    <div class="plane">✈️</div>
   </header>
 
-  <main class="grid">
-    <a class="card c1" href="./manifest/">
-      <div class="topbar"></div>
-      <div class="body">
-        <div class="badge-ico">📋</div>
-        <h3>国际名单转化</h3>
-        <p>上传航班名单 Excel，按海关上传模板自动清洗、转换国籍/性别/证件、判定出入境，导出可上传文件。</p>
-        <div class="tags">
-          <span class="tag">海关模板</span>
-          <span class="tag">出入境判定</span>
-          <span class="tag">Excel 预览</span>
-        </div>
-        <div class="go">打开工具 <span class="arrow">→</span></div>
-      </div>
-    </a>
+  <div class="container">
+    <div class="anim">
+      <main class="grid">
+        <a class="card c1" href="./manifest/">
+          <div class="card-top">
+            <span class="card-ic">📋</span>
+            <h3>国际名单转化</h3>
+          </div>
+          <p>上传航班名单 Excel，按海关上传模板自动清洗、转换国籍/性别/证件、判定出入境，导出可上传文件。</p>
+          <div class="tags">
+            <span class="tag">海关模板</span>
+            <span class="tag">出入境判定</span>
+            <span class="tag">Excel 预览</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
 
-    <a class="card c2" href="./upgrade/">
-      <div class="topbar"></div>
-      <div class="body">
-        <div class="badge-ico">💰</div>
-        <h3>升舱金额计算器</h3>
-        <p>按岗位固定比例（主班 30% / 副班 20% / 运行协助 20% 等）分配升舱金额，生成「人员 × 日期」交叉汇总表。</p>
-        <div class="tags">
-          <span class="tag">岗位比例</span>
-          <span class="tag">交叉汇总</span>
-          <span class="tag">下载 Excel</span>
-        </div>
-        <div class="go">打开工具 <span class="arrow">→</span></div>
-      </div>
-    </a>
+        <a class="card c2" href="./upgrade/">
+          <div class="card-top">
+            <span class="card-ic">💰</span>
+            <h3>升舱金额计算器</h3>
+          </div>
+          <p>按岗位固定比例（主班 30% / 副班 20% / 运行协助 20% 等）分配升舱金额，生成「人员 × 日期」交叉汇总表。</p>
+          <div class="tags">
+            <span class="tag">岗位比例</span>
+            <span class="tag">交叉汇总</span>
+            <span class="tag">下载 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
 
-    <a class="card c3" href="./stats/">
-      <div class="topbar"></div>
-      <div class="body">
-        <div class="badge-ico">📊</div>
-        <h3>航班数据统计</h3>
-        <p>上传航班 Excel，自动分类东上航司 / 中联航，统计国际航班、取消航班、特服（轮椅 / 无陪）等指标。</p>
-        <div class="tags">
-          <span class="tag">航司分类</span>
-          <span class="tag">多维统计</span>
-          <span class="tag">下载 Excel</span>
-        </div>
-        <div class="go">打开工具 <span class="arrow">→</span></div>
-      </div>
-    </a>
+        <a class="card c3" href="./stats/">
+          <div class="card-top">
+            <span class="card-ic">📊</span>
+            <h3>航班数据统计</h3>
+          </div>
+          <p>上传航班 Excel，自动分类东上航司 / 中联航，统计国际航班、取消航班、特服（轮椅 / 无陪）等指标。</p>
+          <div class="tags">
+            <span class="tag">航司分类</span>
+            <span class="tag">多维统计</span>
+            <span class="tag">下载 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
 
-    <a class="card c4" href="./summary/">
-      <div class="topbar"></div>
-      <div class="body">
-        <div class="badge-ico">📈</div>
-        <h3>航班运量汇总</h3>
-        <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，一键汇总东上航、联航与总计。</p>
-        <div class="tags">
-          <span class="tag">东上航汇总</span>
-          <span class="tag">客座率</span>
-          <span class="tag">下载 Excel</span>
-        </div>
-        <div class="go">打开工具 <span class="arrow">→</span></div>
-      </div>
-    </a>
-  </main>
+        <a class="card c4" href="./summary/">
+          <div class="card-top">
+            <span class="card-ic">📈</span>
+            <h3>航班运量汇总</h3>
+          </div>
+          <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，一键汇总东上航、联航与总计。</p>
+          <div class="tags">
+            <span class="tag">东上航汇总</span>
+            <span class="tag">客座率</span>
+            <span class="tag">下载 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+      </main>
 
-  <div class="notice-wrap">
-    <details class="notice">
-      <summary>使用须知 & 数据安全 <span class="chev">▾</span></summary>
-      <div class="nbody">
-        <ul>
-          <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel 文件不会被上传到任何服务器。</li>
-          <li><b>永久免费：</b>本站由 WorkBuddy 部署在 GitHub Pages（公开仓库），链接长期有效、不会回收。</li>
-          <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
-          <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用「解密工具」转出无密码版再上传。</li>
-          <li><b>航班规则：</b>出入境与往来机场按航班号判定（MU261/MU751 出境、MU262/MU752 入境；往来机场 MU261/MU262 马德里、MU751/MU752 罗马），规则详情见各工具内「规则说明」面板。</li>
-        </ul>
-      </div>
-    </details>
+      <details class="notice">
+        <summary>
+          <span class="title"><span class="ic">🔒</span> 使用须知 & 数据安全</span>
+          <span class="chev">▾</span>
+        </summary>
+        <div class="nbody">
+          <ul>
+            <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel 文件不会被上传到任何服务器。</li>
+            <li><b>永久免费：</b>本站由 WorkBuddy 部署在 GitHub Pages（公开仓库），链接长期有效、不会回收。</li>
+            <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
+            <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用「解密工具」转出无密码版再上传。</li>
+            <li><b>航班规则：</b>出入境与往来机场按航班号判定（MU261/MU751 出境、MU262/MU752 入境；往来机场 MU261/MU262 马德里、MU751/MU752 罗马），规则详情见各工具内「规则说明」面板。</li>
+          </ul>
+        </div>
+      </details>
+
+      <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages · 免费 · 永久在线</footer>
+    </div>
   </div>
-
-  <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages · 免费 · 永久在线</footer>
 </body>
 </html>

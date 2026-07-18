@@ -4,179 +4,312 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>航班运量汇总</title>
-<style>
-  :root{
-    --blue1:#0b1f4d; --blue2:#1e3a8a; --blue3:#2563eb;
-    --muted:#64748b; --line:#e5e7eb;
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
   }
-  *{ box-sizing:border-box; margin:0; padding:0; }
-  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-        background:#f1f5f9; color:#0f172a; min-height:100vh; }
-  .hero{ background:linear-gradient(135deg,var(--blue1),var(--blue2) 58%,var(--blue3));
-         color:#fff; padding:52px 24px 60px; text-align:center; position:relative; overflow:hidden; }
-  .hero::before{ content:""; position:absolute; left:-80px; bottom:-120px; width:320px; height:320px;
-                 background:radial-gradient(circle, rgba(96,165,250,.28), transparent 70%); border-radius:50%; }
-  .hero::after{ content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
-                background:radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); border-radius:50%; }
-  .plane{ font-size:42px; position:relative; z-index:1; display:inline-block; animation:float 4s ease-in-out infinite; }
-  @keyframes float{ 0%,100%{ transform:translateY(0) rotate(-8deg);} 50%{ transform:translateY(-12px) rotate(-8deg);} }
-  .hero h1{ position:relative; z-index:1; font-size:30px; font-weight:800; letter-spacing:.5px; margin-top:12px; }
-  .hero p{ position:relative; z-index:1; margin-top:10px; color:#c7d2fe; font-size:15px; }
-  .wrap{ max-width:1080px; margin:0 auto; padding:0 20px 56px; }
-  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(15,23,42,.06);
-         padding:22px 24px; margin-top:24px; }
-  .card h2{ font-size:17px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
-  .card h2 .dot{ width:8px; height:8px; border-radius:50%; background:var(--blue3); }
+</script>
+<style>
+  /* ============ Design Tokens（与升舱/名单/统计三页统一）============ */
+  :root {
+    --brand:        #2563eb;
+    --brand-dark:   #1d4ed8;
+    --brand-deep:   #1e3a8a;
+    --brand-light:  #eff6ff;
+    --brand-soft:   #dbeafe;
+    --ink:          #0f172a;
+    --ink-2:        #334155;
+    --muted:        #64748b;
+    --muted-2:      #94a3b8;
+    --line:         #e2e8f0;
+    --bg:           #f1f5f9;
+    --card:         #ffffff;
+    --success:      #059669;
+    --success-dark: #047857;
+    --amber:        #d97706;
+    --radius:       16px;
+    --radius-sm:    10px;
+    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
+    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
+  }
 
-  /* 折叠规则 */
-  .notice summary{ cursor:pointer; list-style:none; padding:18px 24px; font-weight:600; font-size:15px;
-                   display:flex; align-items:center; justify-content:space-between; user-select:none; }
-  .notice summary::-webkit-details-marker{ display:none; }
-  .notice summary .chev{ transition:transform .25s; color:var(--muted); }
-  .notice[open] summary .chev{ transform:rotate(180deg); }
-  .notice .nbody{ padding:0 24px 22px; color:#475569; font-size:14px; line-height:1.75; }
-  .notice .nbody ul{ padding-left:20px; margin:8px 0; } .notice .nbody li{ margin:6px 0; }
-  .notice .nbody b{ color:#1e293b; }
+  /* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
+      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
+      var(--bg);
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
 
-  table.io-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  table.io-table th, table.io-table td{ border:1px solid var(--line); padding:9px 10px; text-align:center; }
-  table.io-table th{ background:#f8fafc; color:#334155; font-weight:600; }
-  table.io-table td.al{ background:#f8fafc; font-weight:600; color:#1e293b; white-space:nowrap; }
-  table.io-table input{ width:100%; min-width:90px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:7px;
-                        font-size:14px; text-align:center; outline:none; transition:border .15s; }
-  table.io-table input::placeholder{ color:#cbd5e1; }
-  table.io-table input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-  table.io-table input:focus::placeholder{ color:transparent; }
-  .hint{ font-size:12.5px; color:#94a3b8; margin-top:10px; }
+  /* ============ Animations ============ */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
 
-  .seat-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
-  .seat-cell{ background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:14px; text-align:center; }
-  .seat-cell .lab{ font-size:13px; color:#475569; margin-bottom:8px; font-weight:600; }
-  .seat-cell input{ width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:15px;
-                    text-align:center; outline:none; transition:border .15s; }
-  .seat-cell input::placeholder{ color:#cbd5e1; }
-  .seat-cell input:focus{ border-color:var(--blue3); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-  .seat-cell input:focus::placeholder{ color:transparent; }
+  /* ============ Header（与升舱/名单/统计三页统一）============ */
+  .header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff; padding: 40px 40px; border-radius: 22px; margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  }
+  .header::before {
+    content: ""; position: absolute; top: -60px; right: -30px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
+  }
+  .header::after {
+    content: ""; position: absolute; bottom: -80px; left: 20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+  }
+  .header .header-main { position: relative; z-index: 1; }
+  .header .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
+    backdrop-filter: blur(6px); margin-bottom: 14px;
+  }
+  .header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+  .header p { font-size: 14.5px; opacity: 0.9; margin-top: 8px; max-width: 640px; }
+  .header .plane {
+    position: relative; z-index: 1; font-size: 60px; line-height: 1;
+    animation: floaty 4s ease-in-out infinite; flex-shrink: 0;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2));
+  }
 
-  .actions{ text-align:center; margin-top:26px; }
-  .btn{ background:linear-gradient(135deg,var(--blue2),var(--blue3)); color:#fff; border:none; cursor:pointer;
-        font-size:16px; font-weight:700; padding:14px 38px; border-radius:12px; box-shadow:0 8px 20px rgba(37,99,235,.32);
-        transition:transform .15s, box-shadow .15s; }
-  .btn:hover{ transform:translateY(-2px); box-shadow:0 12px 26px rgba(37,99,235,.4); }
-  .btn:active{ transform:translateY(0); }
+  /* ============ Rules Panel（可折叠计算规则，与三页统一）============ */
+  .rules-panel {
+    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
+    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
+    transition: box-shadow 0.25s;
+  }
+  .rules-panel:hover { box-shadow: var(--shadow); }
+  .rules-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
+  }
+  .rules-header:hover { background: var(--brand-light); }
+  .rules-header .title {
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rules-header .title .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+  }
+  .rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
+  .rules-header .arrow {
+    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
+  .rules-body {
+    max-height: 0; overflow: hidden; padding: 0 26px;
+    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
+  }
+  .rules-panel.open .rules-body { max-height: 900px; padding: 4px 26px 24px; }
+  .rules-inner ul { margin: 0 0 0 18px; }
+  .rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
+  .rules-inner code {
+    background: var(--brand-light); color: var(--brand-dark);
+    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
 
-  .error-box{ display:none; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:10px;
-              padding:14px 16px; margin-top:18px; font-size:14px; line-height:1.7; }
-  .error-box.show{ display:block; }
+  /* ============ Panel（普通内容卡片）============ */
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 22px 24px; margin-bottom: 24px;
+  }
+  .panel h2 { font-size: 17px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+  .panel h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+  .hint { font-size: 12.5px; color: var(--muted-2); margin-top: 10px; }
 
-  /* 统计卡片 */
-  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-top:6px; }
-  .stat{ background:linear-gradient(135deg,#eff6ff,#dbeafe); border:1px solid #bfdbfe; border-radius:12px; padding:16px 18px; }
-  .stat .lab{ font-size:13px; color:#1e40af; }
-  .stat .val{ font-size:24px; font-weight:800; color:#1e3a8a; margin-top:6px; }
+  /* ============ IO Table ============ */
+  table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.io-table th, table.io-table td { border: 1px solid var(--line); padding: 9px 10px; text-align: center; }
+  table.io-table thead th { background: var(--brand-light); color: var(--ink-2); font-weight: 600; }
+  table.io-table td.al { background: var(--brand-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
+  table.io-table input { width: 100%; min-width: 90px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px;
+                        font-size: 14px; text-align: center; outline: none; transition: border .15s; }
+  table.io-table input::placeholder { color: #cbd5e1; }
+  table.io-table input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  table.io-table input:focus::placeholder { color: transparent; }
 
-  /* 输出表格 */
-  .out-wrap{ overflow-x:auto; margin-top:6px; border-radius:10px; border:1px solid var(--line); }
-  table.out-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:920px; }
-  table.out-table th, table.out-table td{ border:1px solid var(--line); padding:10px 12px; text-align:center; white-space:nowrap; }
-  table.out-table thead th{ background:var(--blue1); color:#fff; font-weight:600; position:sticky; top:0; }
-  table.out-table td.rowname{ background:#f8fafc; font-weight:700; color:#1e293b; position:sticky; left:0; }
-  table.out-table tr.total td{ background:#fef9c3; font-weight:700; }
-  table.out-table tr.eastsup td.rowname{ color:#1d4ed8; }
+  .seat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  .seat-cell { background: var(--brand-light); border: 1px solid var(--brand-soft); border-radius: 10px; padding: 14px; text-align: center; }
+  .seat-cell .lab { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; font-weight: 600; }
+  .seat-cell input { width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 15px;
+                    text-align: center; outline: none; transition: border .15s; }
+  .seat-cell input::placeholder { color: #cbd5e1; }
+  .seat-cell input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .seat-cell input:focus::placeholder { color: transparent; }
 
-  .out-actions{ margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  .btn-sm{ background:#fff; color:var(--blue3); border:1px solid var(--blue3); cursor:pointer; font-size:14px;
-           font-weight:600; padding:10px 20px; border-radius:10px; transition:background .15s; }
-  .btn-sm:hover{ background:#eff6ff; }
-  .out-card{ display:none; } .out-card.show{ display:block; animation:fade .4s ease; }
-  @keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  /* ============ Button ============ */
+  .actions { text-align: center; margin-top: 8px; margin-bottom: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 13px 34px; border: none; border-radius: 10px;
+    font-size: 16px; cursor: pointer; transition: all 0.2s; font-weight: 600;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color: #fff;
+                 box-shadow: 0 10px 22px -8px rgba(37,99,235,0.6); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -8px rgba(37,99,235,0.7); }
+  .btn-primary:active { transform: translateY(0); }
 
-  footer{ text-align:center; color:#94a3b8; font-size:13px; padding:8px 20px 40px; }
-  @media (max-width:620px){ .seat-row{ grid-template-columns:1fr; } }
+  /* ============ Error Box ============ */
+  .error-box { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 10px;
+              padding: 14px 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.7; }
+  .error-box.show { display: block; }
+
+  /* ============ Summary Cards（统计卡，与三页统一）============ */
+  .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 18px; margin-top: 6px; }
+  .summary-card {
+    position: relative; overflow: hidden;
+    background: var(--card); border-radius: var(--radius); padding: 22px 22px 20px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+    transition: transform 0.22s, box-shadow 0.22s;
+  }
+  .summary-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .summary-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa);
+  }
+  .summary-card .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .summary-card .card-ic {
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 19px;
+    background: var(--brand-light); color: var(--brand-dark);
+  }
+  .summary-card .label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .summary-card .value { font-size: 28px; font-weight: 800; letter-spacing: -0.8px; color: var(--ink); line-height: 1.15; }
+
+  /* ============ Output Table ============ */
+  .out-wrap { overflow-x: auto; margin-top: 6px; border-radius: 10px; border: 1px solid var(--line); }
+  table.out-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 920px; }
+  table.out-table th, table.out-table td { border: 1px solid var(--line); padding: 10px 12px; text-align: center; white-space: nowrap; }
+  table.out-table thead th { background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; }
+  table.out-table td.rowname { background: var(--brand-light); font-weight: 700; color: var(--ink); position: sticky; left: 0; }
+  table.out-table tr.total td { background: #fef9c3; font-weight: 700; }
+  table.out-table tr.eastsup td.rowname { color: var(--brand-dark); }
+
+  .out-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .btn-sm { background: #fff; color: var(--brand); border: 1px solid var(--brand); cursor: pointer; font-size: 14px;
+           font-weight: 600; padding: 10px 20px; border-radius: 10px; transition: background .15s; }
+  .btn-sm:hover { background: var(--brand-light); }
+  .out-card { display: none; } .out-card.show { display: block; animation: fadeUp .4s ease both; }
+
+  footer { text-align: center; color: var(--muted-2); font-size: 13px; padding: 8px 20px 40px; }
+  @media (max-width:620px){ .seat-row{ grid-template-columns:1fr; } .header{ padding:32px 24px; } }
 </style>
 </head>
 <body>
-  <header class="hero">
+  <header class="header">
+    <div class="header-main">
+      <span class="eyebrow">✈ 航班运量汇总</span>
+      <h1>航班运量汇总</h1>
+      <p>输入东航 / 上航 / 中联航的旅客、行李与客座率，一键汇总东上航、联航与总计</p>
+    </div>
     <div class="plane">✈️</div>
-    <h1>航班运量汇总</h1>
-    <p>输入东航 / 上航 / 中联航数据，一键汇总东上航、联航与总计</p>
   </header>
 
-  <div class="wrap">
-    <details class="notice card" style="padding:0;">
-      <summary>计算规则说明 <span class="chev">▾</span></summary>
-      <div class="nbody">
-        <ul>
-          <li><b>东上航</b> = 东航 + 上航（逐字段相加）。</li>
-          <li><b>联航</b> = 中联航（直接取中联航数据）。</li>
-          <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
-          <li><b>出港客座率</b>：东上航 = (东航客座率 + 上航客座率) ÷ 2；联航 = 中联航客座率；总计 = (东上航客座率 + 联航客座率) ÷ 2。结果均带 <b>%</b> 单位。</li>
-          <li><b>输入框表达式</b>：支持 <code>+ - * /</code> 四则运算（按先乘除后加减），例如 <code>11+65+231</code> 求和得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
-          <li>所有计算均在浏览器本地完成，数据不上传任何服务器。</li>
-        </ul>
+  <div class="container">
+    <div class="anim">
+      <!-- 折叠：计算规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>东上航</b> = 东航 + 上航（逐字段相加）。</li>
+              <li><b>联航</b> = 中联航（直接取中联航数据）。</li>
+              <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
+              <li><b>出港客座率</b>：东上航 = (东航客座率 + 上航客座率) ÷ 2；联航 = 中联航客座率；总计 = (东上航客座率 + 联航客座率) ÷ 2。结果均带 <b>%</b> 单位。</li>
+              <li><b>输入框表达式</b>：支持 <code>+ - * /</code> 四则运算（按先乘除后加减），例如 <code>11+65+231</code> 求和得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
+              <li>所有计算均在浏览器本地完成，数据不上传任何服务器。</li>
+            </ul>
+          </div>
+        </div>
       </div>
-    </details>
 
-    <!-- 区块A：出港 & 托运 -->
-    <div class="card">
-      <h2><span class="dot"></span>① 出港 & 托运（东航 / 上航 / 中联航）</h2>
-      <div style="overflow-x:auto;">
-        <table class="io-table" id="tblA">
-          <thead><tr><th>航司</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th></tr></thead>
-          <tbody><!-- JS 填充 --></tbody>
-        </table>
+      <!-- 区块A：出港 & 托运 -->
+      <div class="panel">
+        <h2><span class="dot"></span>① 出港 & 托运（东航 / 上航 / 中联航）</h2>
+        <div style="overflow-x:auto;">
+          <table class="io-table" id="tblA">
+            <thead><tr><th>航司</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th></tr></thead>
+            <tbody><!-- JS 填充 --></tbody>
+          </table>
+        </div>
+        <p class="hint">提示：每格可直接填数字，或填加减乘除表达式（如 11+65+231）。</p>
       </div>
-      <p class="hint">提示：每格可直接填数字，或填加减表达式（如 11+65+231）。</p>
-    </div>
 
-    <!-- 区块B：进港 & 行李 -->
-    <div class="card">
-      <h2><span class="dot"></span>② 进港 & 行李（东航 / 上航 / 中联航）</h2>
-      <div style="overflow-x:auto;">
-        <table class="io-table" id="tblB">
-          <thead><tr><th>航司</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
-          <tbody><!-- JS 填充 --></tbody>
-        </table>
+      <!-- 区块B：进港 & 行李 -->
+      <div class="panel">
+        <h2><span class="dot"></span>② 进港 & 行李（东航 / 上航 / 中联航）</h2>
+        <div style="overflow-x:auto;">
+          <table class="io-table" id="tblB">
+            <thead><tr><th>航司</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+            <tbody><!-- JS 填充 --></tbody>
+          </table>
+        </div>
       </div>
-    </div>
 
-    <!-- 区块C：客座率 -->
-    <div class="card">
-      <h2><span class="dot"></span>③ 出港客座率（填纯数字，如 85）</h2>
-      <div class="seat-row" id="seatRow"><!-- JS 填充 --></div>
-    </div>
-
-    <div class="actions">
-      <button class="btn" id="calcBtn">🚀 开始计算</button>
-    </div>
-
-    <div class="error-box" id="errorBox"></div>
-
-    <!-- 输出 -->
-    <div class="card out-card" id="outCard">
-      <h2><span class="dot"></span>汇总结果</h2>
-      <div class="stat-grid" id="statCards"></div>
-      <div class="out-wrap" style="margin-top:18px;">
-        <table class="out-table" id="outTable">
-          <thead><tr><th>项目</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th><th>出港客座率</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
-          <tbody id="outBody"></tbody>
-        </table>
+      <!-- 区块C：客座率 -->
+      <div class="panel">
+        <h2><span class="dot"></span>③ 出港客座率（填数字或表达式，如 85 或 16*78/15）</h2>
+        <div class="seat-row" id="seatRow"><!-- JS 填充 --></div>
       </div>
-      <div class="out-actions">
-        <button class="btn-sm" id="downloadBtn">⬇ 下载 Excel</button>
-        <span class="hint" style="margin:0;">数据在本地生成，不会上传。</span>
-      </div>
-    </div>
 
-    <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages</footer>
+      <div class="actions">
+        <button class="btn btn-primary" id="calcBtn">🚀 开始计算</button>
+      </div>
+
+      <div class="error-box" id="errorBox"></div>
+
+      <!-- 输出 -->
+      <div class="panel out-card" id="outCard">
+        <h2><span class="dot"></span>汇总结果</h2>
+        <div class="summary-row" id="statCards"></div>
+        <div class="out-wrap" style="margin-top:18px;">
+          <table class="out-table" id="outTable">
+            <thead><tr><th>项目</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th><th>出港客座率</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+            <tbody id="outBody"></tbody>
+          </table>
+        </div>
+        <div class="out-actions">
+          <button class="btn-sm" id="downloadBtn">⬇ 下载 Excel</button>
+          <span class="hint" style="margin:0;">数据在本地生成，不会上传。</span>
+        </div>
+      </div>
+
+      <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages</footer>
+    </div>
   </div>
 
-<script src="libs/xlsx.full.min.js"></script>
 <script>
   var AIRLINES = ['东航','上航','中联航'];
   var FIELDS_A = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数'];
   var FIELDS_B = ['国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
   var COLS = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数','出港客座率','国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
+
+  // 规则面板开合
+  document.getElementById('rulesHeader').addEventListener('click', function(){
+    document.getElementById('rulesPanel').classList.toggle('open');
+  });
 
   // 表达式求值（支持 + - * / 含运算符优先级；空值视为 0；不使用 eval，安全）
   function evalExpr(s){
@@ -286,7 +419,7 @@
     var bad = eA.bad.concat(eB.bad, seatBad);
     var errBox = document.getElementById('errorBox');
     if(bad.length){
-      errBox.innerHTML = '❌ 以下格子内容无法识别（请输入数字或加减表达式）：<br>· ' + bad.join('<br>· ');
+      errBox.innerHTML = '❌ 以下格子内容无法识别（请输入数字或加减乘除表达式）：<br>· ' + bad.join('<br>· ');
       errBox.classList.add('show');
       return;
     }
@@ -321,15 +454,16 @@
     });
     body.innerHTML = html;
 
-    // 统计卡片（总计关键指标）
+    // 统计卡片（总计关键指标，summary-card 风格）
     var cards = [
-      { lab:'总计·国内国际出港旅客', val: fmtNum(totalA[0]) },
-      { lab:'总计·国际出港旅客', val: fmtNum(totalA[1]) },
-      { lab:'总计·出港客座率', val: fmtSeat(totalSeat) },
-      { lab:'总计·国内国际进港人数', val: fmtNum(totalB[0]) }
+      { ic:'🧍', lab:'总计·国内国际出港旅客', val: fmtNum(totalA[0]) },
+      { ic:'🌐', lab:'总计·国际出港旅客', val: fmtNum(totalA[1]) },
+      { ic:'💺', lab:'总计·出港客座率', val: fmtSeat(totalSeat) },
+      { ic:'🛬', lab:'总计·国内国际进港人数', val: fmtNum(totalB[0]) }
     ];
     document.getElementById('statCards').innerHTML = cards.map(function(c){
-      return '<div class="stat"><div class="lab">' + c.lab + '</div><div class="val">' + c.val + '</div></div>';
+      return '<div class="summary-card"><div class="card-top"><span class="card-ic">' + c.ic + '</span>' +
+             '<span class="label">' + c.lab + '</span></div><div class="value">' + c.val + '</div></div>';
     }).join('');
 
     lastOut = { rows: rows };
