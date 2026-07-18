@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>升舱金额计算器</title>
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<style>
+  /* ============ Design Tokens ============ */
+  :root {
+    --brand:        #2563eb;
+    --brand-dark:   #1d4ed8;
+    --brand-deep:   #1e3a8a;
+    --brand-light:  #eff6ff;
+    --brand-soft:   #dbeafe;
+    --ink:          #0f172a;
+    --ink-2:        #334155;
+    --muted:        #64748b;
+    --muted-2:      #94a3b8;
+    --line:         #e2e8f0;
+    --bg:           #f1f5f9;
+    --card:         #ffffff;
+    --success:      #059669;
+    --success-dark: #047857;
+    --amber:        #d97706;
+    --radius:       16px;
+    --radius-sm:    10px;
+    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
+    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
+  }
+
+  /* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
+      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
+      var(--bg);
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
+
+  /* ============ Animations ============ */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+
+  /* ============ Header ============ */
+  .header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff; padding: 40px 40px; border-radius: 22px; margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  }
+  .header::before {
+    content: ""; position: absolute; top: -60px; right: -30px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
+  }
+  .header::after {
+    content: ""; position: absolute; bottom: -80px; left: 20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+  }
+  .header .header-main { position: relative; z-index: 1; }
+  .header .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
+    backdrop-filter: blur(6px); margin-bottom: 14px;
+  }
+  .header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+  .header p { font-size: 14.5px; opacity: 0.9; margin-top: 8px; max-width: 640px; }
+  .header .plane {
+    position: relative; z-index: 1; font-size: 60px; line-height: 1;
+    animation: floaty 4s ease-in-out infinite; flex-shrink: 0;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2));
+  }
+
+  /* ============ Rules Panel（可折叠分配规则）============ */
+  .rules-panel {
+    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
+    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
+    transition: box-shadow 0.25s;
+  }
+  .rules-panel:hover { box-shadow: var(--shadow); }
+  .rules-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
+  }
+  .rules-header:hover { background: var(--brand-light); }
+  .rules-header .title {
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rules-header .title .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+  }
+  .rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
+  .rules-header .arrow {
+    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
+  .rules-body {
+    max-height: 0; overflow: hidden; padding: 0 26px;
+    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
+  }
+  .rules-panel.open .rules-body { max-height: 900px; padding: 4px 26px 24px; }
+  .rules-intro { font-size: 14px; color: var(--muted); margin-bottom: 18px; line-height: 1.75; }
+  .rules-intro b { color: var(--ink-2); }
+  .rules-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px; margin-bottom: 14px;
+  }
+  .rule-item {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(135deg, #f8fbff, #eef4ff);
+    border: 1px solid var(--brand-soft); border-radius: 12px; padding: 14px 18px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .rule-item:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .rule-item .role { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  .rule-item .ratio {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .rule-item .bar {
+    position: absolute; left: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa); border-radius: 3px;
+  }
+  .rules-total { text-align: right; font-size: 13px; color: var(--muted-2); margin-bottom: 16px; font-weight: 500; }
+  .rules-note {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    border: 1px solid #fde68a; border-left: 4px solid var(--amber);
+    padding: 14px 18px; border-radius: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.9;
+  }
+  .rules-note b { color: var(--ink); }
+  .rules-note code {
+    background: rgba(217,119,6,0.12); color: #b45309; padding: 1px 6px;
+    border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  /* ============ Upload Zone ============ */
+  .upload-zone {
+    position: relative; background: var(--card);
+    border: 2px dashed #cbd5e1; border-radius: var(--radius);
+    padding: 56px 20px; text-align: center; cursor: pointer;
+    transition: all 0.25s; margin-bottom: 28px; box-shadow: var(--shadow-sm);
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--brand); background: var(--brand-light);
+    box-shadow: var(--shadow); transform: translateY(-1px);
+  }
+  .upload-zone .icon {
+    width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; color: #fff; box-shadow: 0 10px 24px -8px rgba(37,99,235,0.7);
+    transition: transform 0.25s;
+  }
+  .upload-zone:hover .icon { transform: scale(1.06) rotate(-3deg); }
+  .upload-zone .text { font-size: 17px; color: var(--ink); font-weight: 600; }
+  .upload-zone .hint { font-size: 13px; color: var(--muted-2); margin-top: 8px; }
+  .upload-zone .formats {
+    display: inline-flex; gap: 8px; margin-top: 14px;
+  }
+  .upload-zone .formats span {
+    background: var(--brand-soft); color: var(--brand-dark);
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+  }
+  .upload-zone input[type="file"] { display: none; }
+
+  /* ============ Summary Cards ============ */
+  .summary-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px; margin-bottom: 26px;
+  }
+  .summary-card {
+    position: relative; overflow: hidden;
+    background: var(--card); border-radius: var(--radius); padding: 22px 22px 20px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+    transition: transform 0.22s, box-shadow 0.22s;
+  }
+  .summary-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .summary-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa);
+  }
+  .summary-card .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .summary-card .card-ic {
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 19px;
+    background: var(--brand-light); color: var(--brand-dark);
+  }
+  .summary-card .label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .summary-card .value {
+    font-size: 28px; font-weight: 800; letter-spacing: -0.8px; color: var(--ink); line-height: 1.15;
+  }
+  .summary-card .sub { font-size: 12.5px; color: var(--muted-2); margin-top: 5px; }
+  .summary-card.accent-green::before { background: linear-gradient(90deg, var(--success), #34d399); }
+  .summary-card.accent-green .card-ic { background: #d1fae5; color: var(--success-dark); }
+  .summary-card.accent-green .value { color: var(--success-dark); }
+
+  /* ============ People Tags ============ */
+  .people-tags {
+    background: var(--card); border-radius: var(--radius); padding: 20px 24px;
+    margin-bottom: 26px; box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+  }
+  .people-tags .label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+  .tag {
+    display: inline-block; background: var(--brand-light); color: var(--brand-dark);
+    padding: 5px 13px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    margin: 4px 5px 4px 0; border: 1px solid var(--brand-soft);
+    transition: transform 0.15s, background 0.15s;
+  }
+  .tag:hover { transform: translateY(-1px); background: var(--brand-soft); }
+
+  /* ============ Controls ============ */
+  .controls {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .controls .info {
+    font-size: 13.5px; color: var(--muted); background: var(--card);
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 26px; border: none; border-radius: 10px;
+    font-size: 15px; cursor: pointer; transition: all 0.2s; font-weight: 600;
+  }
+  .btn-success {
+    background: linear-gradient(135deg, var(--success), var(--success-dark)); color: #fff;
+    box-shadow: 0 8px 18px -6px rgba(5,150,105,0.6);
+  }
+  .btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(5,150,105,0.7); }
+  .btn-success:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ============ Table ============ */
+  .table-wrapper {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 1px solid var(--line);
+  }
+  .table-scroll { overflow-x: auto; max-height: 74vh; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  thead { position: sticky; top: 0; z-index: 2; }
+  thead th {
+    background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color: #fff;
+    padding: 13px 14px; font-weight: 600; text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.12); border-bottom: none;
+  }
+  thead th:first-child {
+    position: sticky; left: 0; z-index: 3;
+    background: linear-gradient(135deg, var(--brand-deep), var(--brand-dark));
+    text-align: left;
+  }
+  thead th.total-col { background: linear-gradient(135deg, #0f766e, var(--success)); }
+  tbody td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+  tbody td:first-child {
+    font-weight: 600; text-align: left; position: sticky; left: 0;
+    background: var(--card); z-index: 1; min-width: 108px; color: var(--ink);
+    border-right: 1px solid var(--line);
+  }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
+  tbody tr:nth-child(even) td:first-child { background: #f8fafc; }
+  tbody tr:hover td { background: var(--brand-light); }
+  tbody tr:hover td:first-child { background: var(--brand-light); }
+  tbody td.total-col { font-weight: 700; background: #ecfdf5 !important; color: var(--success-dark); }
+  td.empty { color: #cbd5e1; text-align: center !important; }
+
+  /* ============ Loading ============ */
+  .loading { display: none; text-align: center; padding: 56px; }
+  .loading.active { display: block; }
+  .spinner {
+    width: 46px; height: 46px; border: 4px solid var(--brand-soft);
+    border-top-color: var(--brand); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+  }
+  .loading div:last-child { color: var(--muted); font-size: 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============ Error ============ */
+  .error-msg {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #b91c1c;
+    padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
+    display: none; border: 1px solid #fecaca; border-left: 4px solid #dc2626; font-size: 14px;
+  }
+  .error-msg.active { display: block; }
+
+  /* ============ Footer ============ */
+  .footer {
+    margin-top: 32px; text-align: center; font-size: 12.5px; color: var(--muted-2);
+    display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+  }
+  .footer .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted-2); }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 768px) {
+    .container { padding: 18px 14px 36px; }
+    .header { flex-direction: column; text-align: center; gap: 16px; padding: 32px 24px; }
+    .header p { margin-left: auto; margin-right: auto; }
+    .header h1 { font-size: 24px; }
+    .summary-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .summary-card .value { font-size: 23px; }
+    table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header anim">
+    <div class="header-main">
+      <span class="eyebrow">✦ 财务分配工具</span>
+      <h1>升舱金额计算器</h1>
+      <p>上传 C2 升舱统计 Excel，系统自动按岗位比例分配金额并生成「人员 × 日期」汇总表。全程在本地浏览器计算，数据不上传服务器。</p>
+    </div>
+    <div class="plane">✈️</div>
+  </div>
+
+  <!-- Rules Panel（可点开查看分配规则）-->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        分配规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        每一笔升舱金额，都会按下列 <b>6 个岗位</b> 的固定比例进行分配。系统读取 Excel 中每条记录对应岗位的人员名单，
+        将该岗位应得金额<b>平均分配</b>给名单中的每个人，最后汇总成「人员 × 日期」交叉表。
+      </div>
+      <div class="rules-grid" id="rulesGrid"></div>
+      <div class="rules-total" id="rulesTotal"></div>
+      <div class="rules-note">
+        <b>💡 分配细则</b><br>
+        • <b>同岗位多人平分：</b>若某岗位当条记录填了多个人（用 <code>/</code>、<code>、</code>、<code>，</code> 分隔），该岗位金额在这几人之间平均分配。<br>
+        • <b>岗位为空则跳过：</b>某岗位无人填写时，该岗位对应比例的金额在这条记录中不分配，不会摊到其他岗位。<br>
+        • <b>按日期归集：</b>同一个人在同一天的多笔金额会累加，最终按日期成列展示。<br>
+        • <b>金额精度：</b>每次分摊按 4 位小数计算，最终汇总四舍五入到 2 位小数（元）。
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
+    <div class="icon">📁</div>
+    <div class="text">点击选择 Excel 文件，或拖拽文件到此处</div>
+    <div class="hint">系统将自动识别日期、金额与各岗位人员</div>
+    <div class="formats"><span>.xls</span><span>.xlsx</span></div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在解析和计算，请稍候…</div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-row" id="summaryRow" style="display:none"></div>
+
+  <!-- People Tags -->
+  <div class="people-tags" id="peopleTags" style="display:none">
+    <div class="label" id="peopleLabel">👥 涉及人员</div>
+    <div id="tagContainer"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none">
+    <button class="btn btn-success" id="downloadBtn">📥 下载 Excel 汇总表</button>
+    <span class="info" id="tableInfo"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper" id="tableWrapper" style="display:none">
+    <div class="table-scroll" id="tableScroll"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>🔒 数据仅在本地浏览器处理，不会上传</span>
+    <span class="dot"></span>
+    <span>纯前端运行</span>
+    <span class="dot"></span>
+    <span>分配规则 v1.0</span>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// 分配规则（与原 app.py 的 DIST_RULES 完全一致）
+// ============================================================
+const DIST_RULES = [
+  ['主班',             0.30],
+  ['副班',             0.20],
+  ['运行协助人员',     0.20],
+  ['指挥长',           0.10],
+  ['当日班组其他人员', 0.10],
+  ['票台',             0.10],
+];
+
+// ============================================================
+// 渲染分配规则面板（内容直接来自 DIST_RULES，保证与计算一致）
+// ============================================================
+function renderRulesPanel() {
+  const grid = document.getElementById('rulesGrid');
+  const maxRatio = Math.max(...DIST_RULES.map(([, r]) => r));
+  grid.innerHTML = DIST_RULES.map(([role, ratio]) => `
+    <div class="rule-item">
+      <span class="role">${role}</span>
+      <span class="ratio">${(ratio * 100).toFixed(0)}%</span>
+      <span class="bar" style="width:${(ratio / maxRatio * 100).toFixed(0)}%"></span>
+    </div>
+  `).join('');
+  const sum = DIST_RULES.reduce((s, [, r]) => s + r, 0);
+  document.getElementById('rulesTotal').textContent =
+    `合计 ${(sum * 100).toFixed(0)}% — 每笔金额 100% 分配完毕`;
+}
+renderRulesPanel();
+
+// 折叠面板开关
+const rulesPanel = document.getElementById('rulesPanel');
+document.getElementById('rulesHeader').addEventListener('click', () => {
+  rulesPanel.classList.toggle('open');
+});
+
+// ================ State ================
+let currentData = null;  // { pivot, dates, people, summary }
+
+// ================ DOM refs ================
+const uploadZone   = document.getElementById('uploadZone');
+const fileInput    = document.getElementById('fileInput');
+const loading      = document.getElementById('loading');
+const errorMsg     = document.getElementById('errorMsg');
+const summaryRow   = document.getElementById('summaryRow');
+const peopleTags   = document.getElementById('peopleTags');
+const peopleLabel  = document.getElementById('peopleLabel');
+const tagContainer = document.getElementById('tagContainer');
+const controls     = document.getElementById('controls');
+const downloadBtn  = document.getElementById('downloadBtn');
+const tableInfo    = document.getElementById('tableInfo');
+const tableWrapper = document.getElementById('tableWrapper');
+const tableScroll  = document.getElementById('tableScroll');
+
+// ============================================================
+// Excel 序列号 → 日期（基准 1899-12-30，与原 Python 逻辑一致）
+// ============================================================
+function serialToDate(serial) {
+  const base = Date.UTC(1899, 11, 30); // 1899-12-30
+  return new Date(base + Math.floor(serial) * 86400000);
+}
+function fmtDate(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ============================================================
+// 姓名拆分（/ 、 ，, 统一为 /）
+// ============================================================
+function splitNames(text) {
+  if (!text || typeof text !== 'string') return [];
+  text = text.trim();
+  if (!text) return [];
+  text = text.replace(/[，,、]/g, '/');
+  return text.split('/').map(n => n.trim()).filter(n => n);
+}
+
+// ============================================================
+// 解析 Excel（复刻原 parse_excel）
+// 列索引：0=日期, 5=金额, 7=主班, 8=副班, 9=运行协助, 10=指挥长, 11=其他人员, 12=票台
+// ============================================================
+function parseExcel(data) {
+  const wb = XLSX.read(data, { type: 'array', cellDates: true, raw: true, defval: '' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  const records = [];
+  const errors = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+
+    // --- 日期 ---
+    let dateVal = row[0];
+    let dateObj = null;
+    if (dateVal instanceof Date) dateObj = dateVal;
+    else if (typeof dateVal === 'number') dateObj = serialToDate(dateVal);
+    if (!dateObj) continue;
+
+    // --- 金额（必须 > 0）---
+    let amountVal = row[5];
+    let amount = 0;
+    if (typeof amountVal === 'number') amount = amountVal;
+    else if (typeof amountVal === 'string') amount = parseFloat(amountVal);
+    if (!(amount > 0)) continue;
+
+    const cell = (i) => (row.length > i && row[i] != null && row[i] !== '') ? String(row[i]).trim() : '';
+
+    records.push({
+      date: dateObj,
+      date_str: fmtDate(dateObj),
+      amount: amount,
+      主班:             cell(7),
+      副班:             cell(8),
+      运行协助人员:     cell(9),
+      指挥长:           cell(10),
+      当日班组其他人员: cell(11),
+      票台:             cell(12),
+    });
+  }
+  return { records, errors };
+}
+
+// ============================================================
+// 计算：人员 × 日期 交叉分配（复刻原 calculate）
+// ============================================================
+function calculate(records) {
+  const personDate = {};      // name -> { date: total }
+  const allDates = new Set();
+  const allPeople = new Set();
+
+  for (const rec of records) {
+    const ds = rec.date_str;
+    const amt = rec.amount;
+    allDates.add(ds);
+
+    for (const [field, ratio] of DIST_RULES) {
+      const names = splitNames(rec[field]);
+      if (!names.length) continue;
+      const share = Math.round(amt * ratio / names.length * 10000) / 10000;
+      for (const name of names) {
+        if (!personDate[name]) personDate[name] = {};
+        personDate[name][ds] = (personDate[name][ds] || 0) + share;
+        allPeople.add(name);
+      }
+    }
+  }
+
+  const sortedDates = [...allDates].sort();
+  const sortedPeople = [...allPeople].sort();
+
+  const pivot = [];
+  for (const person of sortedPeople) {
+    const row = { name: person };
+    let total = 0;
+    for (const d of sortedDates) {
+      const v = personDate[person][d] || 0;
+      row[d] = Math.round(v * 100) / 100;
+      total += v;
+    }
+    row['总计'] = Math.round(total * 100) / 100;
+    pivot.push(row);
+  }
+
+  const totalAmount = Math.round(records.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+  const summary = {
+    total_records: records.length,
+    total_amount: totalAmount,
+    date_range: sortedDates.length ? `${sortedDates[0]} ~ ${sortedDates[sortedDates.length - 1]}` : '',
+    unique_dates: sortedDates.length,
+    unique_people: sortedPeople.length,
+    people_list: sortedPeople,
+  };
+  return { pivot, dates: sortedDates, people: sortedPeople, summary };
+}
+
+// ============================================================
+// 生成并下载 Excel（复刻原 generate_excel，用 SheetJS）
+// ============================================================
+function generateExcel(pivot, dates, people) {
+  const header = ['姓名', ...dates, '总计'];
+  const aoa = [header];
+  for (const row of pivot) {
+    const out = [row.name];
+    for (const d of dates) {
+      const v = row[d] || 0;
+      out.push(v > 0 ? v : '-');
+    }
+    out.push(row['总计']);
+    aoa.push(out);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 14 }, ...dates.map(() => ({ wch: 13 })), { wch: 13 }];
+  ws['!freeze'] = { xSplit: 1, ySplit: 1 }; // 冻结首行首列
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '升舱金额分配');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '升舱金额分配结果.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ================ Upload handlers ================
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFile(files[0]);
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+});
+
+// ================ File processing（纯前端）================
+async function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['xls', 'xlsx'].includes(ext)) {
+    showError('请上传 .xls 或 .xlsx 格式的 Excel 文件');
+    return;
+  }
+
+  hideAllResults();
+  showLoading(true);
+  hideError();
+
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('SheetJS 未加载，请检查网络或本地库');
+    const buf = await file.arrayBuffer();
+    const { records, errors } = parseExcel(new Uint8Array(buf));
+    if (!records.length) {
+      showError('未能从文件中解析到有效升舱记录（请确认第 1 列为日期、第 6 列为金额）');
+      showLoading(false);
+      return;
+    }
+    currentData = calculate(records);
+    renderResults(currentData);
+  } catch (err) {
+    showError('解析失败: ' + err.message);
+  }
+  showLoading(false);
+}
+
+// ================ Render ================
+function renderResults(data) {
+  const { summary, pivot, dates, people } = data;
+  const totalDistributed = pivot.reduce((s, r) => s + (r['总计'] || 0), 0);
+
+  summaryRow.style.display = 'grid';
+  summaryRow.classList.add('anim');
+  summaryRow.innerHTML = `
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">📄</span><span class="label">记录总数</span></div>
+      <div class="value">${summary.total_records}</div>
+      <div class="sub">条有效升舱记录</div>
+    </div>
+    <div class="summary-card accent-green">
+      <div class="card-top"><span class="card-ic">💰</span><span class="label">升舱总金额</span></div>
+      <div class="value">¥${fmt(summary.total_amount)}</div>
+      <div class="sub">已分配 ¥${fmt(totalDistributed)}（100%）</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">📅</span><span class="label">日期范围</span></div>
+      <div class="value">${summary.unique_dates}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 天</span></div>
+      <div class="sub">${summary.date_range}</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">👥</span><span class="label">涉及人员</span></div>
+      <div class="value">${summary.unique_people}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 人</span></div>
+      <div class="sub">参与分配的员工</div>
+    </div>
+  `;
+
+  peopleTags.style.display = 'block';
+  peopleLabel.textContent = `👥 涉及人员（${people.length} 人）`;
+  tagContainer.innerHTML = people.map(p => `<span class="tag">${esc(p)}</span>`).join('');
+
+  controls.style.display = 'flex';
+  tableInfo.textContent = `${people.length} 人 × ${dates.length} 个日期`;
+
+  tableWrapper.style.display = 'block';
+
+  let html = '<table><thead><tr><th>姓名</th>';
+  dates.forEach(d => { html += `<th>${esc(d)}</th>`; });
+  html += '<th class="total-col">总计</th></tr></thead><tbody>';
+
+  pivot.forEach(row => {
+    html += `<tr><td>${esc(row.name)}</td>`;
+    let total = 0;
+    dates.forEach(d => {
+      const val = row[d] || 0;
+      total += val;
+      if (val > 0) {
+        html += `<td>${fmt(val)}</td>`;
+      } else {
+        html += `<td class="empty">-</td>`;
+      }
+    });
+    html += `<td class="total-col">${fmt(total)}</td></tr>`;
+  });
+
+  html += '</tbody></table>';
+  tableScroll.innerHTML = html;
+}
+
+// ================ Download ================
+downloadBtn.addEventListener('click', () => {
+  if (!currentData) return;
+  try {
+    generateExcel(currentData.pivot, currentData.dates, currentData.people);
+  } catch (err) {
+    showError('下载失败: ' + err.message);
+  }
+});
+
+// ================ Utilities ================
+function fmt(n) {
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function showLoading(on) { loading.classList.toggle('active', on); }
+function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('active'); }
+function hideError() { errorMsg.classList.remove('active'); }
+function hideAllResults() {
+  summaryRow.style.display = 'none';
+  peopleTags.style.display = 'none';
+  controls.style.display = 'none';
+  tableWrapper.style.display = 'none';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航班名单转换工具</title>
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<style>
+  /* ============ Design Tokens ============ */
+  :root {
+    --brand:        #2563eb;
+    --brand-dark:   #1d4ed8;
+    --brand-deep:   #1e3a8a;
+    --brand-light:  #eff6ff;
+    --brand-soft:   #dbeafe;
+    --ink:          #0f172a;
+    --ink-2:        #334155;
+    --muted:        #64748b;
+    --muted-2:      #94a3b8;
+    --line:         #e2e8f0;
+    --bg:           #f1f5f9;
+    --card:         #ffffff;
+    --success:      #059669;
+    --success-dark: #047857;
+    --amber:        #d97706;
+    --radius:       16px;
+    --radius-sm:    10px;
+    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
+    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
+  }
+
+  /* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
+      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
+      var(--bg);
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
+
+  /* ============ Animations ============ */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+
+  /* ============ Header ============ */
+  .header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff; padding: 40px 40px; border-radius: 22px; margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  }
+  .header::before {
+    content: ""; position: absolute; top: -60px; right: -30px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
+  }
+  .header::after {
+    content: ""; position: absolute; bottom: -80px; left: 20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+  }
+  .header .header-main { position: relative; z-index: 1; }
+  .header .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
+    backdrop-filter: blur(6px); margin-bottom: 14px;
+  }
+  .header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+  .header p { font-size: 14.5px; opacity: 0.9; margin-top: 8px; max-width: 640px; }
+  .header .plane {
+    position: relative; z-index: 1; font-size: 60px; line-height: 1;
+    animation: floaty 4s ease-in-out infinite; flex-shrink: 0;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2));
+  }
+
+  /* ============ Rules Panel（可折叠转换规则）============ */
+  .rules-panel {
+    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
+    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
+    transition: box-shadow 0.25s;
+  }
+  .rules-panel:hover { box-shadow: var(--shadow); }
+  .rules-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
+  }
+  .rules-header:hover { background: var(--brand-light); }
+  .rules-header .title {
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rules-header .title .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+  }
+  .rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
+  .rules-header .arrow {
+    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
+  .rules-body {
+    max-height: 0; overflow: hidden; padding: 0 26px;
+    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
+  }
+  .rules-panel.open .rules-body { max-height: 1200px; padding: 4px 26px 24px; }
+  .rules-intro { font-size: 14px; color: var(--muted); margin-bottom: 14px; line-height: 1.75; }
+  .rules-intro b { color: var(--ink-2); }
+  .rules-inner ul { margin: 0 0 0 18px; }
+  .rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
+  .rules-inner code {
+    background: var(--brand-light); color: var(--brand-dark);
+    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  /* ============ Upload Zone ============ */
+  .upload-zone {
+    position: relative; background: var(--card);
+    border: 2px dashed #cbd5e1; border-radius: var(--radius);
+    padding: 56px 20px; text-align: center; cursor: pointer;
+    transition: all 0.25s; margin-bottom: 22px; box-shadow: var(--shadow-sm);
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--brand); background: var(--brand-light);
+    box-shadow: var(--shadow); transform: translateY(-1px);
+  }
+  .upload-zone .icon {
+    width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; color: #fff; box-shadow: 0 10px 24px -8px rgba(37,99,235,0.7);
+    transition: transform 0.25s;
+  }
+  .upload-zone:hover .icon { transform: scale(1.06) rotate(-3deg); }
+  .upload-zone .text { font-size: 17px; color: var(--ink); font-weight: 600; }
+  .upload-zone .hint { font-size: 13px; color: var(--muted-2); margin-top: 8px; }
+  .upload-zone .formats { display: inline-flex; gap: 8px; margin-top: 14px; }
+  .upload-zone .formats span {
+    background: var(--brand-soft); color: var(--brand-dark);
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+  }
+  .upload-zone input[type="file"] { display: none; }
+  .filename { color: var(--brand-dark); font-weight: 600; margin-top: 14px; word-break: break-all; }
+
+  /* ============ Enc hint ============ */
+  .enc-hint {
+    margin-top: 4px; padding: 13px 16px; border: 1px solid #fde68a;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left: 4px solid var(--amber);
+    border-radius: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.8; margin-bottom: 22px;
+  }
+  .enc-hint b { color: #b45309; }
+
+  /* ============ Summary Cards ============ */
+  .summary-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px; margin-bottom: 24px;
+  }
+  .summary-card {
+    position: relative; overflow: hidden;
+    background: var(--card); border-radius: var(--radius); padding: 22px 22px 20px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+    transition: transform 0.22s, box-shadow 0.22s;
+  }
+  .summary-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .summary-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa);
+  }
+  .summary-card .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .summary-card .card-ic {
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 19px;
+    background: var(--brand-light); color: var(--brand-dark);
+  }
+  .summary-card .label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .summary-card .value {
+    font-size: 27px; font-weight: 800; letter-spacing: -0.8px; color: var(--ink); line-height: 1.15;
+  }
+  .summary-card .sub { font-size: 12.5px; color: var(--muted-2); margin-top: 5px; }
+  .summary-card.accent-green::before { background: linear-gradient(90deg, var(--success), #34d399); }
+  .summary-card.accent-green .card-ic { background: #d1fae5; color: var(--success-dark); }
+  .summary-card.accent-green .value { color: var(--success-dark); }
+
+  /* ============ Preview / Table ============ */
+  .table-wrapper {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 1px solid var(--line); margin-bottom: 24px;
+  }
+  .preview-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(135deg, #f8fafc, #eef2ff);
+  }
+  .preview-head .label { font-size: 15px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .preview-head .pinfo { font-size: 13px; color: var(--muted); }
+  .table-scroll { overflow-x: auto; max-height: 62vh; overflow-y: auto; }
+  #previewBody table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  #previewBody thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color: #fff;
+    padding: 12px 14px; font-weight: 600; text-align: center; vertical-align: middle;
+    border-right: 1px solid rgba(255,255,255,0.12); font-size: 12.5px; line-height: 1.35;
+  }
+  #previewBody tbody td {
+    padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line); color: var(--ink-2);
+  }
+  #previewBody tbody td:first-child {
+    text-align: center; font-weight: 600; color: var(--ink);
+    background: var(--card); position: sticky; left: 0; z-index: 1;
+    border-right: 1px solid var(--line);
+  }
+  #previewBody tbody tr:nth-child(even) td { background: #f8fafc; }
+  #previewBody tbody tr:nth-child(even) td:first-child { background: #f8fafc; }
+  #previewBody tbody tr:hover td { background: var(--brand-light); }
+  #previewBody tbody tr:hover td:first-child { background: var(--brand-light); }
+
+  /* ============ Tags (warnings / skipped) ============ */
+  .people-tags {
+    background: var(--card); border-radius: var(--radius); padding: 20px 24px;
+    margin-bottom: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+  }
+  .people-tags .label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    display: inline-block; background: var(--brand-light); color: var(--brand-dark);
+    padding: 5px 13px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--brand-soft); transition: transform 0.15s, background 0.15s;
+  }
+  .tag:hover { transform: translateY(-1px); background: var(--brand-soft); }
+  .tag.warn { background: #ffedd5; border-color: #fdba74; color: #c2410c; }
+
+  /* ============ Controls ============ */
+  .controls { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .controls .info { font-size: 13.5px; color: var(--muted); background: var(--card); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 26px; border: none; border-radius: 10px;
+    font-size: 15px; cursor: pointer; transition: all 0.2s; font-weight: 600;
+  }
+  .btn-success {
+    background: linear-gradient(135deg, var(--success), var(--success-dark)); color: #fff;
+    box-shadow: 0 8px 18px -6px rgba(5,150,105,0.6);
+  }
+  .btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(5,150,105,0.7); }
+  .btn-success:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ============ Loading ============ */
+  .loading { display: none; text-align: center; padding: 56px; }
+  .loading.active { display: block; }
+  .spinner {
+    width: 46px; height: 46px; border: 4px solid var(--brand-soft);
+    border-top-color: var(--brand); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+  }
+  .loading div:last-child { color: var(--muted); font-size: 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============ Error ============ */
+  .error-msg {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #b91c1c;
+    padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
+    display: none; border: 1px solid #fecaca; border-left: 4px solid #dc2626; font-size: 14px; line-height: 1.7;
+  }
+  .error-msg.active { display: block; }
+
+  /* ============ Footer ============ */
+  .footer {
+    margin-top: 32px; text-align: center; font-size: 12.5px; color: var(--muted-2);
+    display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+  }
+  .footer .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted-2); }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 768px) {
+    .container { padding: 18px 14px 36px; }
+    .header { flex-direction: column; text-align: center; gap: 16px; padding: 32px 24px; }
+    .header p { margin-left: auto; margin-right: auto; }
+    .header h1 { font-size: 24px; }
+    .summary-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .summary-card .value { font-size: 23px; }
+    #previewBody table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header anim">
+    <div class="header-main">
+      <span class="eyebrow">✦ 海关数据工具</span>
+      <h1>航班名单转换工具</h1>
+      <p>上传系统导出的航班名单 Excel，自动转换为海关上传模板，并生成可预览、可下载的结果表。全程在本地浏览器处理，数据不上传服务器。</p>
+    </div>
+    <div class="plane">✈️</div>
+  </div>
+
+  <!-- Rules Panel -->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        转换规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        系统按表头名称自动识别各列，将其清洗、映射为标准海关上传格式。下方为关键处理规则：
+      </div>
+      <div class="rules-inner">
+        <ul>
+          <li><b>列识别</b>：自动匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等列。</li>
+          <li><b>国籍代码</b>：二字码自动转为三字码（如 <code>CN→CHN</code>、<code>US→USA</code>），并修正常见错别字；无法识别时标黄提示手动核查。</li>
+          <li><b>性别代码</b>：<code>1→M</code>、<code>2→F</code>（也直接接受 M/F）。</li>
+          <li><b>证件号码</b>：去除开头多余符号（<code>- / ,</code>），按 <code>/</code> 取第一段。</li>
+          <li><b>出生日期</b>：统一清洗为 <code>YYYY-MM-DD</code>。</li>
+          <li><b>出入境判定</b>：按航班号判定——MU261 / MU751 为<b>出境</b>，MU262 / MU752 为<b>入境</b>。</li>
+          <li><b>往来机场</b>：MU261 / MU262 为<b>马德里</b>，MU751 / MU752 为<b>罗马</b>；其它航班取非温州那一端。</li>
+          <li><b>上报口岸</b>：固定为 <code>050-温州机场</code>。</li>
+          <li><b>不完整记录</b>：姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失的行将被跳过，并在结果中列出，供你补录。</li>
+          <li><b>输出</b>：生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
+    <div class="icon">📂</div>
+    <div class="text">点击选择 Excel 文件，或拖拽文件到此处</div>
+    <div class="hint">系统将自动识别并转换航班名单</div>
+    <div class="formats"><span>.xls</span><span>.xlsx</span></div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+    <div class="filename" id="filename"></div>
+  </div>
+
+  <!-- 显式开始转换按钮（选文件后出现） -->
+  <div class="controls" id="convertRow" style="display:none">
+    <button class="btn btn-success" id="convertBtn">🚀 开始转换</button>
+    <span class="info" id="convertInfo">已选择文件，点击开始转换</span>
+  </div>
+
+  <div class="enc-hint">
+    ⚠️ 浏览器版<b>不支持读取加密的 Excel</b>。若上传后提示「File is password-protected」，
+    请先用电脑上 <b>国际名单转化 → 解密工具</b> 里的工具把文件转成无密码版，再上传本页。
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在解析与转换，请稍候…</div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-row" id="summaryRow" style="display:none">
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🛫</span><span class="label">航班号</span></div>
+      <div class="value" id="sumFlight">—</div>
+      <div class="sub" id="sumDate">—</div>
+    </div>
+    <div class="summary-card accent-green">
+      <div class="card-top"><span class="card-ic">🧭</span><span class="label">出入境</span></div>
+      <div class="value" id="sumDir">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">👥</span><span class="label">旅客数</span></div>
+      <div class="value" id="sumPax">—</div>
+      <div class="sub">条记录已写入</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🏙️</span><span class="label">往来机场</span></div>
+      <div class="value" id="sumCp">—</div>
+    </div>
+  </div>
+
+  <!-- Preview（生成的 Excel 预览）-->
+  <div class="table-wrapper anim" id="previewWrapper" style="display:none">
+    <div class="preview-head">
+      <span class="label">📄 生成的 Excel 预览</span>
+      <span class="pinfo" id="previewInfo"></span>
+    </div>
+    <div class="table-scroll" id="previewBody"></div>
+  </div>
+
+  <!-- Warnings -->
+  <div class="people-tags" id="warnBox" style="display:none">
+    <div class="label" id="warnLabel">⚠️ 国籍代码异常</div>
+    <div class="tag-list" id="warnTags"></div>
+  </div>
+
+  <!-- Skipped -->
+  <div class="people-tags" id="skipBox" style="display:none">
+    <div class="label" id="skipLabel">🗑️ 已跳过不完整记录</div>
+    <div class="tag-list" id="skipTags"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none">
+    <button class="btn btn-success" id="downloadBtn" onclick="downloadResult()">📥 下载 Excel</button>
+    <span class="info" id="downloadInfo">点击下载完整的海关上传模板</span>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>🔒 数据仅在本地浏览器处理，不会上传</span>
+    <span class="dot"></span>
+    <span>纯前端运行</span>
+    <span class="dot"></span>
+    <span>海关上传模板 v1.0</span>
+  </div>
+
+</div>
+
+<script src="convert.js"></script>
+<script>
+// ================ DOM refs ================
+const fileInput   = document.getElementById('fileInput');
+const uploadZone  = document.getElementById('uploadZone');
+const convertBtn  = document.getElementById('convertBtn'); // 兼容历史 id（本页直接用上传区触发）
+const filenameEl  = document.getElementById('filename');
+const loading     = document.getElementById('loading');
+const errorMsg    = document.getElementById('errorMsg');
+const summaryRow  = document.getElementById('summaryRow');
+const previewWrap = document.getElementById('previewWrapper');
+const previewBody = document.getElementById('previewBody');
+const previewInfo = document.getElementById('previewInfo');
+const warnBox     = document.getElementById('warnBox');
+const skipBox     = document.getElementById('skipBox');
+const controls    = document.getElementById('controls');
+const downloadBtn = document.getElementById('downloadBtn');
+
+// 折叠规则面板
+const rulesPanel = document.getElementById('rulesPanel');
+document.getElementById('rulesHeader').addEventListener('click', () => {
+  rulesPanel.classList.toggle('open');
+});
+
+// ================ File select / drag ================
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    filenameEl.textContent = '已选择：' + fileInput.files[0].name;
+    document.getElementById('convertRow').style.display = 'flex';
+    document.getElementById('convertInfo').textContent = '已选择 ' + fileInput.files[0].name + '，点击开始转换';
+  }
+});
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    fileInput.files = e.dataTransfer.files;
+    filenameEl.textContent = '已选择：' + f.name;
+    document.getElementById('convertRow').style.display = 'flex';
+    document.getElementById('convertInfo').textContent = '已选择 ' + f.name + '，点击开始转换';
+  }
+});
+
+// 点击「开始转换」按钮触发转换
+convertBtn.addEventListener('click', doConvert);
+
+// ================ Helpers ================
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+function showError(msg) {
+  errorMsg.innerHTML = msg;
+  errorMsg.classList.add('active');
+}
+function hideResult() {
+  errorMsg.classList.remove('active');
+  summaryRow.style.display = 'none';
+  previewWrap.style.display = 'none';
+  warnBox.style.display = 'none';
+  skipBox.style.display = 'none';
+  controls.style.display = 'none';
+  previewBody.innerHTML = '';
+}
+
+// ================ Render: Summary ================
+function renderSummary(m) {
+  document.getElementById('sumFlight').textContent = m.flight_code || '—';
+  document.getElementById('sumDate').textContent  = m.flight_date ? '航班日期 ' + m.flight_date : '—';
+  document.getElementById('sumDir').textContent   = m.direction || '—';
+  document.getElementById('sumPax').textContent   = m.passengers;
+  document.getElementById('sumCp').textContent    = m.counterpart || '—';
+  summaryRow.style.display = 'grid';
+}
+
+// ================ Render: Excel 预览 ================
+function renderPreview(outRows) {
+  if (!outRows || outRows.length < 2) { previewBody.innerHTML = ''; return; }
+  const title   = outRows[0][0] || '';
+  const headers = outRows[1];
+  const rows    = outRows.slice(2);
+  const ncols   = headers.length;
+
+  let html = '<table><thead><tr>';
+  headers.forEach((h) => {
+    const t = String(h == null ? '' : h).replace(/\n/g, '<br>');
+    html += '<th>' + t + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach((r) => {
+    html += '<tr>';
+    for (let i = 0; i < ncols; i++) {
+      const v = (r[i] == null) ? '' : r[i];
+      html += '<td>' + escapeHtml(v) + '</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  previewBody.innerHTML = html;
+  previewInfo.textContent = (title ? title + ' · ' : '') + rows.length + ' 条旅客记录';
+  previewWrap.style.display = 'block';
+}
+
+// ================ Render: Warnings / Skipped ================
+function renderWarn(list, box, labelId, labelText, warnStyle) {
+  const tags = document.getElementById(labelId === 'warnLabel' ? 'warnTags' : 'skipTags');
+  if (list && list.length) {
+    box.style.display = 'block';
+    document.getElementById(labelId).textContent = labelText + '（' + list.length + ' 条）';
+    tags.innerHTML = list.map((w) =>
+      '<span class="tag' + (warnStyle ? ' warn' : '') + '">' + escapeHtml(w) + '</span>'
+    ).join('');
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// ================ Build workbook (download) ================
+function buildWorkbook(res) {
+  const ws = XLSX.utils.aoa_to_sheet(res.outRows);
+  const widths = (window.MANIFEST_META && window.MANIFEST_META.COL_WIDTHS) || null;
+  if (widths) ws['!cols'] = widths.map((w) => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return wb;
+}
+function downloadResult() {
+  if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
+}
+
+// ================ Main ================
+async function doConvert() {
+  const file = fileInput.files[0];
+  if (!file) return;
+  if (!window.XLSX) { showError('❌ 表格解析库未能加载，请检查网络后刷新重试。'); return; }
+
+  loading.classList.add('active');
+  hideResult();
+
+  try {
+    const buf = await file.arrayBuffer();
+    let wb;
+    try {
+      wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    } catch (e) {
+      loading.classList.remove('active');
+      const msg = (e && e.message) ? e.message : ('' + e);
+      const tip = /password/i.test(msg)
+        ? '。该文件已加密，浏览器版无法读取。请先用桌面「国际名单转化 → 解密工具」里的工具把文件转成无密码版，再上传。'
+        : '。';
+      showError('❌ 读取文件失败：' + msg + tip);
+      return;
+    }
+
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+    const res = convertManifest(rows);
+
+    loading.classList.remove('active');
+
+    if (!res.ok) { showError('❌ ' + res.error); return; }
+
+    renderSummary(res.meta);
+    renderPreview(res.outRows);
+    renderWarn(res.warnings, warnBox, 'warnLabel', '⚠️ 国籍代码异常（需手动核查）', true);
+    renderWarn(res.skipped, skipBox, 'skipLabel', '🗑️ 已跳过不完整记录', false);
+
+    controls.style.display = 'flex';
+    downloadBtn.textContent = '📥 下载转换结果（' + file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx）';
+
+    window.__lastOut = buildWorkbook(res);
+    window.__lastName = file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx';
+  } catch (e) {
+    loading.classList.remove('active');
+    showError('❌ 转换出错：' + ((e && e.message) || e));
+  }
+}
+
+// 说明：现由显式「开始转换」按钮触发转换（选文件后显示按钮），行为更清晰可控。
+</script>
+</body>
+</html>
