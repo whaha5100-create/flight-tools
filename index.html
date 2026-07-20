@@ -91,6 +91,7 @@
   }
   .card:nth-child(1){ animation-delay:.05s; } .card:nth-child(2){ animation-delay:.18s; }
   .card:nth-child(3){ animation-delay:.31s; } .card:nth-child(4){ animation-delay:.44s; }
+  .card:nth-child(5){ animation-delay:.57s; }
   .card::before {
     content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
     background: linear-gradient(90deg, var(--brand), #60a5fa);
@@ -98,6 +99,7 @@
   .card.c2::before { background: linear-gradient(90deg, var(--c-gold), #f59e0b); }
   .card.c3::before { background: linear-gradient(90deg, var(--c-teal), #14b8a6); }
   .card.c4::before { background: linear-gradient(90deg, var(--c-purple), #8b5cf6); }
+  .card.c5::before { background: linear-gradient(90deg, #f97316, #ea580c); }
   .card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
   .card .card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .card .card-ic {
@@ -108,12 +110,14 @@
   .card.c2 .card-ic { background: #fef3c7; color: var(--c-gold); }
   .card.c3 .card-ic { background: #ccfbf1; color: var(--c-teal); }
   .card.c4 .card-ic { background: #ede9fe; color: var(--c-purple); }
+  .card.c5 .card-ic { background: #ffedd5; color: #c2410c; }
   .card h3 { font-size: 18px; font-weight: 700; color: var(--ink); }
   .card p { color: var(--muted); font-size: 14px; line-height: 1.65; margin-top: 8px; flex: 1; }
   .card .tags { margin: 14px 0 16px; display: flex; gap: 8px; flex-wrap: wrap; }
   .tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--bg); color: #475569; }
   .card .go { display: flex; align-items: center; gap: 6px; color: var(--brand); font-weight: 600; font-size: 14px; }
   .card.c2 .go { color: var(--c-gold); } .card.c3 .go { color: var(--c-teal); } .card.c4 .go { color: var(--c-purple); }
+  .card.c5 .go { color: #ea580c; }
   .card .go .arrow { transition: transform .2s; }
   .card:hover .go .arrow { transform: translateX(5px); }
 
@@ -152,7 +156,7 @@
     <div class="header-main">
       <span class="eyebrow">✈ 航班工作工具集</span>
       <h1>航班工作工具集</h1>
-      <p>四个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
+      <p>五个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
     </div>
     <div class="plane">✈️</div>
   </header>
@@ -211,6 +215,20 @@
           <div class="tags">
             <span class="tag">东上航汇总</span>
             <span class="tag">客座率</span>
+            <span class="tag">下载 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="card c5" href="./schedule/">
+          <div class="card-top">
+            <span class="card-ic">📅</span>
+            <h3>出港排班表</h3>
+          </div>
+          <p>上传当日航班 Excel，自动提取出港航班信息，生成可编辑排班表——分配登机口、指定负责人、查看备注与特服。</p>
+          <div class="tags">
+            <span class="tag">登机口分配</span>
+            <span class="tag">负责人选择</span>
             <span class="tag">下载 Excel</span>
           </div>
           <div class="go">打开工具 <span class="arrow">→</span></div>
