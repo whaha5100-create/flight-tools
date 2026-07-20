@@ -505,8 +505,6 @@ function updateGate(idx, val){ flightData[idx].gate = val; }
 
 // ========== 删除行 / 插入行 / 末尾新增 ==========
 function deleteRow(idx){
-  var label = flightData[idx].flight || ('第'+(idx+1)+'行');
-  if(!confirm('确定删除「'+label+'」这一行吗？')) return;
   flightData.splice(idx, 1);
   renderTable(flightData);
 }
