@@ -214,6 +214,16 @@
 
   /* ============ Actions ============ */
   .actions{ margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  /* ============ 时段切换 Tabs ============ */
+  .period-tabs{ display: flex; gap: 10px; margin: 12px 0 2px; flex-wrap: wrap; }
+  .period-tab{ display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    padding: 9px 18px; border: 1.5px solid #e2e8f0; background: #fff; border-radius: 12px;
+    cursor: pointer; transition: all .15s; font-size: 15px; font-weight: 600; color: #334155; }
+  .period-tab .pr{ font-size: 11px; color: #94a3b8; font-weight: 400; }
+  .period-tab:hover{ border-color: #93c5fd; }
+  .period-tab.active{ border-color: #2563eb; background: linear-gradient(135deg,#2563eb,#1d4ed8); color: #fff;
+    box-shadow: 0 8px 18px -8px rgba(37,99,235,.6); }
+  .period-tab.active .pr{ color: #dbeafe; }
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 12px 26px; border: none; border-radius: 10px;
@@ -279,6 +289,7 @@
       <div class="panel">
         <h2>📋 出港航班排班表</h2>
         <div class="stats-bar" id="statsBar"></div>
+        <div class="period-tabs" id="periodTabs"></div>
         <div class="table-wrap" style="margin-top:14px;">
           <table class="sch-table" id="schTable">
             <thead><tr>
@@ -293,6 +304,7 @@
       <div class="actions">
         <button class="btn btn-primary" onclick="exportExcel()">⬇ 下载 Excel</button>
         <button class="btn btn-primary" style="background:linear-gradient(135deg,#0f172a,#334155);box-shadow:0 10px 22px -8px rgba(15,23,42,.55);" onclick="exportImage()">🖼 导出图片</button>
+        <button class="btn-sm" onclick="exportExcelAll()">⬇ 导出全部(Excel)</button>
         <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
         <button class="btn-sm draft" onclick="saveDraft()">💾 存草稿</button>
         <button class="btn-sm" onclick="loadDraft()">📂 读取草稿</button>
@@ -342,7 +354,33 @@ uz.addEventListener('drop', function(e){
 });
 
 // ========== 全局数据 ==========
-var flightData = []; // [{flight, dest, depTime, booking, tesfu, yutui, note, gate, persons}]
+var flightData = []; // [{flight, dest, depTime, booking, tesfu, yutui, note, gate, persons, period}]
+var currentPeriod = 'morning'; // 当前查看的时段：morning/afternoon/evening
+var PERIODS = [
+  {key:'morning',   label:'早上', range:'0830–1400'},
+  {key:'afternoon', label:'下午', range:'1400–1830'},
+  {key:'evening',   label:'晚上', range:'1830 以后'}
+];
+var PERIOD_LABEL = { morning:'早上', afternoon:'下午', evening:'晚上' };
+
+// 将计离时间字符串解析为分钟数（如 "0830"→510, "14:00"→840）；无法解析返回 null
+function depTimeToMin(s){
+  if(s===undefined||s===null||s==='') return null;
+  var str = String(s).replace(/[^\d:]/g,'');
+  var m = str.match(/(\d{1,2}):?(\d{2})/);
+  if(!m) return null;
+  var h = parseInt(m[1],10), mm = parseInt(m[2],10);
+  if(h>24||mm>59) return null;
+  return h*60+mm;
+}
+
+// 自动选择第一个有数据的时段作为当前页
+function autoSelectPeriod(){
+  for(var pi=0; pi<PERIODS.length; pi++){
+    if(flightData.some(function(d){ return d.period===PERIODS[pi].key; })){ currentPeriod = PERIODS[pi].key; return; }
+  }
+  currentPeriod = 'morning';
+}
 
 // 页面加载时：若本地存有草稿，在上传区下方显示"读取草稿"入口
 function refreshDraftBar(){
@@ -426,6 +464,15 @@ function parseAndRender(raw){
     // 3. 备注列含"调时"文字 → 写"航班调时"
     if(noteVal && noteVal.indexOf('调时')>=0) notesArr.push('航班调时');
 
+    // 计离时间分段 & 过滤（0830 前为上一组，删除）
+    var depMin = depTimeToMin(row[cDep]);
+    if(depMin !== null && depMin < 510) continue; // 删除 0830 前的航班
+    var period;
+    if(depMin === null) period = 'evening';
+    else if(depMin < 840) period = 'morning';
+    else if(depMin < 1110) period = 'afternoon';
+    else period = 'evening';
+
     flightData.push({
       flight: flight,
       dest: String(row[cDest]||'').trim(),
@@ -436,10 +483,12 @@ function parseAndRender(raw){
       yutui: yutuiVal,
       note: notesArr.join('；'),
       gate: '2',
-      persons: []
+      persons: [],
+      period: period
     });
   }
 
+  autoSelectPeriod();
   renderTable(flightData);
 }
 
@@ -449,13 +498,19 @@ function renderTable(data){
   document.getElementById('uploadZone').style.display='none';
   document.getElementById('resultArea').style.display='block';
 
-  // 统计栏
+  // 统计栏（当前页 + 各时段计数）
+  var counts = {morning:0, afternoon:0, evening:0};
+  data.forEach(function(d){ counts[d.period] = (counts[d.period]||0)+1; });
+  var curCnt = data.filter(function(d){ return d.period===currentPeriod; }).length;
   document.getElementById('statsBar').innerHTML =
-    '<span class="stat-pill">✈ 共 '+data.length+' 个出港航班</span>' +
-    '<span class="stat-pill">👤 可选负责人：'+(PRESET_NAMES.concat(customNames).join('、'))+'</span>';
+    '<span class="stat-pill">📑 当前：'+PERIOD_LABEL[currentPeriod]+'（'+curCnt+' 班）</span>' +
+    '<span class="stat-pill">🌅 早 '+counts.morning+'</span>' +
+    '<span class="stat-pill">☀️ 午 '+counts.afternoon+'</span>' +
+    '<span class="stat-pill">🌙 晚 '+counts.evening+'</span>';
 
   var html = '';
   data.forEach(function(item, idx){
+    if(item.period !== currentPeriod) return; // 仅显示当前时段
     html += '<tr>';
     // 出港航班（插入/新增行可编辑）
     if(item.editable)
@@ -495,6 +550,23 @@ function renderTable(data){
   });
 
   document.getElementById('tbody').innerHTML = html;
+  updatePeriodTabs();
+}
+
+// ========== 时段切换 ==========
+function updatePeriodTabs(){
+  var box = document.getElementById('periodTabs');
+  if(!box) return;
+  var html = '';
+  PERIODS.forEach(function(p){
+    var active = (p.key===currentPeriod) ? ' active' : '';
+    html += '<button class="period-tab'+active+'" onclick="switchPeriod(\''+p.key+'\')">'+p.label+'<span class="pr">'+p.range+'</span></button>';
+  });
+  box.innerHTML = html;
+}
+function switchPeriod(p){
+  currentPeriod = p;
+  renderTable(flightData);
 }
 
 function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -509,20 +581,22 @@ function deleteRow(idx){
 }
 
 function insertRow(idx){
-  // 在当前行上方插入一个空行（可编辑）
-  flightData.splice(idx, 0, blankRow());
+  // 在当前行上方插入一个空行（可编辑），沿用当前行所在时段
+  var p = (flightData[idx] && flightData[idx].period) ? flightData[idx].period : currentPeriod;
+  flightData.splice(idx, 0, blankRow(p));
   renderTable(flightData);
 }
 
 function appendRow(){
-  // 在末尾新增一个空行（可编辑）
-  flightData.push(blankRow());
+  // 在末尾新增一个空行（可编辑），归入当前时段
+  flightData.push(blankRow(currentPeriod));
   renderTable(flightData);
 }
 
-function blankRow(){
+function blankRow(period){
   return { flight:'', dest:'', depTime:'', booking:'', bookingRaw:'',
-           tesfu:'', yutui:'', note:'', gate:'2', persons:[], editable:true };
+           tesfu:'', yutui:'', note:'', gate:'2', persons:[], editable:true,
+           period: period || 'evening' };
 }
 
 function updateField(idx, field, val){
@@ -557,9 +631,11 @@ function loadDraft(){
         booking: it.booking||'', bookingRaw: it.bookingRaw||it.booking||'',
         tesfu: it.tesfu||'', yutui: it.yutui||'', note: it.note||'',
         gate: it.gate||'', persons: Array.isArray(it.persons)?it.persons:[],
-        editable: it.editable!==undefined ? it.editable : true
+        editable: it.editable!==undefined ? it.editable : true,
+        period: it.period || 'evening'
       };
     });
+    autoSelectPeriod();
     renderTable(flightData);
     flashHint('📂 已读取草稿（共 '+flightData.length+' 行）');
   }catch(e){ alert('读取草稿失败：'+e.message); }
@@ -568,6 +644,7 @@ function loadDraft(){
 function clearAll(){
   if(!confirm('确定清空整个排班表吗？此操作不可撤销（已保存的草稿不受影响）。')) return;
   flightData = [];
+  currentPeriod = 'morning';
   document.getElementById('resultArea').style.display = 'none';
   document.getElementById('uploadZone').style.display = 'block';
   refreshDraftBar(); // 清空后若仍有草稿，重新显示"读取草稿"入口
@@ -667,37 +744,56 @@ function closeAllPickers(){
 document.addEventListener('click', closeAllPickers);
 
 // ========== 导出 Excel ==========
-function exportExcel(){
-  if(!flightData.length){ alert('没有数据可导出'); return; }
+// 根据航班数组构建带样式的工作表
+function buildSheet(rows){
   var headers = ['出港航班','到站','计离','出港订座','登机口','负责','备注'];
-
   var aoa = [headers];
-  flightData.forEach(function(item){
+  rows.forEach(function(item){
     aoa.push([
       item.flight, item.dest, item.depTime, item.booking,
       (item.gate || '2'), item.persons.join('、'), item.note
     ]);
   });
-
   var ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [
     {wch:14},{wch:10},{wch:8},{wch:16},{wch:8},{wch:18},{wch:40}
   ];
-  // 设置标题行样式
+  // 设置标题行样式（蓝底白字）
   var range = XLSX.utils.decode_range(ws['!ref']);
   for(var c=range.s.c; c<=range.e.c; c++){
     var addr = XLSX.utils.encode_cell({r:0,c:c});
     ws[addr]={v:headers[c],t:'s',s:{font:{bold:true,color:{rgb:"FFFFFF"},sz:12},
            fill:{fgColor:{rgb:"1E3A8A"}},alignment:{horizontal:"center"}}};
   }
+  return ws;
+}
+
+// 导出当前页（按当前选中的时段）
+function exportExcel(){
+  if(!flightData.length){ alert('没有数据可导出'); return; }
+  var rows = flightData.filter(function(d){ return d.period===currentPeriod; });
+  if(!rows.length){ alert('当前页（'+PERIOD_LABEL[currentPeriod]+'）没有数据'); return; }
   var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '出港排班表');
-  XLSX.writeFile(wb, '航班排班表.xlsx');
+  XLSX.utils.book_append_sheet(wb, buildSheet(rows), PERIOD_LABEL[currentPeriod]+'排班');
+  XLSX.writeFile(wb, '航班排班表_'+PERIOD_LABEL[currentPeriod]+'.xlsx');
+}
+
+// 导出全部（三个时段各一个 sheet：早上 / 下午 / 晚上）
+function exportExcelAll(){
+  if(!flightData.length){ alert('没有数据可导出'); return; }
+  var wb = XLSX.utils.book_new();
+  PERIODS.forEach(function(p){
+    var rows = flightData.filter(function(d){ return d.period===p.key; });
+    if(!rows.length) return; // 跳过空时段
+    XLSX.utils.book_append_sheet(wb, buildSheet(rows), p.label+'排班');
+  });
+  XLSX.writeFile(wb, '航班排班表_全部.xlsx');
 }
 
 // ========== 导出图片（Canvas 绘制带样式 PNG）============
 function exportImage(){
-  if(!flightData.length){ alert('请先上传并生成排班表'); return; }
+  var data = flightData.filter(function(d){ return d.period===currentPeriod; });
+  if(!data.length){ alert('当前页（'+PERIOD_LABEL[currentPeriod]+'）没有数据'); return; }
   var scale = 2; // 2倍分辨率，导出更清晰
   var F = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif';
   // 列定义：标题 / 字段键 / 列宽(px)
@@ -713,7 +809,7 @@ function exportImage(){
   var margin = 26, titleH = 56, headerH = 48, rowH = 58;
   var tableW = 0; cols.forEach(function(c){ tableW += c.w; });
   var W = tableW + margin*2;
-  var H = titleH + headerH + rowH*flightData.length + margin;
+  var H = titleH + headerH + rowH*data.length + margin;
   var cv = document.createElement('canvas');
   cv.width = W*scale; cv.height = H*scale;
   var ctx = cv.getContext('2d');
@@ -726,7 +822,7 @@ function exportImage(){
   // 标题
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 21px ' + F; ctx.textAlign = 'left';
-  ctx.fillText('航班出港排班表', margin, titleH/2);
+  ctx.fillText('航班出港排班表 · '+PERIOD_LABEL[currentPeriod], margin, titleH/2);
   var d = new Date();
   var ds = (d.getMonth()+1)+'月'+d.getDate()+'日';
   ctx.fillStyle = '#94a3b8'; ctx.font = '13px ' + F; ctx.textAlign = 'right';
@@ -741,8 +837,8 @@ function exportImage(){
   cols.forEach(function(c){ ctx.fillText(c.t, x + c.w/2, hy + headerH/2 + 1); x += c.w; });
 
   // 数据行
-  for(var i=0;i<flightData.length;i++){
-    var item = flightData[i];
+  for(var i=0;i<data.length;i++){
+    var item = data[i];
     var ry = titleH + headerH + i*rowH;
     // 隔行底色
     ctx.fillStyle = (i%2===0) ? '#ffffff' : '#f5f8ff';
@@ -781,7 +877,7 @@ function exportImage(){
   // 下载
   var url = cv.toDataURL('image/png');
   var a = document.createElement('a');
-  a.href = url; a.download = '航班出港排班表.png';
+  a.href = url; a.download = '航班出港排班表_'+PERIOD_LABEL[currentPeriod]+'.png';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   flashHint('🖼 已导出图片（蓝底白字 + 负责人配色）');
 }
