@@ -223,7 +223,20 @@
   .btn-sm{ background: #fff; color: var(--brand); border: 1px solid var(--brand); cursor: pointer;
           font-size: 14px; font-weight: 600; padding: 10px 20px; border-radius: 10px; transition: background .15s; }
   .btn-sm:hover{ background: var(--brand-light); }
+  .btn-sm.draft{ color: var(--success-dark); border-color: #a7f3d0; }
+  .btn-sm.draft:hover{ background: #ecfdf5; }
+  .btn-sm.danger{ color: #dc2626; border-color: #fecaca; }
+  .btn-sm.danger:hover{ background: #fef2f2; border-color: #dc2626; }
   .info-hint{ font-size: 13px; color: var(--muted-2); }
+
+  /* 轻提示 toast */
+  .toast{
+    position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff; padding: 12px 22px; border-radius: 12px;
+    font-size: 14px; font-weight: 600; box-shadow: var(--shadow-lg); z-index: 999;
+    opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; max-width: 90vw;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ============ Stats Bar ============ */
   .stats-bar{ display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
@@ -271,6 +284,9 @@
       <div class="actions">
         <button class="btn btn-primary" onclick="exportExcel()">⬇ 下载 Excel</button>
         <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
+        <button class="btn-sm draft" onclick="saveDraft()">💾 存草稿</button>
+        <button class="btn-sm" onclick="loadDraft()">📂 读取草稿</button>
+        <button class="btn-sm danger" onclick="clearAll()">🗑 一键清空</button>
         <span class="info-hint">每行可「插入 / 删除」；插入的空行可直接编辑航班、到站、计离、订座与备注，导出时一并保留。</span>
       </div>
     </div>
@@ -481,6 +497,59 @@ function blankRow(){
 
 function updateField(idx, field, val){
   flightData[idx][field] = val;
+}
+
+// ========== 存草稿 / 读取草稿 / 一键清空 ==========
+var DRAFT_KEY = 'flight_schedule_draft_v1';
+
+function saveDraft(){
+  if(!flightData.length){ flashHint('⚠️ 暂无可保存的数据'); return; }
+  try{
+    var payload = { ts: Date.now(), data: flightData };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    var t = new Date(payload.ts);
+    var hh = String(t.getHours()).padStart(2,'0');
+    var mm = String(t.getMinutes()).padStart(2,'0');
+    flashHint('✅ 草稿已保存（'+hh+':'+mm+'，共 '+flightData.length+' 行）');
+  }catch(e){ alert('保存草稿失败：'+e.message); }
+}
+
+function loadDraft(){
+  try{
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw){ flashHint('📭 暂无可恢复的草稿'); return; }
+    var payload = JSON.parse(raw);
+    if(!payload || !Array.isArray(payload.data)){ flashHint('⚠️ 草稿格式无效'); return; }
+    flightData = payload.data.map(function(it){
+      return {
+        flight: it.flight||'', dest: it.dest||'', depTime: it.depTime||'',
+        booking: it.booking||'', bookingRaw: it.bookingRaw||it.booking||'',
+        tesfu: it.tesfu||'', yutui: it.yutui||'', note: it.note||'',
+        gate: it.gate||'', persons: Array.isArray(it.persons)?it.persons:[],
+        editable: it.editable!==undefined ? it.editable : true
+      };
+    });
+    renderTable(flightData);
+    flashHint('📂 已读取草稿（共 '+flightData.length+' 行）');
+  }catch(e){ alert('读取草稿失败：'+e.message); }
+}
+
+function clearAll(){
+  if(!confirm('确定清空整个排班表吗？此操作不可撤销（已保存的草稿不受影响）。')) return;
+  flightData = [];
+  document.getElementById('resultArea').style.display = 'none';
+  document.getElementById('uploadZone').style.display = 'block';
+  flashHint('🗑 已清空排班表');
+}
+
+// 轻提示
+function flashHint(msg){
+  var t = document.getElementById('toast');
+  if(!t){ t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
 
 // ========== 负责人渲染 ==========
