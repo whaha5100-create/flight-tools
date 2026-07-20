@@ -435,7 +435,7 @@ function parseAndRender(raw){
       tesfu: tesfuDep,
       yutui: yutuiVal,
       note: notesArr.join('；'),
-      gate: '',
+      gate: '2',
       persons: []
     });
   }
@@ -478,7 +478,7 @@ function renderTable(data){
     else
       html += '<td>'+esc(item.booking)+'</td>';
     // 登机口输入
-    html += '<td><input class="gate-input" type="text" placeholder="___" value="'+esc(item.gate)+'" data-idx="'+idx+'" oninput="updateGate('+idx+',this.value)"></td>';
+    html += '<td><input class="gate-input" type="text" placeholder="2XX" value="'+esc(item.gate || '2')+'" data-idx="'+idx+'" oninput="updateGate('+idx+',this.value)"></td>';
     // 负责人
     html += '<td><div class="resp-cell" id="rc_'+idx+'">'+renderPersons(idx,item.persons)+renderPicker(idx)+'</div></td>';
     // 备注（插入/新增行可编辑）
@@ -522,7 +522,7 @@ function appendRow(){
 
 function blankRow(){
   return { flight:'', dest:'', depTime:'', booking:'', bookingRaw:'',
-           tesfu:'', yutui:'', note:'', gate:'', persons:[], editable:true };
+           tesfu:'', yutui:'', note:'', gate:'2', persons:[], editable:true };
 }
 
 function updateField(idx, field, val){
@@ -675,7 +675,7 @@ function exportExcel(){
   flightData.forEach(function(item){
     aoa.push([
       item.flight, item.dest, item.depTime, item.booking,
-      item.gate, item.persons.join('、'), item.note
+      (item.gate || '2'), item.persons.join('、'), item.note
     ]);
   });
 
