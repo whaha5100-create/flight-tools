@@ -413,19 +413,18 @@ function parseAndRender(raw){
       tesfuDep = parts.length > 1 ? parts[parts.length-1].trim() : '';
     }
 
-    // 备注：组合 预推 + 原备注 + 特服 + 调时
+    // 备注：按序组合 预推时间 → 特服 → 航班调时
     var yutuiVal = String(row[cYutui]||'').trim();
     var noteVal = String(row[cNote]||'').trim();
 
     // 构建备注文本
     var notesArr = [];
+    // 1. 预推列不为空（有预推时间）→ 写"预推时间 XXX"
     if(yutuiVal) notesArr.push('预推时间 '+yutuiVal);
-    if(noteVal){
-      if(noteVal.indexOf('调时')>=0) notesArr.push('航班调时');
-      else if(noteVal.startsWith('|')) notesArr.push(noteVal.substring(1).trim());
-      else notesArr.push(noteVal);
-    }
+    // 2. 特服列 | 后为出港特服 → 写"特服:XXX"
     if(tesfuDep) notesArr.push('特服:'+tesfuDep);
+    // 3. 备注列含"调时"文字 → 写"航班调时"
+    if(noteVal && noteVal.indexOf('调时')>=0) notesArr.push('航班调时');
 
     flightData.push({
       flight: flight,
