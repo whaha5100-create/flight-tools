@@ -124,14 +124,13 @@
     text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 2;
   }
   table.sch-table td {
-    border: 1px solid var(--line); padding: 8px 10px; text-align: center; vertical-align: middle;
-    white-space: nowrap;
+    border: 1px solid var(--line); padding: 11px 12px; text-align: center; vertical-align: middle;
+    white-space: nowrap; font-size: 14px; line-height: 1.5;
   }
   table.sch-table tr:nth-child(even){ background: #fafbfc; }
   table.sch-table tr:hover{ background: var(--brand-light); }
-  table.sch-table td.flight-num { font-weight: 700; color: var(--ink); }
-  table.sch-table td.booking-red { background: #fef2f2; color: #dc2626; font-weight: 600; }
-  table.sch-table td.note-cell { font-size: 12.5px; line-height: 1.6; text-align: left; white-space: normal; max-width: 220px; }
+  table.sch-table td.flight-num { font-weight: 700; color: var(--ink); font-size: 15px; }
+  table.sch-table td.note-cell { font-size: 12.5px; line-height: 1.6; text-align: left; white-space: normal; max-width: 240px; }
 
   /* 可编辑单元格（插入行用） */
   table.sch-table input.cell-input {
@@ -187,6 +186,9 @@
     background: transparent; user-select: none;
   }
   .picker-trigger:hover{ border-color: var(--brand); color: var(--brand); }
+  .picker-trigger.mini{ padding: 3px 11px; font-size: 16px; line-height: 1; border-radius: 50%;
+                        border-style: solid; color: var(--brand); border-color: var(--brand-soft); background: #fff; }
+  .picker-trigger.mini:hover{ background: var(--brand-light); }
   .picker-menu {
     display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -290,6 +292,7 @@
       </div>
       <div class="actions">
         <button class="btn btn-primary" onclick="exportExcel()">⬇ 下载 Excel</button>
+        <button class="btn btn-primary" style="background:linear-gradient(135deg,#0f172a,#334155);box-shadow:0 10px 22px -8px rgba(15,23,42,.55);" onclick="exportImage()">🖼 导出图片</button>
         <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
         <button class="btn-sm draft" onclick="saveDraft()">💾 存草稿</button>
         <button class="btn-sm" onclick="loadDraft()">📂 读取草稿</button>
@@ -311,6 +314,17 @@ var NAME_COLORS = {
 // 额外自定义名字循环用色
 var EXTRA_COLORS = ['tag-amber','tag-green','tag-pink','tag-sky','tag-blue'];
 var customNames = []; // 用户添加的自定义名字列表
+
+// 负责人标签颜色（class → 实际十六进制），用于导出图片时还原配色
+var PERSON_HEX = {
+  'tag-green':  {bg:'#d1fae5', fg:'#047857'},
+  'tag-sky':    {bg:'#e0f2fe', fg:'#0369a1'},
+  'tag-blue':   {bg:'#dbeafe', fg:'#1d4ed8'},
+  'tag-pink':   {bg:'#fce7f3', fg:'#be185d'},
+  'tag-purple': {bg:'#ede9fe', fg:'#6d28d9'},
+  'tag-amber':  {bg:'#fef3c7', fg:'#b45309'}
+};
+function getHex(name){ var cl = getColor(name); return PERSON_HEX[cl] || PERSON_HEX['tag-amber']; }
 
 function getColor(name){
   if(NAME_COLORS[name]) return NAME_COLORS[name];
@@ -443,13 +457,6 @@ function renderTable(data){
 
   var html = '';
   data.forEach(function(item, idx){
-    // 判断订座是否标红：中间值（F舱）大于 0 时标红（仅 Excel 导入行）
-    var isRed = false;
-    if(!item.editable && item.bookingRaw){
-      var bParts = item.bookingRaw.split('|');
-      if(bParts.length >= 3){ try{ if(parseFloat(bParts[1].trim()) > 0) isRed=true; }catch(e){} }
-    }
-
     html += '<tr>';
     // 出港航班（插入/新增行可编辑）
     if(item.editable)
@@ -470,7 +477,7 @@ function renderTable(data){
     if(item.editable)
       html += '<td><input class="cell-input" type="text" value="'+esc(item.booking)+'" oninput="updateField('+idx+',\'booking\',this.value)"></td>';
     else
-      html += '<td'+(isRed?' class="booking-red"':'')+'>'+esc(item.booking)+'</td>';
+      html += '<td>'+esc(item.booking)+'</td>';
     // 登机口输入
     html += '<td><input class="gate-input" type="text" placeholder="___" value="'+esc(item.gate)+'" data-idx="'+idx+'" oninput="updateGate('+idx+',this.value)"></td>';
     // 负责人
@@ -613,7 +620,17 @@ function refreshPersonCell(idx){
 }
 
 // ========== 下拉选择器 ==========
+// 负责人已有人时，隐藏完整添加框，仅保留一个「＋」用于再展开
 function renderPicker(idx){
+  var hasPersons = flightData[idx].persons.length > 0;
+  if(hasPersons){
+    return '<div class="picker-wrap"><span class="picker-trigger mini" title="添加 / 修改负责人" onclick="togglePickerMenu(event,'+idx+')">＋</span>' +
+           '<div class="picker-menu" id="pm_'+idx+'">'+pickerInner(idx)+'</div></div>';
+  }
+  return '<div class="picker-wrap"><span class="picker-trigger" onclick="togglePickerMenu(event,'+idx+')">+ 添加 / 修改 ▾</span>' +
+         '<div class="picker-menu" id="pm_'+idx+'">'+pickerInner(idx)+'</div></div>';
+}
+function pickerInner(idx){
   var allNames = PRESET_NAMES.concat(customNames);
   var checks = '';
   allNames.forEach(function(n){
@@ -624,9 +641,7 @@ function renderPicker(idx){
   });
   checks += '<div class="picker-add"><input type="text" placeholder="自定义姓名..." id="customIn_'+idx+'" onkeydown="if(event.key===\'Enter\'){addPerson('+idx+',this.value);this.value=\'\';closePicker('+idx+');return false;}">' +
             '<button onclick="var v=document.getElementById(\'customIn_\'+idx).value;if(v){addPerson('+idx+',v);this.previousSibling.value=\';\'}">添加</button></div>';
-
-  return '<div class="picker-wrap"><span class="picker-trigger" onclick="togglePickerMenu(event,'+idx+')">+ 添加/修改 ▾</span>' +
-         '<div class="picker-menu" id="pm_'+idx+'">'+checks+'</div></div>';
+  return checks;
 }
 function safeId(s){ return s.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'_'); }
 function escAttr(s){ return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
@@ -681,6 +696,131 @@ function exportExcel(){
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '出港排班表');
   XLSX.writeFile(wb, '航班排班表.xlsx');
+}
+
+// ========== 导出图片（Canvas 绘制带样式 PNG）============
+function exportImage(){
+  if(!flightData.length){ alert('请先上传并生成排班表'); return; }
+  var scale = 2; // 2倍分辨率，导出更清晰
+  var F = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif';
+  // 列定义：标题 / 字段键 / 列宽(px)
+  var cols = [
+    {t:'出港航班', k:'flight',  w:118},
+    {t:'到站',     k:'dest',    w:84},
+    {t:'计离',     k:'depTime', w:74},
+    {t:'出港订座', k:'booking', w:104},
+    {t:'登机口',   k:'gate',    w:78},
+    {t:'负责',     k:'persons', w:214},
+    {t:'备注',     k:'note',    w:286}
+  ];
+  var margin = 26, titleH = 56, headerH = 48, rowH = 58;
+  var tableW = 0; cols.forEach(function(c){ tableW += c.w; });
+  var W = tableW + margin*2;
+  var H = titleH + headerH + rowH*flightData.length + margin;
+  var cv = document.createElement('canvas');
+  cv.width = W*scale; cv.height = H*scale;
+  var ctx = cv.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.textBaseline = 'middle';
+
+  // 背景
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,W,H);
+
+  // 标题
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 21px ' + F; ctx.textAlign = 'left';
+  ctx.fillText('航班出港排班表', margin, titleH/2);
+  var d = new Date();
+  var ds = (d.getMonth()+1)+'月'+d.getDate()+'日';
+  ctx.fillStyle = '#94a3b8'; ctx.font = '13px ' + F; ctx.textAlign = 'right';
+  ctx.fillText(ds, W-margin, titleH/2);
+
+  // 表头（蓝底白字）
+  var hy = titleH;
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(margin, hy, tableW, headerH);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 14px ' + F; ctx.textAlign = 'center';
+  var x = margin;
+  cols.forEach(function(c){ ctx.fillText(c.t, x + c.w/2, hy + headerH/2 + 1); x += c.w; });
+
+  // 数据行
+  for(var i=0;i<flightData.length;i++){
+    var item = flightData[i];
+    var ry = titleH + headerH + i*rowH;
+    // 隔行底色
+    ctx.fillStyle = (i%2===0) ? '#ffffff' : '#f5f8ff';
+    ctx.fillRect(margin, ry, tableW, rowH);
+    // 行下边框
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(margin, ry+rowH); ctx.lineTo(margin+tableW, ry+rowH); ctx.stroke();
+
+    x = margin;
+    for(var ci=0; ci<cols.length; ci++){
+      var c = cols[ci]; var cx = x;
+      if(c.k === 'persons'){
+        drawChips(ctx, item.persons, cx, ry, c.w, rowH, F);
+      } else {
+        var val = String(item[c.k]||'');
+        if(c.k === 'flight'){ ctx.fillStyle = '#0f172a'; ctx.font = 'bold 14px ' + F; }
+        else { ctx.fillStyle = '#334155'; ctx.font = '13px ' + F; }
+        ctx.textAlign = 'center';
+        ctx.save();
+        ctx.beginPath(); ctx.rect(cx+5, ry+5, c.w-10, rowH-10); ctx.clip();
+        ctx.fillText(val, cx + c.w/2, ry + rowH/2 + 1);
+        ctx.restore();
+      }
+      // 列竖线
+      ctx.strokeStyle = '#eef2f7'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, ry); ctx.lineTo(cx, ry+rowH); ctx.stroke();
+      x += c.w;
+    }
+    ctx.strokeStyle = '#eef2f7'; ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x, ry+rowH); ctx.stroke();
+  }
+
+  // 外边框（深蓝）
+  ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 2;
+  ctx.strokeRect(margin, titleH, tableW, headerH + rowH*flightData.length);
+
+  // 下载
+  var url = cv.toDataURL('image/png');
+  var a = document.createElement('a');
+  a.href = url; a.download = '航班出港排班表.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  flashHint('🖼 已导出图片（蓝底白字 + 负责人配色）');
+}
+
+function drawChips(ctx, persons, cx, ry, cw, rowH, F){
+  if(!persons || !persons.length) return;
+  var pad = 10, gap = 6, chipH = 26, top = ry + (rowH - chipH)/2;
+  var x = cx + pad, y = top;
+  ctx.textBaseline = 'middle';
+  for(var i=0;i<persons.length;i++){
+    var n = persons[i]; if(!n) continue;
+    var col = getHex(n);
+    ctx.font = '12px ' + F;
+    var tw = ctx.measureText(n).width;
+    var chipW = tw + 18;
+    if(x + chipW > cx + cw - pad){           // 换行
+      x = cx + pad; y = top + chipH + gap;
+    }
+    if(y + chipH > ry + rowH - 2) break;     // 超出单元格则截断
+    roundRect(ctx, x, y, chipW, chipH, 13);
+    ctx.fillStyle = col.bg; ctx.fill();
+    ctx.fillStyle = col.fg; ctx.textAlign = 'left';
+    ctx.fillText(n, x + 9, y + chipH/2 + 1);
+    x += chipW + gap;
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  if(w < 2*r) r = w/2; if(h < 2*r) r = h/2;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
 
 // ========== 页面初始化：检测是否有草稿可恢复 ==========
