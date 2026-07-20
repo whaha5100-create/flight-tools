@@ -118,6 +118,11 @@
   .card .go { display: flex; align-items: center; gap: 6px; color: var(--brand); font-weight: 600; font-size: 14px; }
   .card.c2 .go { color: var(--c-gold); } .card.c3 .go { color: var(--c-teal); } .card.c4 .go { color: var(--c-purple); }
   .card.c5 .go { color: #ea580c; }
+  .card.c6::before { background: linear-gradient(90deg, #16a34a, #22c55e); }
+  .card.c6 .card-ic { background: #dcfce7; color: #16a34a; }
+  .card.c6 .go { color: #16a34a; }
+  .card:nth-child(6){ animation-delay:.70s; }
+  .tag.testing { background: #fef3c7; color: #b45309; font-weight: 600; }
   .card .go .arrow { transition: transform .2s; }
   .card:hover .go .arrow { transform: translateX(5px); }
 
@@ -156,7 +161,7 @@
     <div class="header-main">
       <span class="eyebrow">✈ 航班工作工具集</span>
       <h1>航班工作工具集</h1>
-      <p>五个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
+      <p>六个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
     </div>
     <div class="plane">✈️</div>
   </header>
@@ -230,6 +235,20 @@
             <span class="tag">登机口分配</span>
             <span class="tag">负责人选择</span>
             <span class="tag">下载 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="card c6" href="./daily-report/">
+          <div class="card-top">
+            <span class="card-ic">📰</span>
+            <h3>航班日报生成器</h3>
+          </div>
+          <p>上传生产情况汇总数据，自动生成当日航班生产日报，支持导出 PDF 与打印。</p>
+          <div class="tags">
+            <span class="tag testing">🚧 功能测试中...</span>
+            <span class="tag">日报生成</span>
+            <span class="tag">导出 PDF</span>
           </div>
           <div class="go">打开工具 <span class="arrow">→</span></div>
         </a>
