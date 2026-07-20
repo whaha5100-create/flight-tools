@@ -228,6 +228,7 @@
   .btn-sm.danger{ color: #dc2626; border-color: #fecaca; }
   .btn-sm.danger:hover{ background: #fef2f2; border-color: #dc2626; }
   .info-hint{ font-size: 13px; color: var(--muted-2); }
+  .draft-note{ font-size: 13px; color: var(--muted); margin-right: 10px; }
 
   /* 轻提示 toast */
   .toast{
@@ -263,6 +264,12 @@
       <div class="text">点击或拖拽上传航班 Excel 文件</div>
       <div class="hint">支持 .xls / .xlsx 格式 · 仅读取出港航班数据 · 数据在浏览器本地处理</div>
       <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="handleFile(this.files[0])">
+    </div>
+
+    <!-- 草稿恢复入口（仅当存在草稿时显示） -->
+    <div id="draftBar" style="display:none; text-align:center; margin-bottom:28px;">
+      <span class="draft-note" id="draftNote"></span>
+      <button class="btn-sm draft" onclick="loadDraft()">📂 读取上次草稿</button>
     </div>
 
     <!-- 结果区 -->
@@ -322,6 +329,25 @@ uz.addEventListener('drop', function(e){
 
 // ========== 全局数据 ==========
 var flightData = []; // [{flight, dest, depTime, booking, tesfu, yutui, note, gate, persons}]
+
+// 页面加载时：若本地存有草稿，在上传区下方显示"读取草稿"入口
+function refreshDraftBar(){
+  var bar = document.getElementById('draftBar');
+  var note = document.getElementById('draftNote');
+  try{
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if(raw){
+      var p = JSON.parse(raw);
+      var cnt = (p && Array.isArray(p.data)) ? p.data.length : 0;
+      var when = '';
+      if(p && p.ts){ var t=new Date(p.ts); when='（'+ (t.getMonth()+1) +'月'+ t.getDate() +'日 '+ String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0') +'，'+cnt+' 行）'; }
+      note.textContent = '检测到上次保存的草稿'+when;
+      bar.style.display = 'block';
+      return;
+    }
+  }catch(e){}
+  bar.style.display = 'none';
+}
 
 function handleFile(file){
   var reader = new FileReader();
@@ -511,6 +537,7 @@ function saveDraft(){
     var hh = String(t.getHours()).padStart(2,'0');
     var mm = String(t.getMinutes()).padStart(2,'0');
     flashHint('✅ 草稿已保存（'+hh+':'+mm+'，共 '+flightData.length+' 行）');
+    refreshDraftBar();
   }catch(e){ alert('保存草稿失败：'+e.message); }
 }
 
@@ -539,6 +566,7 @@ function clearAll(){
   flightData = [];
   document.getElementById('resultArea').style.display = 'none';
   document.getElementById('uploadZone').style.display = 'block';
+  refreshDraftBar(); // 清空后若仍有草稿，重新显示"读取草稿"入口
   flashHint('🗑 已清空排班表');
 }
 
@@ -654,6 +682,9 @@ function exportExcel(){
   XLSX.utils.book_append_sheet(wb, ws, '出港排班表');
   XLSX.writeFile(wb, '航班排班表.xlsx');
 }
+
+// ========== 页面初始化：检测是否有草稿可恢复 ==========
+refreshDraftBar();
 </script>
 </body>
 </html>
