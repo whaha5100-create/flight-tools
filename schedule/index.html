@@ -118,7 +118,7 @@
 
   /* ============ Schedule Table（排班表核心）============ */
   .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--line); }
-  table.sch-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 1100px; }
+  table.sch-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 1250px; }
   table.sch-table th {
     background: var(--brand-deep); color: #fff; font-weight: 600; padding: 11px 12px;
     text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 2;
@@ -132,6 +132,24 @@
   table.sch-table td.flight-num { font-weight: 700; color: var(--ink); }
   table.sch-table td.booking-red { background: #fef2f2; color: #dc2626; font-weight: 600; }
   table.sch-table td.note-cell { font-size: 12.5px; line-height: 1.6; text-align: left; white-space: normal; max-width: 220px; }
+
+  /* 可编辑单元格（插入行用） */
+  table.sch-table input.cell-input {
+    width: 100%; min-width: 60px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 7px;
+    font-size: 13px; text-align: center; outline: none; transition: border .15s; background: #fff;
+  }
+  table.sch-table input.cell-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  table.sch-table input.cell-input.note-input { text-align: left; }
+
+  /* 操作列 */
+  table.sch-table td.op-cell { white-space: nowrap; }
+  .row-btn {
+    display: inline-flex; align-items: center; gap: 3px; margin: 1px;
+    padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px;
+    font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all .15s; background: #fff; color: var(--ink-2);
+  }
+  .row-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+  .row-btn.danger:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
 
   /* 登机口输入 */
   table.sch-table input.gate-input {
@@ -244,7 +262,7 @@
             <thead><tr>
               <th style="width:110px;">出港航班</th><th style="width:90px;">到站</th><th style="width:65px;">计离</th>
               <th style="width:95px;">出港订座</th><th style="width:65px;">登机口</th><th style="width:160px;">负责</th>
-              <th>备注</th>
+              <th>备注</th><th style="width:130px;">操作</th>
             </tr></thead>
             <tbody id="tbody"></tbody>
           </table>
@@ -252,7 +270,8 @@
       </div>
       <div class="actions">
         <button class="btn btn-primary" onclick="exportExcel()">⬇ 下载 Excel</button>
-        <span class="info-hint">表格可直接修改登机口和负责人，导出时保留最新编辑内容。</span>
+        <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
+        <span class="info-hint">每行可「插入 / 删除」；插入的空行可直接编辑航班、到站、计离、订座与备注，导出时一并保留。</span>
       </div>
     </div>
 
@@ -371,6 +390,7 @@ function parseAndRender(raw){
 
 // ========== 渲染表格 ==========
 function renderTable(data){
+  flightData = data; // 确保后续按索引查找（负责人/登机口等）使用同一数据集
   document.getElementById('uploadZone').style.display='none';
   document.getElementById('resultArea').style.display='block';
 
@@ -381,22 +401,48 @@ function renderTable(data){
 
   var html = '';
   data.forEach(function(item, idx){
-    // 判断订座是否标红：中间值（F舱）大于 0 时标红
-    var bParts = item.bookingRaw.split('|');
+    // 判断订座是否标红：中间值（F舱）大于 0 时标红（仅 Excel 导入行）
     var isRed = false;
-    if(bParts.length >= 3){ try{ if(parseFloat(bParts[1].trim()) > 0) isRed=true; }catch(e){} }
+    if(!item.editable && item.bookingRaw){
+      var bParts = item.bookingRaw.split('|');
+      if(bParts.length >= 3){ try{ if(parseFloat(bParts[1].trim()) > 0) isRed=true; }catch(e){} }
+    }
 
     html += '<tr>';
-    html += '<td class="flight-num">'+esc(item.flight)+'</td>';
-    html += '<td>'+esc(item.dest)+'</td>';
-    html += '<td>'+esc(item.depTime)+'</td>';
-    html += '<td'+(isRed?' class="booking-red"':'')+'>'+esc(item.booking)+'</td>';
+    // 出港航班（插入/新增行可编辑）
+    if(item.editable)
+      html += '<td class="flight-num"><input class="cell-input" type="text" value="'+esc(item.flight)+'" oninput="updateField('+idx+',\'flight\',this.value)"></td>';
+    else
+      html += '<td class="flight-num">'+esc(item.flight)+'</td>';
+    // 到站
+    if(item.editable)
+      html += '<td><input class="cell-input" type="text" value="'+esc(item.dest)+'" oninput="updateField('+idx+',\'dest\',this.value)"></td>';
+    else
+      html += '<td>'+esc(item.dest)+'</td>';
+    // 计离
+    if(item.editable)
+      html += '<td><input class="cell-input" type="text" value="'+esc(item.depTime)+'" oninput="updateField('+idx+',\'depTime\',this.value)"></td>';
+    else
+      html += '<td>'+esc(item.depTime)+'</td>';
+    // 出港订座
+    if(item.editable)
+      html += '<td><input class="cell-input" type="text" value="'+esc(item.booking)+'" oninput="updateField('+idx+',\'booking\',this.value)"></td>';
+    else
+      html += '<td'+(isRed?' class="booking-red"':'')+'>'+esc(item.booking)+'</td>';
     // 登机口输入
     html += '<td><input class="gate-input" type="text" placeholder="___" value="'+esc(item.gate)+'" data-idx="'+idx+'" oninput="updateGate('+idx+',this.value)"></td>';
     // 负责人
     html += '<td><div class="resp-cell" id="rc_'+idx+'">'+renderPersons(idx,item.persons)+renderPicker(idx)+'</div></td>';
-    // 备注
-    html += '<td class="note-cell">'+esc(item.note)+'</td>';
+    // 备注（插入/新增行可编辑）
+    if(item.editable)
+      html += '<td class="note-cell"><input class="cell-input note-input" type="text" value="'+esc(item.note)+'" oninput="updateField('+idx+',\'note\',this.value)"></td>';
+    else
+      html += '<td class="note-cell">'+esc(item.note)+'</td>';
+    // 操作列：插入 / 删除
+    html += '<td class="op-cell">'+
+              '<button class="row-btn" title="在当前行上方插入一个空行" onclick="insertRow('+idx+')">＋插入</button>'+
+              '<button class="row-btn danger" title="删除此行" onclick="deleteRow('+idx+')">🗑删除</button>'+
+            '</td>';
     html += '</tr>';
   });
 
@@ -407,6 +453,35 @@ function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.
 
 // ========== 登机口更新 ==========
 function updateGate(idx, val){ flightData[idx].gate = val; }
+
+// ========== 删除行 / 插入行 / 末尾新增 ==========
+function deleteRow(idx){
+  var label = flightData[idx].flight || ('第'+(idx+1)+'行');
+  if(!confirm('确定删除「'+label+'」这一行吗？')) return;
+  flightData.splice(idx, 1);
+  renderTable(flightData);
+}
+
+function insertRow(idx){
+  // 在当前行上方插入一个空行（可编辑）
+  flightData.splice(idx, 0, blankRow());
+  renderTable(flightData);
+}
+
+function appendRow(){
+  // 在末尾新增一个空行（可编辑）
+  flightData.push(blankRow());
+  renderTable(flightData);
+}
+
+function blankRow(){
+  return { flight:'', dest:'', depTime:'', booking:'', bookingRaw:'',
+           tesfu:'', yutui:'', note:'', gate:'', persons:[], editable:true };
+}
+
+function updateField(idx, field, val){
+  flightData[idx][field] = val;
+}
 
 // ========== 负责人渲染 ==========
 function renderPersons(idx, persons){
