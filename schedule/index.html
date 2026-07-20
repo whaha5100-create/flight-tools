@@ -398,7 +398,7 @@ function parseAndRender(raw){
   flightData = [];
   for(var r=1;r<raw.length;r++){
     var row = raw[r];
-    var flight = String(row[cFlight]||'').trim();
+    var flight = String(row[cFlight]||'').trim().replace(/[#&]/g, '').trim();
     if(!flight) continue; // 空行跳过
 
     var bookingStr = String(row[cBooking]||'').trim();
