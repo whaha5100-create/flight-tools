@@ -343,12 +343,12 @@ var customNames = []; // 用户添加的自定义名字列表
 
 // 负责人标签颜色（class → 实际十六进制），用于导出图片时还原配色
 var PERSON_HEX = {
-  'tag-green':  {bg:'#d1fae5', fg:'#047857'},
-  'tag-sky':    {bg:'#e0f2fe', fg:'#0369a1'},
-  'tag-blue':   {bg:'#dbeafe', fg:'#1d4ed8'},
-  'tag-pink':   {bg:'#fce7f3', fg:'#be185d'},
-  'tag-purple': {bg:'#ede9fe', fg:'#6d28d9'},
-  'tag-amber':  {bg:'#fef3c7', fg:'#b45309'}
+  'tag-green':  {bg:'#16a34a', fg:'#ffffff'},
+  'tag-sky':    {bg:'#06b6d4', fg:'#ffffff'},
+  'tag-blue':   {bg:'#2563eb', fg:'#ffffff'},
+  'tag-pink':   {bg:'#ec4899', fg:'#ffffff'},
+  'tag-purple': {bg:'#7c3aed', fg:'#ffffff'},
+  'tag-amber':  {bg:'#ea580c', fg:'#ffffff'}
 };
 function getHex(name){ var cl = getColor(name); return PERSON_HEX[cl] || PERSON_HEX['tag-amber']; }
 
@@ -820,7 +820,7 @@ function exportImage(){
     {t:'负责',     k:'persons', w:214},
     {t:'备注',     k:'note',    w:286}
   ];
-  var margin = 26, titleH = 56, headerH = 48, rowH = 58;
+  var margin = 18, titleH = 50, headerH = 44, rowH = 52;
   var tableW = 0; cols.forEach(function(c){ tableW += c.w; });
   var W = tableW + margin*2;
   var H = titleH + headerH + rowH*data.length + margin;
@@ -835,18 +835,18 @@ function exportImage(){
 
   // 标题
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 21px ' + F; ctx.textAlign = 'left';
+  ctx.font = 'bold 26px ' + F; ctx.textAlign = 'left';
   ctx.fillText('航班出港排班表 · '+PERIOD_LABEL[currentPeriod], margin, titleH/2);
   var d = new Date();
   var ds = (d.getMonth()+1)+'月'+d.getDate()+'日';
-  ctx.fillStyle = '#94a3b8'; ctx.font = '13px ' + F; ctx.textAlign = 'right';
+  ctx.fillStyle = '#94a3b8'; ctx.font = '14px ' + F; ctx.textAlign = 'right';
   ctx.fillText(ds, W-margin, titleH/2);
 
   // 表头（蓝底白字）
   var hy = titleH;
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(margin, hy, tableW, headerH);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 14px ' + F; ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px ' + F; ctx.textAlign = 'center';
   var x = margin;
   cols.forEach(function(c){ ctx.fillText(c.t, x + c.w/2, hy + headerH/2 + 1); x += c.w; });
 
@@ -855,10 +855,10 @@ function exportImage(){
     var item = data[i];
     var ry = titleH + headerH + i*rowH;
     // 隔行底色
-    ctx.fillStyle = (i%2===0) ? '#ffffff' : '#f5f8ff';
+    ctx.fillStyle = (i%2===0) ? '#ffffff' : '#edf3fe';
     ctx.fillRect(margin, ry, tableW, rowH);
-    // 行下边框
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    // 行下边框（加深，分隔更明显）
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.4;
     ctx.beginPath(); ctx.moveTo(margin, ry+rowH); ctx.lineTo(margin+tableW, ry+rowH); ctx.stroke();
 
     x = margin;
@@ -868,11 +868,11 @@ function exportImage(){
         drawChips(ctx, item.persons, cx, ry, c.w, rowH, F);
       } else {
         var val = String(item[c.k]||'');
-        if(c.k === 'flight'){ ctx.fillStyle = '#0f172a'; ctx.font = 'bold 14px ' + F; }
-        else { ctx.fillStyle = '#334155'; ctx.font = '13px ' + F; }
+        if(c.k === 'flight'){ ctx.fillStyle = '#0f172a'; ctx.font = 'bold 17px ' + F; }
+        else { ctx.fillStyle = '#1f2937'; ctx.font = '15px ' + F; }
         ctx.textAlign = 'center';
         ctx.save();
-        ctx.beginPath(); ctx.rect(cx+5, ry+5, c.w-10, rowH-10); ctx.clip();
+        ctx.beginPath(); ctx.rect(cx+4, ry+4, c.w-8, rowH-8); ctx.clip();
         ctx.fillText(val, cx + c.w/2, ry + rowH/2 + 1);
         ctx.restore();
       }
@@ -898,23 +898,23 @@ function exportImage(){
 
 function drawChips(ctx, persons, cx, ry, cw, rowH, F){
   if(!persons || !persons.length) return;
-  var pad = 10, gap = 6, chipH = 26, top = ry + (rowH - chipH)/2;
+  var pad = 10, gap = 7, chipH = 30, top = ry + (rowH - chipH)/2;
   var x = cx + pad, y = top;
   ctx.textBaseline = 'middle';
   for(var i=0;i<persons.length;i++){
     var n = persons[i]; if(!n) continue;
     var col = getHex(n);
-    ctx.font = '12px ' + F;
+    ctx.font = 'bold 14px ' + F;
     var tw = ctx.measureText(n).width;
-    var chipW = tw + 18;
+    var chipW = tw + 22;
     if(x + chipW > cx + cw - pad){           // 换行
       x = cx + pad; y = top + chipH + gap;
     }
     if(y + chipH > ry + rowH - 2) break;     // 超出单元格则截断
-    roundRect(ctx, x, y, chipW, chipH, 13);
+    roundRect(ctx, x, y, chipW, chipH, 15);
     ctx.fillStyle = col.bg; ctx.fill();
     ctx.fillStyle = col.fg; ctx.textAlign = 'left';
-    ctx.fillText(n, x + 9, y + chipH/2 + 1);
+    ctx.fillText(n, x + 11, y + chipH/2 + 1);
     x += chipW + gap;
   }
 }
