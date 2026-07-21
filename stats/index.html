@@ -310,9 +310,23 @@
     .summary-card .value { font-size: 23px; }
     table { font-size: 12px; }
   }
+
+  /* ============ 回到导航页按钮 ============ */
+  .back-home{
+    display:inline-flex; align-items:center; gap:6px;
+    margin:16px 24px 0; padding:8px 15px;
+    background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+    color:#2563eb; font-size:14px; font-weight:600;
+    text-decoration:none; cursor:pointer;
+    box-shadow:0 1px 2px rgba(15,23,42,.06);
+    transition:transform .15s, box-shadow .15s, background .15s;
+  }
+  .back-home:hover{ transform:translateY(-1px); background:#eff6ff; box-shadow:0 6px 16px -6px rgba(37,99,235,.4); }
+  .back-home .ic{ font-size:15px; line-height:1; }
 </style>
 </head>
 <body>
+<a class="back-home" href="../"><span class="ic">←</span> 回到导航页</a>
 <div class="container">
 
   <!-- Header -->
