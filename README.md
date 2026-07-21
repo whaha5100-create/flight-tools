@@ -6,7 +6,7 @@
 
 | 环境 | 链接 | 说明 |
 |---|---|---|
-| 国内稳定（推荐） | https://2e86a5d168134f70bd1c7c2871c9d7d6.app.codebuddy.work | 腾讯 CloudStudio，国内访问稳定 |
+| 国内稳定（推荐） | https://e621a5beb0c542b3ad1a6fec43d9d007.app.codebuddy.work | 腾讯 CloudStudio，国内访问稳定；所有内部跳转已改为显式 `index.html` 以兼容静态服务器 |
 | GitHub Pages（备用） | https://whaha5100-create.github.io/flight-tools/ | 原站点，国内可能加载较慢 |
 
 > 两个站点内容完全一致，可任选其一使用。
