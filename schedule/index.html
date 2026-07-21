@@ -322,6 +322,7 @@
         <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
         <button class="btn-sm draft" onclick="saveDraft()">💾 存草稿</button>
         <button class="btn-sm" onclick="loadDraft()">📂 读取草稿</button>
+        <button class="btn-sm" onclick="clearDraft()">🗑 清空草稿</button>
         <button class="btn-sm danger" onclick="clearAll()">🗑 一键清空</button>
         <span class="info-hint">每行可「插入 / 删除」；插入的空行可直接编辑航班、到站、计离、订座与备注，导出时一并保留。</span>
       </div>
@@ -653,6 +654,17 @@ function loadDraft(){
     renderTable(flightData);
     flashHint('📂 已读取草稿（共 '+flightData.length+' 行）');
   }catch(e){ alert('读取草稿失败：'+e.message); }
+}
+
+function clearDraft(){
+  if(!localStorage.getItem(DRAFT_KEY)){
+    flashHint('📭 暂无可清空的草稿');
+    return;
+  }
+  if(!confirm('确定删除本地保存的草稿吗？此操作不可恢复。')) return;
+  localStorage.removeItem(DRAFT_KEY);
+  refreshDraftBar(); // 草稿删除后隐藏上传区的"读取草稿"入口
+  flashHint('🗑 草稿已清空');
 }
 
 function clearAll(){
