@@ -51,12 +51,11 @@
   .stat-pill b{ color:var(--brand-dark); font-size:15px; }
   .stat-pill.warn b{ color:#ea580c; }
   .table-wrap{ background:#fff; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
-  table{ width:100%; border-collapse:collapse; font-size:15px; }
-  thead th{ background:linear-gradient(135deg,#1e3a8a,#2563eb); color:#fff; font-weight:700; padding:14px 14px;
-    text-align:center; font-size:14.5px; letter-spacing:.5px; }
-  thead th:first-child{ text-align:left; }
-  tbody td{ padding:12px 14px; text-align:center; border-top:1px solid #eef2f7; }
-  tbody td:first-child{ text-align:left; font-weight:700; color:var(--ink); }
+  table{ width:100%; border-collapse:collapse; font-size:16px; }
+  thead th{ background:linear-gradient(135deg,#1e3a8a,#2563eb); color:#fff; font-weight:700; padding:12px 14px;
+    text-align:center; font-size:16px; letter-spacing:.5px; }
+  tbody td{ padding:9px 14px; text-align:center; border-top:1px solid #eef2f7; }
+  tbody td:first-child{ text-align:center; font-weight:700; color:var(--ink); }
   tbody tr:nth-child(even){ background:#f7faff; }
   .note-tag{ display:inline-block; background:#fff1e6; color:#c2410c; font-weight:700; font-size:12.5px;
     padding:3px 10px; border-radius:999px; border:1px solid #fdba74; }
@@ -202,11 +201,9 @@
     }
     document.getElementById('tbody').innerHTML = html;
 
-    var highCount = processed.filter(function(x){ return x.note; }).length;
     document.getElementById('statsBar').innerHTML =
       '<span class="stat-pill">✈ KN出港航班 <b>' + processed.length + '</b> 班</span>' +
-      '<span class="stat-pill">🌅 早始发人数 <b>' + earlyTotal + '</b></span>' +
-      '<span class="stat-pill warn">🔥 高客座航班 <b>' + highCount + '</b> 班</span>';
+      '<span class="stat-pill">🌅 早始发人数 <b>' + earlyTotal + '</b></span>';
 
     document.getElementById('resultArea').style.display = 'block';
     uploadArea.style.display = 'none';
@@ -233,7 +230,7 @@
       {t:'截载时间', w:110}, {t:'出港订座', w:110}, {t:'备注', w:150}
     ];
     var tableW = cols.reduce(function(a,c){return a+c.w;},0);
-    var margin = 20, titleH = 78, subH = 30, headerH = 50, rowH = 54;
+    var margin = 20, titleH = 76, subH = 28, headerH = 50, rowH = 50;
 
     var earlyRows = processed.filter(function(x){ return x.early; });
     var lateRows  = processed.filter(function(x){ return !x.early; });
@@ -251,21 +248,17 @@
 
     // 背景
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,W,H);
-    // 标题
-    ctx.fillStyle = '#0f172a'; ctx.font = 'bold 28px '+F; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-    ctx.fillText('KN航班出港统计', margin, 40);
-    ctx.fillStyle = '#94a3b8'; ctx.font = '14px '+F;
-    var d = new Date();
-    var dateStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()+1).padStart(2,'0')+'（次日）';
-    ctx.textAlign='right'; ctx.fillText('统计日期 '+dateStr, W-margin, 40);
-    // 副标题统计
-    ctx.textAlign='left'; ctx.fillStyle = '#2563eb'; ctx.font = 'bold 14px '+F;
-    ctx.fillText('KN出港 '+processed.length+' 班 · 早始发人数 '+earlyTotal+' · 高客座 '+processed.filter(function(x){return x.note;}).length+' 班', margin, titleH+18);
+    // 标题（居中）
+    ctx.fillStyle = '#0f172a'; ctx.font = 'bold 30px '+F; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    ctx.fillText('KN航班出港统计', W/2, 40);
+    // 副标题统计（居中，不含高客座）
+    ctx.fillStyle = '#2563eb'; ctx.font = 'bold 16px '+F;
+    ctx.fillText('KN出港 '+processed.length+' 班 · 早始发人数 '+earlyTotal, W/2, titleH+18);
 
     // 表头
     var hy = titleH + subH;
     ctx.fillStyle = '#1e3a8a'; ctx.fillRect(margin, hy, tableW, headerH);
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px '+F; ctx.textBaseline='middle';
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 17px '+F; ctx.textBaseline='middle';
     var cx = margin;
     cols.forEach(function(c){ ctx.textAlign='center'; ctx.fillText(c.t, cx + c.w/2, hy + headerH/2); cx += c.w; });
 
@@ -279,10 +272,10 @@
       var vals = [x.flight, x.dest, x.dep, x.cut, String(x.sum), x.note];
       var cx2 = margin;
       for(var k=0;k<cols.length;k++){
-        if(k===0){ ctx.fillStyle='#0f172a'; ctx.font='bold 16px '+F; ctx.textAlign='left'; }
-        else if(k===4){ ctx.fillStyle='#0f172a'; ctx.font='bold 16px '+F; ctx.textAlign='center'; }
-        else { ctx.fillStyle='#334155'; ctx.font='15px '+F; ctx.textAlign='center'; }
-        var tx = (k===0) ? cx2+14 : cx2 + cols[k].w/2;
+        if(k===4){ ctx.fillStyle='#0f172a'; ctx.font='bold 16px '+F; ctx.textAlign='center'; }
+        else if(k===5){ ctx.fillStyle='#334155'; ctx.font='15px '+F; ctx.textAlign='center'; }
+        else { ctx.fillStyle='#0f172a'; ctx.font='bold 16px '+F; ctx.textAlign='center'; }
+        var tx = cx2 + cols[k].w/2;
         if(k===5 && x.note){
           // 高客座标签
           ctx.font='bold 13px '+F;
