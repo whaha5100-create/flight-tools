@@ -121,7 +121,11 @@
   .card.c6::before { background: linear-gradient(90deg, #16a34a, #22c55e); }
   .card.c6 .card-ic { background: #dcfce7; color: #16a34a; }
   .card.c6 .go { color: #16a34a; }
+  .card.c7::before { background: linear-gradient(90deg, #dc2626, #ef4444); }
+  .card.c7 .card-ic { background: #fee2e2; color: #dc2626; }
+  .card.c7 .go { color: #dc2626; }
   .card:nth-child(6){ animation-delay:.70s; }
+  .card:nth-child(7){ animation-delay:.83s; }
   .tag.testing { background: #fef3c7; color: #b45309; font-weight: 600; }
   .card .go .arrow { transition: transform .2s; }
   .card:hover .go .arrow { transform: translateX(5px); }
@@ -161,7 +165,7 @@
     <div class="header-main">
       <span class="eyebrow">✈ 航班工作工具集</span>
       <h1>航班工作工具集</h1>
-      <p>六个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
+      <p>七个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
     </div>
     <div class="plane">✈️</div>
   </header>
@@ -249,6 +253,20 @@
             <span class="tag testing">🚧 功能测试中...</span>
             <span class="tag">日报生成</span>
             <span class="tag">导出 PDF</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="card c7" href="./kn-stats/index.html">
+          <div class="card-top">
+            <span class="card-ic">🛫</span>
+            <h3>KN航班出港统计</h3>
+          </div>
+          <p>上传 FIOS 导出 Excel，自动筛选次日出港 KN 航班，计算截载时间与订座人数，便于安排值机保障。</p>
+          <div class="tags">
+            <span class="tag">KN航班</span>
+            <span class="tag">截载时间</span>
+            <span class="tag">导出图片</span>
           </div>
           <div class="go">打开工具 <span class="arrow">→</span></div>
         </a>
