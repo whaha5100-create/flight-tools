@@ -503,6 +503,14 @@ function parseAndRender(raw){
     });
   }
 
+  // 按计离时间从早到晚排序（无法解析的时间排到末尾），保证表格与导出文件均有序
+  flightData.sort(function(a,b){
+    var ma = depTimeToMin(a.depTime), mb = depTimeToMin(b.depTime);
+    var ka = (ma===null) ? Number.MAX_SAFE_INTEGER : ma;
+    var kb = (mb===null) ? Number.MAX_SAFE_INTEGER : mb;
+    return ka - kb;
+  });
+
   autoSelectPeriod();
   renderTable(flightData);
 }
