@@ -748,7 +748,7 @@ function pickerInner(idx){
              esc(n)+'</label></div>';
   });
   checks += '<div class="picker-add"><input type="text" placeholder="自定义姓名..." id="customIn_'+idx+'" onkeydown="if(event.key===\'Enter\'){addPerson('+idx+',this.value);this.value=\'\';closePicker('+idx+');return false;}">' +
-            '<button onclick="var v=document.getElementById(\'customIn_\'+idx).value;if(v){addPerson('+idx+',v);this.previousSibling.value=\';\'}">添加</button></div>';
+            '<button type="button" onclick="var inp=document.getElementById(\'customIn_'+idx+'\');if(inp&&inp.value.trim()){addPerson('+idx+',inp.value.trim());inp.value=\'\';}">添加</button></div>';
   return checks;
 }
 function safeId(s){ return s.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'_'); }
