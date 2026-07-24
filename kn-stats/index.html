@@ -202,7 +202,7 @@
         cut: fmtTime(cutMin),
         sum: sum,
         note: sum>160 ? '高客座航班' : '',
-        early: (depMin!=null && depMin < 510)         // 0830 = 8*60+30 = 510
+        early: (depMin!=null && depMin < 630)         // 1030 = 10*60+30 = 630
       });
     }
     // 按计飞升序
@@ -218,7 +218,7 @@
     var html = '';
     earlyRows.forEach(function(x){ html += rowHtml(x); });
     if(earlyRows.length>0){
-      html += '<tr class="summary-row"><td colspan="6">早始发人数：' + earlyTotal + '（' + earlyRows.length + ' 班，计飞 0830 前）</td></tr>';
+      html += '<tr class="summary-row"><td colspan="6">早始发人数：' + earlyTotal + '（' + earlyRows.length + ' 班，计飞 1030 前）</td></tr>';
     }
     lateRows.forEach(function(x){ html += rowHtml(x); });
     if(!processed.length){
@@ -321,7 +321,7 @@
     function drawSummary(){
       ctx.fillStyle = '#1e3a8a'; ctx.fillRect(margin, y, tableW, rowH);
       ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px '+F; ctx.textAlign='left'; ctx.textBaseline='middle';
-      ctx.fillText('早始发人数：'+earlyTotal+'（'+earlyRows.length+' 班，计飞 0830 前）', margin+16, y+rowH/2);
+      ctx.fillText('早始发人数：'+earlyTotal+'（'+earlyRows.length+' 班，计飞 1030 前）', margin+16, y+rowH/2);
       y += rowH;
     }
     earlyRows.forEach(function(x){ drawDataRow(x, (idx++%2===0)?'#ffffff':'#f4f8ff'); });
