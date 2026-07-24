@@ -155,24 +155,49 @@
     reader.readAsArrayBuffer(file);
   }
 
+  // 根据表头文字定位列（适配不同日期 FIOS 导出列顺序差异）
+  function findCol(headers, names){
+    for(var n=0;n<names.length;n++){
+      for(var c=0;c<headers.length;c++){
+        if(String(headers[c]||'').trim().indexOf(names[n])>=0) return c;
+      }
+    }
+    return -1;
+  }
+
   function process(rows){
     processed = [];
+    if(!rows || !rows.length){ render(); return; }
+    // 定位表头行：前几行中找含「出港航班」的那一行
+    var hRow = 0;
+    for(var i=0;i<Math.min(rows.length,8);i++){
+      var found = rows[i].some(function(c){ return String(c||'').indexOf('出港航班')>=0; });
+      if(found){ hRow = i; break; }
+    }
+    var header = rows[hRow] || [];
+    var cFlight = findCol(header, ['出港航班','出港航班号']);
+    var cDest  = findCol(header, ['到站']);
+    var cDep   = findCol(header, ['计离']);          // 本场出发时间
+    var cAc    = findCol(header, ['机号']);
+    var cBook  = findCol(header, ['出港订座']);
+
     var droppedCancel = 0, droppedNonKN = 0;
-    for(var i=0;i<rows.length;i++){
-      var r = rows[i];
-      var rawFlight = String(r[11]||'').trim();
+    for(var j=hRow+1;j<rows.length;j++){
+      var r = rows[j];
+      if(cFlight<0) break;
+      var rawFlight = String(r[cFlight]||'').trim();
       if(!rawFlight) continue;                                  // 非出港航班行（进港航班在此列通常为空）
-      var ac = String(r[2]||'').trim().toUpperCase();
+      var ac = (cAc>=0) ? String(r[cAc]||'').trim().toUpperCase() : '';
       if(ac==='CNL' || ac==='DEL'){ droppedCancel++; continue; } // 取消航班
       var flight = rawFlight.replace(/[#&]/g,'').trim();
       if(flight.indexOf('KN')!==0){ droppedNonKN++; continue; }  // 仅保留 KN 开头
-      var dep = String(r[13]||'').trim();
+      var dep = (cDep>=0) ? String(r[cDep]||'').trim() : '';
       var depMin = parseTime(dep);
-      var sum = bookingSum(r[26]);
+      var sum = (cBook>=0) ? bookingSum(r[cBook]) : 0;
       var cutMin = (depMin==null) ? null : depMin - 35;
       processed.push({
         flight: flight,
-        dest: String(r[12]||'').trim(),
+        dest: (cDest>=0) ? String(r[cDest]||'').trim() : '',
         dep: dep,
         cut: fmtTime(cutMin),
         sum: sum,
