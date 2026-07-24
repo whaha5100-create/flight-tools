@@ -724,7 +724,10 @@ function addPerson(idx, name){
 
 function refreshPersonCell(idx){
   var cell = document.getElementById('rc_'+idx);
+  var pm = document.getElementById('pm_'+idx);
+  var wasOpen = pm && pm.classList.contains('open');
   cell.innerHTML = renderPersons(idx, flightData[idx].persons) + renderPicker(idx);
+  if(wasOpen){ var m = document.getElementById('pm_'+idx); if(m) m.classList.add('open'); }
 }
 
 // ========== 下拉选择器 ==========
@@ -747,7 +750,7 @@ function pickerInner(idx){
              ' onchange="togglePerson(\''+idx+'\',\''+escAttr(n)+'\',this.checked)"><label for="ck_'+idx+'_'+safeId(n)+'">'+
              esc(n)+'</label></div>';
   });
-  checks += '<div class="picker-add"><input type="text" placeholder="自定义姓名..." id="customIn_'+idx+'" onkeydown="if(event.key===\'Enter\'){addPerson('+idx+',this.value);this.value=\'\';closePicker('+idx+');return false;}">' +
+  checks += '<div class="picker-add"><input type="text" placeholder="自定义姓名..." id="customIn_'+idx+'" onkeydown="if(event.key===\'Enter\'){addPerson('+idx+',this.value);this.value=\'\';return false;}">' +
             '<button type="button" onclick="var inp=document.getElementById(\'customIn_'+idx+'\');if(inp&&inp.value.trim()){addPerson('+idx+',inp.value.trim());inp.value=\'\';}">添加</button></div>';
   return checks;
 }
@@ -775,7 +778,11 @@ function closeAllPickers(){
   var menus = document.querySelectorAll('.picker-menu.open');
   for(var i=0;i<menus.length;i++) menus[i].classList.remove('open');
 }
-document.addEventListener('click', closeAllPickers);
+document.addEventListener('click', function(e){
+  // 点击选择器内部（触发器或菜单）时不关闭，避免点输入框/复选框时菜单被关掉
+  if(e.target && e.target.closest && e.target.closest('.picker-wrap')) return;
+  closeAllPickers();
+});
 
 // ========== 导出 Excel ==========
 // 根据航班数组构建带样式的工作表
