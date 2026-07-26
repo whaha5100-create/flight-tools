@@ -488,7 +488,7 @@
   // 下载 Excel
   document.getElementById('downloadBtn').addEventListener('click', function(){
     if(!lastOut) return;
-    var aoa = [['航班运量汇总'], COLS.slice()];
+    var aoa = [['航班运量汇总'], ['项目'].concat(COLS)];
     lastOut.rows.forEach(function(r){
       var line = [r.name];
       r.data.forEach(function(v, i){
