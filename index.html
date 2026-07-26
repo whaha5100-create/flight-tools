@@ -178,7 +178,7 @@
             <span class="card-ic">📋</span>
             <h3>国际名单转化</h3>
           </div>
-          <p>上传航班名单 Excel，按海关上传模板自动清洗、转换国籍/性别/证件、判定出入境，导出可上传文件。</p>
+          <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
           <div class="tags">
             <span class="tag">海关模板</span>
             <span class="tag">出入境判定</span>
@@ -192,7 +192,7 @@
             <span class="card-ic">💰</span>
             <h3>升舱金额计算器</h3>
           </div>
-          <p>按岗位固定比例（主班 30% / 副班 20% / 运行协助 20% 等）分配升舱金额，生成「人员 × 日期」交叉汇总表。</p>
+          <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
           <div class="tags">
             <span class="tag">岗位比例</span>
             <span class="tag">交叉汇总</span>
@@ -206,7 +206,7 @@
             <span class="card-ic">📊</span>
             <h3>航班数据统计</h3>
           </div>
-          <p>上传航班 Excel，自动分类东上航司 / 中联航，统计国际航班、取消航班、特服（轮椅 / 无陪）等指标。</p>
+          <p>导入当日航班 Excel，自动区分东上航 / 中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量，导出统计表。</p>
           <div class="tags">
             <span class="tag">航司分类</span>
             <span class="tag">多维统计</span>
@@ -220,7 +220,7 @@
             <span class="card-ic">📈</span>
             <h3>航班运量汇总</h3>
           </div>
-          <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，一键汇总东上航、联航与总计。</p>
+          <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，自动汇总东上航、联航及总计，输入框支持四则运算表达式。</p>
           <div class="tags">
             <span class="tag">东上航汇总</span>
             <span class="tag">客座率</span>
@@ -234,7 +234,7 @@
             <span class="card-ic">📅</span>
             <h3>出港排班表</h3>
           </div>
-          <p>上传当日航班 Excel，自动提取出港航班信息，生成可编辑排班表——分配登机口、指定负责人、查看备注与特服。</p>
+          <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
           <div class="tags">
             <span class="tag">登机口分配</span>
             <span class="tag">负责人选择</span>
@@ -248,7 +248,7 @@
             <span class="card-ic">📰</span>
             <h3>航班日报生成器</h3>
           </div>
-          <p>上传生产情况汇总数据，自动生成当日航班生产日报，支持导出 PDF 与打印。</p>
+          <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，可导出 PDF 或直接打印。</p>
           <div class="tags">
             <span class="tag testing">🚧 功能测试中...</span>
             <span class="tag">日报生成</span>
@@ -262,7 +262,7 @@
             <span class="card-ic">🛫</span>
             <h3>KN航班出港统计</h3>
           </div>
-          <p>上传 FIOS 导出 Excel，自动筛选次日出港 KN 航班，计算截载时间与订座人数，便于安排值机保障。</p>
+          <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
           <div class="tags">
             <span class="tag">KN航班</span>
             <span class="tag">截载时间</span>
@@ -279,11 +279,11 @@
         </summary>
         <div class="nbody">
           <ul>
-            <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel 文件不会被上传到任何服务器。</li>
-            <li><b>永久免费：</b>本站由 WorkBuddy 部署在 GitHub Pages（公开仓库），链接长期有效、不会回收。</li>
+            <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel / 名单文件不会被上传到任何服务器，数据只留在本地。</li>
+            <li><b>长期有效：</b>本站由 WorkBuddy 部署至 GitHub Pages（公开仓库），链接长期有效、不会回收，可随时打开使用。</li>
             <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
-            <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用「解密工具」转出无密码版再上传。</li>
-            <li><b>航班规则：</b>出入境与往来机场按航班号判定（MU261/MU751 出境、MU262/MU752 入境；往来机场 MU261/MU262 马德里、MU751/MU752 罗马），规则详情见各工具内「规则说明」面板。</li>
+            <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用 Excel「另存为」转出无密码版本再上传。</li>
+            <li><b>规则口径：</b>各工具的转换 / 分配 / 统计 / 计算规则，详见每个工具页内的「规则说明」面板（可点击展开），口径以页面规则为准。</li>
           </ul>
         </div>
       </details>

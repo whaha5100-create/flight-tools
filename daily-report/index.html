@@ -23,6 +23,10 @@
   .btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .printHint{width:100%;font-size:12px;color:#713f12;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:6px 10px;margin-top:10px;line-height:1.4;}
   .printHint code{font-size:11px;background:#fde68a;padding:1px 4px;border-radius:3px;}
+  .use-note{width:100%;font-size:12.5px;color:#0a3a6b;background:#eaf1ff;border:1px solid #cfe0ff;border-radius:6px;padding:10px 14px;margin-top:10px;line-height:1.7;}
+  .use-note b{color:#0a4b9c;}
+  .use-note ul{margin:4px 0 0 18px;}
+  .use-note li{margin:3px 0;}
   button{font-family:inherit;font-size:13px;border:1px solid var(--line);background:#fff;color:var(--text);
     padding:7px 13px;border-radius:7px;cursor:pointer;transition:.15s;font-weight:500;}
   button:hover{border-color:var(--accent);color:var(--accent);}
@@ -206,6 +210,16 @@
         <span class="saveTip" id="saveTip">自动保存中…</span>
       </div>
       <div class="printHint" id="printHint">💡 导出 PDF 时若顶部/底部出现日期、网址，请在打印设置里取消「页眉和页脚」；或运行本目录的 <code>generate-pdf.js</code> 一键生成无干扰 PDF。</div>
+    </div>
+
+    <!-- 使用说明 -->
+    <div class="use-note">
+      <b>📌 使用说明</b>
+      <ul>
+        <li><b>填写：</b>在左侧按分组逐项填入当日生产情况与正常性数据，右侧日报实时预览更新。</li>
+        <li><b>自动保存：</b>编辑内容自动存于浏览器本地；也可用「保存草稿 / 读取草稿」手动管理。</li>
+        <li><b>导出：</b>点「导出 Word」或「导出 PDF」生成日报；导出 PDF 时建议在打印设置取消「页眉和页脚」。</li>
+      </ul>
     </div>
 
     <!-- 基础信息 -->

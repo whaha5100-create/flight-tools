@@ -109,6 +109,47 @@
   .upload-zone .hint { font-size: 13px; color: var(--muted-2); margin-top: 8px; }
   .upload-zone input[type="file"] { display: none; }
 
+  /* ============ Rules Panel（可折叠规则说明）============ */
+  .rules-panel {
+    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
+    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
+    transition: box-shadow 0.25s;
+  }
+  .rules-panel:hover { box-shadow: var(--shadow); }
+  .rules-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
+  }
+  .rules-header:hover { background: var(--brand-light); }
+  .rules-header .title {
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rules-header .title .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+  }
+  .rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
+  .rules-header .arrow {
+    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
+  .rules-body {
+    max-height: 0; overflow: hidden; padding: 0 26px;
+    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
+  }
+  .rules-panel.open .rules-body { max-height: 1200px; padding: 4px 26px 24px; }
+  .rules-intro { font-size: 14px; color: var(--muted); margin-bottom: 14px; line-height: 1.75; }
+  .rules-intro b { color: var(--ink-2); }
+  .rules-inner ul { margin: 0 0 0 18px; }
+  .rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
+  .rules-inner code {
+    background: var(--brand-light); color: var(--brand-dark);
+    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+
   /* ============ Panel ============ */
   .panel {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -282,6 +323,34 @@
     </div>
     <div class="plane">✈️</div>
   </header>
+
+  <!-- 规则说明面板 -->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+      <div class="title">
+        <span class="ic">📋</span>
+        排班表规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        导入当日出港航班 Excel 后，系统按下列规则自动生成可编辑排班表：
+      </div>
+      <div class="rules-inner">
+        <ul>
+          <li><b>只取出港航班：</b>仅读取出港方向航班，自动跳过进港及取消记录（机号为 <code>CNL / DEL</code>）。</li>
+          <li><b>按计离排序分段：</b>全部航班先按「计离」时间从早到晚排序，再按早（0830–1400）/ 午（1400–1830）/ 晚（1830 后）三段分组，可分页查看、按页导出。</li>
+          <li><b>登机口预填：</b>登机口统一以 <code>2</code> 开头预填，你只需补全后两位数字。</li>
+          <li><b>负责人选择：</b>点格子内「＋ / 添加」展开选择器，勾选预设人员或输入自定义姓名；可多人协作，不同负责人用不同颜色标签区分。</li>
+          <li><b>备注列顺序：</b>备注自动按「预推时间 → 特服 → 航班调时」三段拼接展示，便于快速读取保障要点。</li>
+          <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续，数据仅存浏览器本地。</li>
+          <li><b>导出：</b>支持导出当前页 / 全部为 Excel，以及导出排班图为图片，便于发群或打印。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <div class="container anim" id="mainArea">
     <!-- 上传区 -->
