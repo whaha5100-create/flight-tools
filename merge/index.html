@@ -118,7 +118,8 @@
   .upload-zone .uz-ic { font-size: 30px; }
   .upload-zone .uz-t { font-weight: 600; color: var(--ink); margin-top: 6px; }
   .upload-zone .uz-d { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-  .upload-zone input { display: none; }
+  .upload-zone { position: relative; }
+  .upload-zone input[type=file] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
   /* form grid */
   .airline-grid { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; }
@@ -148,6 +149,7 @@
   .date-row label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
   .date-row input[type=date] { padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 14px; color: var(--ink); }
   .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  .out-title { font-size: 15px; color: var(--brand-deep); margin: 20px 0 8px; font-weight: 700; }
   table.out { border-collapse: collapse; width: 100%; min-width: 1900px; font-size: 12.5px; }
   table.out th, table.out td { border: 1px solid var(--line); padding: 8px 9px; text-align: center; white-space: nowrap; }
   table.out thead th { background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; z-index: 2; }
@@ -194,12 +196,12 @@
       </summary>
       <div class="r-body">
         <ul>
-          <li><b>整合来源：</b>本页同时替代「航班数据统计」(stats) 与「航班运量汇总」(summary) 两个工具，生成一张 3 行表（<b>东上航</b> / <b>联航</b> / <b>总表</b>），对应共享文档《2026东上联数据汇总（新）》的三个 sheet。</li>
+          <li><b>整合来源：</b>本页同时替代「航班数据统计」(stats) 与「航班运量汇总」(summary) 两个工具。东上航 / 联航共用 24 列表（放一块），总表列序不同单独成块；两者分别对应共享文档《2026东上联数据汇总（新）》的三个 sheet。<b>导出时整合到一个 Excel（两个 sheet）</b>。</li>
           <li><b>自动列（来自航班数据统计）：</b>特服（轮椅 / 无陪）、进港架次（国内/国际）、出港架次（国内/国际）、总航班量、出港调时情况航班、计划性取消航班 —— 由导入的 FIOS Excel 自动计算。</li>
           <li><b>自动列（来自航班运量汇总）：</b>国内国际 / 国际出港旅客总人数、国内国际 / 国际托运总件数、出港客座率、国内国际 / 国际进港人数、国内国际 / 国际进港行李 —— 由下方手录的东航 / 上航 / 中联航运量自动汇总（东上航 = 东航 + 上航，联航 = 中联航，总表 = 东上航 + 联航）。</li>
           <li><b>手填列（黄色，需你补录）：</b>收费总数、出港保障延误架次、出港不正常航班架次、始发 / 起飞正常率、当天临时取消航班；<b>总表</b>额外有「不正常原因」。</li>
           <li><b>总表差异：</b>总表 sheet 没有「特服」「出港调时情况航班」列，改为「不正常原因」「出港调时架次」（= 调时航班数）；正常率名为「分公司始发 / 起飞正常率」，取消名为「…架次」。复制总表行时自动按总表列序输出，无需你手动对齐。</li>
-          <li><b>逐行复制：</b>点每行表头的「复制此行」按钮，即按对应 sheet 的精确列序复制整行（Tab 分隔），粘到共享文档对应 sheet 的数据区（B 列起）即可。</li>
+          <li><b>逐行复制：</b>东上联表头有「复制东上航」「复制联航」，总表表头有「复制总表」，均按对应 sheet 的精确列序复制整行（Tab 分隔），粘到共享文档对应 sheet 的数据区（B 列起）即可。</li>
         </ul>
       </div>
     </details>
@@ -232,25 +234,36 @@
 
     <!-- 步骤 3：输出 -->
     <section class="panel">
-      <h2><span class="step">3</span> 汇总结果（东上航 / 联航 / 总表）</h2>
-      <div class="sub">自动列（白底）由上方数据计算；黄色底为需你手填的列，可直接在格内修改。完成后逐行复制到共享文档。</div>
+      <h2><span class="step">3</span> 汇总结果（东上航 / 联航 一块，总表单独一块）</h2>
+      <div class="sub">东上航、联航共用 24 列表；总表列序不同，单独成块。自动列（白底）由上方数据计算；黄色底为需你手填的列，可直接在格内修改。完成后逐行复制到共享文档，或导出整合 Excel。</div>
       <div class="date-row">
         <label for="dataDate">数据日期：</label>
         <input type="date" id="dataDate">
       </div>
+
+      <h3 class="out-title">东上航 / 联航（24 列，对应东上航、联航 sheet）</h3>
       <div class="table-scroll">
-        <table class="out" id="outTable">
-          <thead id="outHead"></thead>
-          <tbody id="outBody"></tbody>
+        <table class="out" id="outTableEast">
+          <thead id="outHeadEast"></thead>
+          <tbody id="outBodyEast"></tbody>
         </table>
       </div>
+
+      <h3 class="out-title">总表（23 列，对应总表 sheet）</h3>
+      <div class="table-scroll">
+        <table class="out" id="outTableTotal">
+          <thead id="outHeadTotal"></thead>
+          <tbody id="outBodyTotal"></tbody>
+        </table>
+      </div>
+
       <div class="legend">
         <span><span class="dot auto"></span><b>自动列</b>（由导入/录入计算，勿改）</span>
         <span><span class="dot edit"></span><b>手填列</b>（黄色，需你补录，可编辑）</span>
       </div>
       <div class="btn-row">
-        <button class="btn green" id="copyAllBtn">复制整表（统一列序）</button>
-        <button class="btn ghost" id="exportBtn">导出 Excel</button>
+        <button class="btn green" id="copyAllBtn">复制东上联（东上航+联航）</button>
+        <button class="btn ghost" id="exportBtn">导出 Excel（整合两表）</button>
         <button class="btn ghost" id="copyTotalOnlyBtn">仅复制总表行</button>
       </div>
     </section>
@@ -461,7 +474,7 @@ const COLS_TOTAL = [
   { label: '出港不正常航班架次', key: 'abnormalFlights', editable: 'abnormalFlights' },
   { label: '分公司始发正常率', key: 'normRateDep', editable: 'normRateDep' },
   { label: '分公司起飞正常率', key: 'normRateTakeoff', editable: 'normRateTakeoff' },
-  { label: '不正常原因', key: 'abnormalReason', editable: 'abnormalReason' },
+  { label: '不正常原因', key: 'abnormalReason', editable: 'abnormalReason', text: true },
   { label: '出港调时架次', key: 'tuneCount' },
   { label: '计划性取消航班架次(进+出）', key: 'cancelFlights' },
   { label: '当天临时取消航班架次(进+出）', key: 'tempCancel', editable: 'tempCancel' },
@@ -639,51 +652,61 @@ function fmtVal(v, col) {
   return (v === '' || v === null || v === undefined) ? '' : (Number(v) || 0).toLocaleString('zh-CN');
 }
 function renderOutput() {
-  const head = document.getElementById('outHead');
-  let h = '<tr><th>项目 \\ 列' +
-    '<div class="row-act">' +
+  // ---- 东上联表（east + lian，COLS_EAST 24 列）----
+  const headE = document.getElementById('outHeadEast');
+  let hE = '<tr><th>项目 \\ 列<div class="row-act">' +
     '<button data-row="east">复制东上航</button>' +
     '<button data-row="lian">复制联航</button>' +
+    '</div></th>';
+  COLS_EAST.forEach(c => { hE += '<th>' + c.label + '</th>'; });
+  hE += '</tr>';
+  headE.innerHTML = hE;
+  const bodyE = document.getElementById('outBodyEast');
+  let bE = '';
+  ['east', 'lian'].forEach(rk => {
+    const r = state[rk];
+    bE += '<tr><th class="rname">' + ROW_NAMES[rk] + '</th>';
+    COLS_EAST.forEach(c => { bE += renderCell(rk, r, c); });
+    bE += '</tr>';
+  });
+  bodyE.innerHTML = bE;
+
+  // ---- 总表（COLS_TOTAL 23 列）----
+  const headT = document.getElementById('outHeadTotal');
+  let hT = '<tr><th>项目 \\ 列<div class="row-act">' +
     '<button data-row="total">复制总表</button>' +
     '</div></th>';
-  COLS_EAST.forEach(c => { h += '<th>' + c.label + '</th>'; });
-  h += '</tr>';
-  head.innerHTML = h;
-
-  const body = document.getElementById('outBody');
-  let b = '';
-  ROW_KEYS.forEach(rk => {
-    const r = state[rk];
-    b += '<tr class="' + (rk === 'total' ? 'total' : '') + '"><th class="rname">' + ROW_NAMES[rk] + '</th>';
-    COLS_EAST.forEach(c => {
-      if (rk === 'total' && c.skipForTotal) {
-        b += '<td class="auto" style="color:var(--muted-2)">—</td>';
-      } else if (c.editable) {
-        b += '<td class="editable"><input data-row="' + rk + '" data-key="' + c.editable + '" value="' +
-          (r[c.editable] === '' ? '' : r[c.editable]) + '" placeholder="填"></td>';
-      } else if (c.text) {
-        b += '<td class="txt" title="' + (Array.isArray(r[c.key]) ? r[c.key].join('、') : (r[c.key] || '')) + '">' +
-          fmtVal(r[c.key], c) + '</td>';
-      } else {
-        b += '<td class="auto">' + fmtVal(r[c.key], c) + '</td>';
-      }
-    });
-    b += '</tr>';
-  });
-  body.innerHTML = b;
+  COLS_TOTAL.forEach(c => { hT += '<th>' + c.label + '</th>'; });
+  hT += '</tr>';
+  headT.innerHTML = hT;
+  const bodyT = document.getElementById('outBodyTotal');
+  let bT = '<tr class="total"><th class="rname">' + ROW_NAMES.total + '</th>';
+  COLS_TOTAL.forEach(c => { bT += renderCell('total', state.total, c); });
+  bT += '</tr>';
+  bodyT.innerHTML = bT;
 
   // 绑定复制按钮
-  head.querySelectorAll('button[data-row]').forEach(btn => {
+  document.querySelectorAll('table.out thead button[data-row]').forEach(btn => {
     btn.addEventListener('click', () => copyRow(btn.getAttribute('data-row')));
   });
   // 绑定手填编辑
-  body.querySelectorAll('input[data-key]').forEach(inp => {
+  document.querySelectorAll('table.out tbody input[data-key]').forEach(inp => {
     inp.addEventListener('input', () => {
-      const rk = inp.getAttribute('data-row');
-      const k = inp.getAttribute('data-key');
-      state[rk][k] = inp.value;
+      state[inp.getAttribute('data-row')][inp.getAttribute('data-key')] = inp.value;
     });
   });
+}
+
+/* 渲染单个单元格（自动列 / 手填列 / 文本列） */
+function renderCell(rk, r, c) {
+  if (c.editable) {
+    return '<td class="editable"><input data-row="' + rk + '" data-key="' + c.editable + '" value="' +
+      (r[c.editable] === '' ? '' : r[c.editable]) + '" placeholder="填"></td>';
+  } else if (c.text) {
+    return '<td class="txt" title="' + (Array.isArray(r[c.key]) ? r[c.key].join('、') : (r[c.key] || '')) + '">' +
+      fmtVal(r[c.key], c) + '</td>';
+  }
+  return '<td class="auto">' + fmtVal(r[c.key], c) + '</td>';
 }
 
 /* ============================================================
@@ -721,8 +744,8 @@ function copyRow(rowKey) {
 
 /* 复制整表（统一列序，3 行） */
 document.getElementById('copyAllBtn').addEventListener('click', () => {
-  const lines = ROW_KEYS.map(rk => rowToTsv(rk));
-  copyText(lines.join('\n'), '已复制整表（统一列序）');
+  const lines = ['east', 'lian'].map(rk => rowToTsv(rk));
+  copyText(lines.join('\n'), '已复制东上联（东上航+联航，24列）');
 });
 /* 仅复制总表行 */
 document.getElementById('copyTotalOnlyBtn').addEventListener('click', () => copyRow('total'));
@@ -731,27 +754,32 @@ document.getElementById('copyTotalOnlyBtn').addEventListener('click', () => copy
    导出 Excel（3 行，统一列序）
    ============================================================ */
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const aoa = [
-    ['项目'].concat(COLS_EAST.map(c => c.label)),
-  ];
-  ROW_KEYS.forEach(rk => {
-    const r = state[rk];
-    const line = [ROW_NAMES[rk]].concat(COLS_EAST.map(c => {
-      let v = r[c.key];
-      if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
-      if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
-      if (v === '' || v === null || v === undefined) return '';
-      return Number(v) || 0;
-    }));
-    aoa.push(line);
-  });
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = COLS_EAST.map(() => ({ wch: 16 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '东上联日汇总');
   const d = document.getElementById('dataDate').value || '';
+  const wb = XLSX.utils.book_new();
+  // sheet1：东上联（东上航 + 联航，24 列）
+  const aoaE = [['项目'].concat(COLS_EAST.map(c => c.label))];
+  ['east', 'lian'].forEach(rk => {
+    aoaE.push([ROW_NAMES[rk]].concat(COLS_EAST.map(c => cellVal(state[rk], c))));
+  });
+  const wsE = XLSX.utils.aoa_to_sheet(aoaE);
+  wsE['!cols'] = COLS_EAST.map(() => ({ wch: 16 }));
+  XLSX.utils.book_append_sheet(wb, wsE, '东上联');
+  // sheet2：总表（23 列）
+  const aoaT = [['项目'].concat(COLS_TOTAL.map(c => c.label))];
+  aoaT.push([ROW_NAMES.total].concat(COLS_TOTAL.map(c => cellVal(state.total, c))));
+  const wsT = XLSX.utils.aoa_to_sheet(aoaT);
+  wsT['!cols'] = COLS_TOTAL.map(() => ({ wch: 16 }));
+  XLSX.utils.book_append_sheet(wb, wsT, '总表');
   XLSX.writeFile(wb, '东上联日数据汇总' + (d ? '_' + d : '') + '.xlsx');
 });
+// 单个单元格取值（用于导出 Excel）
+function cellVal(r, c) {
+  let v = r[c.key];
+  if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+  if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
+  if (v === '' || v === null || v === undefined) return '';
+  return Number(v) || 0;
+}
 
 /* 初始化 */
 renderOutput();
