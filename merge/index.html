@@ -587,21 +587,25 @@ function parseDelayTable(fullText) {
   for (const m of endMarkers) { const i = fullText.indexOf(m, dataStart); if (i !== -1 && i < end) end = i; }
   let region = fullText.slice(dataStart, end);
   region = region.replace(/浙江分公司地面服务部（运行指挥中心）第\s*\d+\s*页\s*联系方式：[\d-]*生产情况汇总/g, '');
-  const re = /(\d+)\s*((?:KN|FM|MU|HO|9C|CA|ZH|CZ|3U|EU|KY|GS|NS|DZ|PN|TV|JR|GT|JD|8L|SC|GJ|UQ)\s*\d+)\s*(?:[（(][^）)]*[）)])?\s*(\d+)\s*分钟\s*([^延误正常]+?)\s+(延误|正常)\s+(始发|过站)/g;
+  const re = /(\d+)\s*((?:KN|FM|MU|HO|9C|CA|ZH|CZ|3U|EU|KY|GS|NS|DZ|PN|TV|JR|GT|JD|8L|SC|GJ|UQ)\s*\d+)([（(][^）)]*[）)])?\s*(\d+)\s*分钟\s*([^延误正常]+?)\s+(延误|正常)\s+(始发|过站)/g;
   const records = [];
   let m;
   while ((m = re.exec(region)) !== null) {
+    const seq = m[1];
     const flight = m[2].replace(/\s+/g, '');
-    const minutes = m[3];
-    const reason = m[4].trim();
-    const landing = m[5];
-    const nature = m[6];
+    const route = m[3] || '';
+    const minutes = m[4];
+    const reason = m[5].trim();
+    const landing = m[6];
+    const nature = m[7];
     const airline = flight.slice(0, 2);
-    records.push({ flight, minutes, reason, landing, nature, airline });
+    records.push({ seq, flight, route, minutes, reason, landing, nature, airline });
   }
   const eastCount = records.filter(r => r.airline === 'FM' || r.airline === 'MU').length;
   const lianCount = records.filter(r => r.airline === 'KN').length;
-  const reasonText = records.map(r => r.flight + ' 延误' + r.minutes + '分钟 ' + r.reason + ' ' + r.landing + ' ' + r.nature).join('；');
+  const header = '序号 航班号 起飞 延误 延误原因 落地情况 性质';
+  const rows = records.map(r => r.seq + ' ' + r.flight + r.route + ' ' + r.minutes + ' 分钟 ' + r.reason + ' ' + r.landing + ' ' + r.nature);
+  const reasonText = [header, ...rows].join('\n');
   return { found: true, records, eastCount, lianCount, reasonText };
 }
 
@@ -823,7 +827,7 @@ function rowToTsv(rowKey) {
   const arr = cols.map(c => {
     let v = r[c.key];
     if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
-    if (c.text) return fmtTune(v);
+    if (c.text) return String(fmtTune(v)).replace(/\n+/g, '；');
     if (v === '' || v === null || v === undefined) return '';
     return (Number(v) || 0).toLocaleString('zh-CN');
   });
