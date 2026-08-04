@@ -126,6 +126,10 @@
   .card.c7 .go { color: #dc2626; }
   .card:nth-child(6){ animation-delay:.70s; }
   .card:nth-child(7){ animation-delay:.83s; }
+  .card.c8::before { background: linear-gradient(90deg, #0891b2, #06b6d4); }
+  .card.c8 .card-ic { background: #cffafe; color: #0891b2; }
+  .card.c8 .go { color: #0891b2; }
+  .card:nth-child(8){ animation-delay:.96s; }
   .tag.testing { background: #fef3c7; color: #b45309; font-weight: 600; }
   .card .go .arrow { transition: transform .2s; }
   .card:hover .go .arrow { transform: translateX(5px); }
@@ -267,6 +271,20 @@
             <span class="tag">KN航班</span>
             <span class="tag">截载时间</span>
             <span class="tag">导出图片</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="card c8" href="./merge/index.html">
+          <div class="card-top">
+            <span class="card-ic">🧮</span>
+            <h3>东上联日数据汇总</h3>
+          </div>
+          <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表、录入运量，一键生成东上航 / 联航 / 总表三行数据，逐行复制到共享文档。</p>
+          <div class="tags">
+            <span class="tag">三行汇总</span>
+            <span class="tag">逐行复制</span>
+            <span class="tag">导出 Excel</span>
           </div>
           <div class="go">打开工具 <span class="arrow">→</span></div>
         </a>

@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>东上联日数据汇总 · 航班工具集</title>
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<style>
+  :root {
+    --brand:        #2563eb;
+    --brand-dark:   #1d4ed8;
+    --brand-deep:   #1e3a8a;
+    --brand-light:  #eff6ff;
+    --brand-soft:   #dbeafe;
+    --ink:          #0f172a;
+    --ink-2:        #334155;
+    --muted:        #64748b;
+    --muted-2:      #94a3b8;
+    --line:         #e2e8f0;
+    --bg:           #f1f5f9;
+    --card:         #ffffff;
+    --success:      #059669;
+    --success-dark: #047857;
+    --amber:        #d97706;
+    --radius:       16px;
+    --radius-sm:    10px;
+    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
+    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
+      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
+      var(--bg);
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+
+  /* Header */
+  .header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff; padding: 34px 40px; border-radius: 22px; margin-bottom: 22px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  }
+  .header::before {
+    content: ""; position: absolute; top: -60px; right: -30px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
+  }
+  .header::after {
+    content: ""; position: absolute; bottom: -80px; left: 20%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
+  }
+  .header .header-main { position: relative; z-index: 1; }
+  .header .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
+    backdrop-filter: blur(6px); margin-bottom: 12px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+  .header p { font-size: 14px; opacity: 0.9; margin-top: 8px; max-width: 680px; }
+  .header .plane { position: relative; z-index: 1; font-size: 54px; line-height: 1; animation: floaty 4s ease-in-out infinite; flex-shrink: 0; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2)); }
+
+  /* back-home */
+  .back-home { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 16px 2px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; font-size: 13.5px; font-weight: 600; color: var(--brand-dark);
+    text-decoration: none; box-shadow: var(--shadow-sm); transition: transform .18s, box-shadow .18s; }
+  .back-home:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+
+  /* Rules panel */
+  .rules-panel { background: var(--card); border-radius: var(--radius); margin-bottom: 22px;
+    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line); }
+  .rules-panel summary { list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: space-between; padding: 16px 22px;
+    font-size: 15.5px; font-weight: 700; color: var(--ink); }
+  .rules-panel summary::-webkit-details-marker { display: none; }
+  .rules-panel summary .r-title { display: flex; align-items: center; gap: 10px; }
+  .rules-panel summary .r-ic { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+  .rules-panel .r-chev { transition: transform .3s; color: var(--muted); }
+  .rules-panel[open] .r-chev { transform: rotate(180deg); }
+  .rules-panel .r-body { padding: 0 22px 20px; font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
+  .rules-panel .r-body ul { padding-left: 20px; margin: 6px 0; }
+  .rules-panel .r-body li { margin: 5px 0; }
+  .rules-panel .r-body b { color: var(--ink); }
+  .rules-panel .r-body code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  /* Panel / section */
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 22px 24px; margin-bottom: 22px; }
+  .panel > h2 { font-size: 17px; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .panel > h2 .step { width: 26px; height: 26px; border-radius: 8px; background: var(--brand); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .panel > .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+  /* upload */
+  .upload-zone { border: 2px dashed var(--brand-soft); border-radius: 12px; background: var(--brand-light);
+    padding: 22px; text-align: center; cursor: pointer; transition: background .2s, border-color .2s; }
+  .upload-zone:hover { background: #e0ecff; border-color: var(--brand); }
+  .upload-zone .uz-ic { font-size: 30px; }
+  .upload-zone .uz-t { font-weight: 600; color: var(--ink); margin-top: 6px; }
+  .upload-zone .uz-d { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .upload-zone input { display: none; }
+
+  /* form grid */
+  .airline-grid { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; }
+  .airline-grid .ah { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; }
+  .airline-grid .ar { font-weight: 600; color: var(--ink); font-size: 14px; }
+  .airline-grid input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px;
+    font-size: 14px; text-align: center; color: var(--ink); background: #fff; }
+  .airline-grid input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .seat-row { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; margin-top: 12px; }
+  .seat-row .sl { font-weight: 600; color: var(--ink); font-size: 14px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 600; padding: 11px 20px; border-radius: 11px;
+    background: var(--brand); color: #fff; box-shadow: var(--shadow-sm); transition: transform .18s, box-shadow .18s, background .18s; }
+  .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); background: var(--brand-dark); }
+  .btn.ghost { background: var(--brand-light); color: var(--brand-dark); box-shadow: none; }
+  .btn.ghost:hover { background: var(--brand-soft); }
+  .btn.green { background: var(--success); }
+  .btn.green:hover { background: var(--success-dark); }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+
+  .hint-ok { color: var(--success-dark); font-size: 13px; font-weight: 600; margin-top: 12px; }
+  .hint-err { color: #dc2626; font-size: 13px; font-weight: 600; margin-top: 12px; }
+
+  /* output table */
+  .date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .date-row label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .date-row input[type=date] { padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 14px; color: var(--ink); }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table.out { border-collapse: collapse; width: 100%; min-width: 1900px; font-size: 12.5px; }
+  table.out th, table.out td { border: 1px solid var(--line); padding: 8px 9px; text-align: center; white-space: nowrap; }
+  table.out thead th { background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; z-index: 2; }
+  table.out thead th .row-act { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
+  table.out thead th .row-act button { border: none; cursor: pointer; font-size: 11.5px; font-weight: 700;
+    padding: 5px 9px; border-radius: 7px; background: #fff; color: var(--brand-deep); }
+  table.out thead th .row-act button:hover { background: #dbeafe; }
+  table.out tbody th.rname { background: var(--brand-light); color: var(--brand-dark); font-weight: 700; font-size: 13px; }
+  table.out tbody tr.total th.rname { background: #fef3c7; color: #b45309; }
+  table.out td.auto { color: var(--ink); background: #fafdff; }
+  table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--brand-soft);
+    border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: #fffdf5; }
+  table.out td.editable input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px #fde68a; }
+  table.out td.txt { text-align: left; background: #fafdff; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .legend { font-size: 12.5px; color: var(--muted); margin-top: 10px; display: flex; gap: 18px; flex-wrap: wrap; }
+  .legend span b { color: var(--ink); }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .dot.auto { background: #fafdff; border: 1px solid var(--line); }
+  .dot.edit { background: #fffdf5; border: 1px solid var(--amber); }
+
+  .copied-tip { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; }
+  .copied-tip.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-home" href="../index.html">← 返回导航页</a>
+
+    <header class="header">
+      <div class="header-main">
+        <span class="eyebrow">✈ 航班工作工具集</span>
+        <h1>东上联日数据汇总</h1>
+        <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表、录入运量，一键生成东上航 / 联航 / 总表三行数据，逐行复制到共享文档。</p>
+      </div>
+      <div class="plane">🧮</div>
+    </header>
+
+    <details class="rules-panel" open>
+      <summary>
+        <span class="r-title"><span class="r-ic">📘</span> 规则说明</span>
+        <span class="r-chev">▾</span>
+      </summary>
+      <div class="r-body">
+        <ul>
+          <li><b>整合来源：</b>本页同时替代「航班数据统计」(stats) 与「航班运量汇总」(summary) 两个工具，生成一张 3 行表（<b>东上航</b> / <b>联航</b> / <b>总表</b>），对应共享文档《2026东上联数据汇总（新）》的三个 sheet。</li>
+          <li><b>自动列（来自航班数据统计）：</b>特服（轮椅 / 无陪）、进港架次（国内/国际）、出港架次（国内/国际）、总航班量、出港调时情况航班、计划性取消航班 —— 由导入的 FIOS Excel 自动计算。</li>
+          <li><b>自动列（来自航班运量汇总）：</b>国内国际 / 国际出港旅客总人数、国内国际 / 国际托运总件数、出港客座率、国内国际 / 国际进港人数、国内国际 / 国际进港行李 —— 由下方手录的东航 / 上航 / 中联航运量自动汇总（东上航 = 东航 + 上航，联航 = 中联航，总表 = 东上航 + 联航）。</li>
+          <li><b>手填列（黄色，需你补录）：</b>收费总数、出港保障延误架次、出港不正常航班架次、始发 / 起飞正常率、当天临时取消航班；<b>总表</b>额外有「不正常原因」。</li>
+          <li><b>总表差异：</b>总表 sheet 没有「特服」「出港调时情况航班」列，改为「不正常原因」「出港调时架次」（= 调时航班数）；正常率名为「分公司始发 / 起飞正常率」，取消名为「…架次」。复制总表行时自动按总表列序输出，无需你手动对齐。</li>
+          <li><b>逐行复制：</b>点每行表头的「复制此行」按钮，即按对应 sheet 的精确列序复制整行（Tab 分隔），粘到共享文档对应 sheet 的数据区（B 列起）即可。</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- 步骤 1：导入 FIOS -->
+    <section class="panel">
+      <h2><span class="step">1</span> 导入 FIOS 航班表（自动算架次 / 特服 / 调时 / 取消）</h2>
+      <div class="sub">拖入或选择当日 FIOS 导出的 Excel，系统按航班号区分东上航司 / 中联航，统计各维度。</div>
+      <label class="upload-zone" id="uploadZone">
+        <div class="uz-ic">📥</div>
+        <div class="uz-t">点击或拖入 FIOS 航班 Excel</div>
+        <div class="uz-d">支持 .xls / .xlsx（需无密码）</div>
+        <input type="file" id="fileInput" accept=".xls,.xlsx">
+      </label>
+      <div id="statsMsg"></div>
+    </section>
+
+    <!-- 步骤 2：录入运量 -->
+    <section class="panel">
+      <h2><span class="step">2</span> 录入东航 / 上航 / 中联航运量（自动汇总旅客 / 行李 / 客座率）</h2>
+      <div class="sub">填写国际 + 国内合计值（与国际出港值分开填）。单元格支持四则运算，如 <code>11+65+231</code>、<code>16*78/15</code>；空值按 0 计。</div>
+      <div class="airline-grid" id="airlineGrid"></div>
+      <div class="seat-row" id="seatRow"></div>
+      <div class="btn-row">
+        <button class="btn" id="calcBtn">计算并生成汇总表</button>
+        <button class="btn ghost" id="clearInputBtn">清空录入</button>
+      </div>
+      <div id="inputMsg"></div>
+    </section>
+
+    <!-- 步骤 3：输出 -->
+    <section class="panel">
+      <h2><span class="step">3</span> 汇总结果（东上航 / 联航 / 总表）</h2>
+      <div class="sub">自动列（白底）由上方数据计算；黄色底为需你手填的列，可直接在格内修改。完成后逐行复制到共享文档。</div>
+      <div class="date-row">
+        <label for="dataDate">数据日期：</label>
+        <input type="date" id="dataDate">
+      </div>
+      <div class="table-scroll">
+        <table class="out" id="outTable">
+          <thead id="outHead"></thead>
+          <tbody id="outBody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><span class="dot auto"></span><b>自动列</b>（由导入/录入计算，勿改）</span>
+        <span><span class="dot edit"></span><b>手填列</b>（黄色，需你补录，可编辑）</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn green" id="copyAllBtn">复制整表（统一列序）</button>
+        <button class="btn ghost" id="exportBtn">导出 Excel</button>
+        <button class="btn ghost" id="copyTotalOnlyBtn">仅复制总表行</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="copied-tip" id="copiedTip">已复制 ✓</div>
+
+<script>
+/* ============================================================
+   航班数据统计算法（来自 stats 工具）
+   ============================================================ */
+function detectColumns(headers) {
+  const map = {};
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').trim();
+    if (!h) continue;
+    if (/机号|机尾|aircraft/i.test(h)) map.机号 = i;
+    else if (/^(进港|进港航班|进港班机)$/i.test(h) || /^inbound/i.test(h)) map.进港航班 = i;
+    else if (/^(出港|出港航班|出港班机)$/i.test(h) || /^outbound/i.test(h)) map.出港航班 = i;
+    else if (/^(前站|前一站)$/i.test(h)) map.前站 = i;
+    else if (/^(到站|到达站)$/i.test(h)) map.到站 = i;
+    else if (/^(特服|特殊服务|special)$/i.test(h)) map.特服 = i;
+    else if (/^(备注|remark|备注说明)$/i.test(h)) map.备注 = i;
+  }
+  return map;
+}
+function classifyFlight(flightNo) {
+  const f = String(flightNo || '').replace(/[#&].*$/, '').trim();
+  if (/^(MU|FM|CES)/i.test(f)) return '东上航司';
+  if (/^KN/i.test(f)) return '中联航';
+  return '其他';
+}
+function isCancelled(jihao) {
+  const v = String(jihao || '').trim().toUpperCase();
+  return v === 'CNL' || v === 'DEL';
+}
+function parseSpecialService(tefu) {
+  const s = String(tefu || '');
+  const parts = s.split('|');
+  const outboundPart = parts.length > 1 ? parts[1] : parts[0];
+  if (parts.length > 1 && parts[1].trim() === '') return { 轮椅: 0, 无陪: 0 };
+  let 轮椅 = 0, 无陪 = 0;
+  const wc = outboundPart.match(/轮(\d+)/);
+  if (wc) 轮椅 += parseInt(wc[1], 10);
+  const ch = outboundPart.match(/童(\d+)/);
+  if (ch) 无陪 += parseInt(ch[1], 10);
+  return { 轮椅, 无陪 };
+}
+function processWorkbook(data) {
+  const wb = XLSX.read(data, { type: 'array', codepage: 936, defval: '' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (rows.length < 2) throw new Error('文件数据不足，至少需要标题行和1行数据');
+  const headers = rows[0];
+  const cols = detectColumns(headers);
+  const required = ['机号', '进港航班', '出港航班'];
+  for (const k of required) {
+    if (cols[k] === undefined) throw new Error('未找到列: ' + k + '，请确认文件包含该列');
+  }
+  const dataRows = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const 机号 = String(row[cols.机号] || '').trim();
+    const 进港航班 = String(row[cols.进港航班] || '').trim();
+    const 出港航班 = String(row[cols.出港航班] || '').trim();
+    if (!机号 && !进港航班 && !出港航班) continue;
+    dataRows.push({
+      机号,
+      进港航班,
+      出港航班,
+      前站: cols.前站 !== undefined ? String(row[cols.前站] || '').trim() : '',
+      到站: cols.到站 !== undefined ? String(row[cols.到站] || '').trim() : '',
+      特服: cols.特服 !== undefined ? String(row[cols.特服] || '').trim() : '',
+      备注: cols.备注 !== undefined ? String(row[cols.备注] || '').trim() : '',
+    });
+  }
+  const stats = {
+    '东上航司': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+    '中联航': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+  };
+  const 国际城市 = ['马德里', '罗马'];
+  for (const d of dataRows) {
+    const cancelled = isCancelled(d.机号);
+    if (cancelled) {
+      const catIn = d.进港航班 ? classifyFlight(d.进港航班) : null;
+      const catOut = d.出港航班 ? classifyFlight(d.出港航班) : null;
+      if (catIn === '东上航司' || catOut === '东上航司') stats['东上航司'].取消航班.push(d);
+      if (catIn === '中联航' || catOut === '中联航') stats['中联航'].取消航班.push(d);
+      continue;
+    }
+    if (d.进港航班) {
+      const cat = classifyFlight(d.进港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.前站)) stats[cat].进港国际++;
+        else stats[cat].进港国内++;
+      }
+    }
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.到站)) stats[cat].出港国际++;
+        else stats[cat].出港国内++;
+      }
+    }
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        const svc = parseSpecialService(d.特服);
+        stats[cat].特服轮椅 += svc.轮椅;
+        stats[cat].特服无陪 += svc.无陪;
+      }
+    }
+    if (d.出港航班 && /调时/.test(d.备注)) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) stats[cat].出港调时航班.push(d.出港航班.replace(/[#&]/g, ''));
+    }
+  }
+  for (const cat of ['东上航司', '中联航']) {
+    stats[cat].总航班量 = stats[cat].进港国内 + stats[cat].进港国际 + stats[cat].出港国内 + stats[cat].出港国际;
+  }
+  return { stats, 数据总行数: dataRows.length };
+}
+
+/* ============================================================
+   运量录入逻辑（来自 summary 工具）
+   ============================================================ */
+function evalExpr(s) {
+  s = String(s == null ? '' : s).trim();
+  if (s === '') return 0;
+  if (!/^[\d\s.+\-*/]+$/.test(s)) return NaN;
+  const raw = s.match(/(\d+\.?\d*|\.\d+|[+\-*/])/g);
+  if (!raw || raw.length === 0) return NaN;
+  let nums = [], ops = [], pendingSign = 1;
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i];
+    if (t === '*' || t === '/') ops.push(t);
+    else if (t === '+' || t === '-') {
+      if (nums.length === 0 || ops.length === nums.length) pendingSign *= (t === '-') ? -1 : 1;
+      else ops.push(t);
+    } else {
+      const v = parseFloat(t);
+      if (isNaN(v)) return NaN;
+      nums.push(v * pendingSign);
+      pendingSign = 1;
+    }
+  }
+  if (nums.length === 0 || ops.length !== nums.length - 1) return NaN;
+  const stack = [nums[0]], sop = [];
+  for (let j = 0; j < ops.length; j++) {
+    const op = ops[j], n = nums[j + 1];
+    if (op === '*') stack[stack.length - 1] *= n;
+    else if (op === '/') { if (n === 0) return NaN; stack[stack.length - 1] /= n; }
+    else { stack.push(n); sop.push(op); }
+  }
+  let total = stack[0];
+  for (let k = 0; k < sop.length; k++) total = (sop[k] === '+') ? total + stack[k + 1] : total - stack[k + 1];
+  return total;
+}
+
+/* ============================================================
+   列定义（对齐共享 Excel 三张 sheet）
+   ============================================================ */
+// 显示用列序（东上航 / 联航 sheet 的 24 个数据列）
+const COLS_EAST = [
+  { label: '收费总数', key: 'fee', editable: 'fee' },
+  { label: '国内国际出港旅客总人数', key: 'outPaxDI' },
+  { label: '国际出港旅客总人数', key: 'outPaxI' },
+  { label: '国内国际托运总件数', key: 'outBagDI' },
+  { label: '国际托运总件数', key: 'outBagI' },
+  { label: '出港客座率', key: 'seat', fmt: 'pct' },
+  { label: '国内国际进港人数', key: 'inPaxDI' },
+  { label: '国际进港人数', key: 'inPaxI' },
+  { label: '国内国际进港行李', key: 'inBagDI' },
+  { label: '国际进港行李', key: 'inBagI' },
+  { label: '特服（轮椅）', key: 'wheelchair', skipForTotal: true },
+  { label: '特服（无陪）', key: 'unaccomp', skipForTotal: true },
+  { label: '进港架次（国内）', key: 'inDom' },
+  { label: '进港架次（国际）', key: 'inInt' },
+  { label: '出港架次（国内）', key: 'outDom' },
+  { label: '出港架次（国际）', key: 'outInt' },
+  { label: '总航班量', key: 'totalFlights' },
+  { label: '出港保障延误架次', key: 'delayFlights', editable: 'delayFlights' },
+  { label: '出港不正常航班架次', key: 'abnormalFlights', editable: 'abnormalFlights' },
+  { label: '始发正常率', key: 'normRateDep', editable: 'normRateDep' },
+  { label: '起飞正常率', key: 'normRateTakeoff', editable: 'normRateTakeoff' },
+  { label: '出港调时情况航班', key: 'tuneList', text: true, skipForTotal: true },
+  { label: '计划性取消航班(进+出）', key: 'cancelFlights' },
+  { label: '当天临时取消航班(进+出）', key: 'tempCancel', editable: 'tempCancel' },
+];
+// 总表 sheet 列序（24 列，差异列已处理）
+const COLS_TOTAL = [
+  { label: '收费总数', key: 'fee', editable: 'fee' },
+  { label: '国内国际出港旅客总人数', key: 'outPaxDI' },
+  { label: '国际出港旅客总人数', key: 'outPaxI' },
+  { label: '国内国际托运总件数', key: 'outBagDI' },
+  { label: '国际托运总件数', key: 'outBagI' },
+  { label: '出港客座率', key: 'seat', fmt: 'pct' },
+  { label: '国内国际进港人数', key: 'inPaxDI' },
+  { label: '国际进港人数', key: 'inPaxI' },
+  { label: '国内国际进港行李', key: 'inBagDI' },
+  { label: '国际进港行李', key: 'inBagI' },
+  { label: '进港架次（国内）', key: 'inDom' },
+  { label: '进港架次（国际）', key: 'inInt' },
+  { label: '出港架次（国内）', key: 'outDom' },
+  { label: '出港架次（国际）', key: 'outInt' },
+  { label: '总航班量', key: 'totalFlights' },
+  { label: '出港保障延误架次', key: 'delayFlights', editable: 'delayFlights' },
+  { label: '出港不正常航班架次', key: 'abnormalFlights', editable: 'abnormalFlights' },
+  { label: '分公司始发正常率', key: 'normRateDep', editable: 'normRateDep' },
+  { label: '分公司起飞正常率', key: 'normRateTakeoff', editable: 'normRateTakeoff' },
+  { label: '不正常原因', key: 'abnormalReason', editable: 'abnormalReason' },
+  { label: '出港调时架次', key: 'tuneCount' },
+  { label: '计划性取消航班架次(进+出）', key: 'cancelFlights' },
+  { label: '当天临时取消航班架次(进+出）', key: 'tempCancel', editable: 'tempCancel' },
+];
+
+/* ============================================================
+   状态
+   ============================================================ */
+const ROW_KEYS = ['east', 'lian', 'total'];
+const ROW_NAMES = { east: '东上航', lian: '联航', total: '总表' };
+// 每行数据对象（数值字段初值 0，文本字段空串）
+function emptyRow() {
+  return {
+    fee: '', outPaxDI: 0, outPaxI: 0, outBagDI: 0, outBagI: 0, seat: 0,
+    inPaxDI: 0, inPaxI: 0, inBagDI: 0, inBagI: 0,
+    wheelchair: 0, unaccomp: 0, inDom: 0, inInt: 0, outDom: 0, outInt: 0, totalFlights: 0,
+    delayFlights: '', abnormalFlights: '', normRateDep: '', normRateTakeoff: '',
+    tuneList: [], cancelFlights: 0, tempCancel: '',
+    abnormalReason: '',
+  };
+}
+const state = { east: emptyRow(), lian: emptyRow(), total: emptyRow() };
+
+/* ============================================================
+   运量录入界面构建
+   ============================================================ */
+const AIRLINES = ['东航', '上航', '中联航'];
+const FIELDS_A = ['国内国际出港旅客总人数', '国际出港旅客总人数', '国内国际托运总件数', '国际托运总件数'];
+const FIELDS_B = ['国内国际进港人数', '国际进港人数', '国内国际进港行李', '国际进港行李'];
+(function buildAirlineGrid() {
+  const g = document.getElementById('airlineGrid');
+  let html = '<div class="ah"></div>';
+  AIRLINES.forEach(a => html += '<div class="ah">' + a + '</div>');
+  for (let f = 0; f < 4; f++) {
+    html += '<div class="ar">' + FIELDS_A[f] + '</div>';
+    for (let a = 0; a < 3; a++) html += '<div><input id="inA_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
+  }
+  for (let f = 0; f < 4; f++) {
+    html += '<div class="ar">' + FIELDS_B[f] + '</div>';
+    for (let a = 0; a < 3; a++) html += '<div><input id="inB_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
+  }
+  g.innerHTML = html;
+  const sr = document.getElementById('seatRow');
+  let sh = '<div class="sl">出港客座率（%）</div>';
+  AIRLINES.forEach((a, a2) => sh += '<div><input id="inS_' + a2 + '" placeholder="如 85" inputmode="decimal"></div>');
+  sr.innerHTML = sh;
+})();
+function val(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function readGrid(prefix, fields) {
+  const g = [], bad = [];
+  for (let a = 0; a < 3; a++) {
+    const row = [];
+    for (let f = 0; f < 4; f++) {
+      const v = evalExpr(val(prefix + '_' + a + '_' + f));
+      if (isNaN(v)) bad.push(AIRLINES[a] + ' · ' + fields[f]);
+      row.push(v);
+    }
+    g.push(row);
+  }
+  return { grid: g, bad };
+}
+
+/* ============================================================
+   导入 FIOS
+   ============================================================ */
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const statsMsg = document.getElementById('statsMsg');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.background = '#e0ecff'; });
+uploadZone.addEventListener('dragleave', () => { uploadZone.style.background = ''; });
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.style.background = '';
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const res = processWorkbook(e.target.result);
+      const s = res.stats;
+      state.east.wheelchair = s['东上航司'].特服轮椅;
+      state.east.unaccomp = s['东上航司'].特服无陪;
+      state.east.inDom = s['东上航司'].进港国内;
+      state.east.inInt = s['东上航司'].进港国际;
+      state.east.outDom = s['东上航司'].出港国内;
+      state.east.outInt = s['东上航司'].出港国际;
+      state.east.totalFlights = s['东上航司'].总航班量;
+      state.east.tuneList = s['东上航司'].出港调时航班;
+      state.east.cancelFlights = s['东上航司'].取消航班.length;
+      state.lian.wheelchair = s['中联航'].特服轮椅;
+      state.lian.unaccomp = s['中联航'].特服无陪;
+      state.lian.inDom = s['中联航'].进港国内;
+      state.lian.inInt = s['中联航'].进港国际;
+      state.lian.outDom = s['中联航'].出港国内;
+      state.lian.outInt = s['中联航'].出港国际;
+      state.lian.totalFlights = s['中联航'].总航班量;
+      state.lian.tuneList = s['中联航'].出港调时航班;
+      state.lian.cancelFlights = s['中联航'].取消航班.length;
+      statsMsg.innerHTML = '<div class="hint-ok">✓ 已识别 ' + res.数据总行数 + ' 条航班，东上航司 / 中联航 架次与特服已自动填入步骤 3 表格。</div>';
+      rebuildTotalFromParts();
+      renderOutput();
+    } catch (err) {
+      statsMsg.innerHTML = '<div class="hint-err">✗ ' + err.message + '</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============================================================
+   计算运量 + 生成汇总
+   ============================================================ */
+document.getElementById('calcBtn').addEventListener('click', () => {
+  const eA = readGrid('inA', FIELDS_A);
+  const eB = readGrid('inB', FIELDS_B);
+  const seat = [], seatBad = [];
+  for (let a = 0; a < 3; a++) {
+    const v = evalExpr(val('inS_' + a));
+    if (isNaN(v)) seatBad.push(AIRLINES[a] + ' · 出港客座率');
+    seat.push(v);
+  }
+  const bad = eA.bad.concat(eB.bad, seatBad);
+  const msg = document.getElementById('inputMsg');
+  if (bad.length) {
+    msg.innerHTML = '❌ 以下格子无法识别（请输入数字或加减乘除表达式）：<br>· ' + bad.join('<br>· ');
+    msg.className = 'hint-err';
+    return;
+  }
+  msg.innerHTML = '';
+  const A = eA.grid, B = eB.grid;
+  // 东上航（东航+上航）
+  const sum = (arr) => arr[0].map((v, f) => v + arr[1][f]);
+  state.east.outPaxDI = sum(A)[0]; state.east.outPaxI = sum(A)[1];
+  state.east.outBagDI = sum(A)[2]; state.east.outBagI = sum(A)[3];
+  state.east.inPaxDI = sum(B)[0]; state.east.inPaxI = sum(B)[1];
+  state.east.inBagDI = sum(B)[2]; state.east.inBagI = sum(B)[3];
+  state.east.seat = (seat[0] + seat[1]) / 2;
+  // 联航（中联航）
+  state.lian.outPaxDI = A[2][0]; state.lian.outPaxI = A[2][1];
+  state.lian.outBagDI = A[2][2]; state.lian.outBagI = A[2][3];
+  state.lian.inPaxDI = B[2][0]; state.lian.inPaxI = B[2][1];
+  state.lian.inBagDI = B[2][2]; state.lian.inBagI = B[2][3];
+  state.lian.seat = seat[2];
+  msg.innerHTML = '<div class="hint-ok">✓ 运量已汇总，步骤 3 表格已更新。</div>';
+  rebuildTotalFromParts();
+  renderOutput();
+});
+document.getElementById('clearInputBtn').addEventListener('click', () => {
+  for (let a = 0; a < 3; a++) {
+    for (let f = 0; f < 4; f++) { const e = document.getElementById('inA_' + a + '_' + f); if (e) e.value = ''; }
+    for (let f = 0; f < 4; f++) { const e = document.getElementById('inB_' + a + '_' + f); if (e) e.value = ''; }
+    const es = document.getElementById('inS_' + a); if (es) es.value = '';
+  }
+});
+
+/* 由 east / lian 自动聚合 total 行的数值字段 */
+function rebuildTotalFromParts() {
+  const numKeys = ['outPaxDI', 'outPaxI', 'outBagDI', 'outBagI', 'inPaxDI', 'inPaxI', 'inBagDI', 'inBagI',
+    'wheelchair', 'unaccomp', 'inDom', 'inInt', 'outDom', 'outInt', 'totalFlights', 'cancelFlights'];
+  numKeys.forEach(k => { state.total[k] = (Number(state.east[k]) || 0) + (Number(state.lian[k]) || 0); });
+  state.total.seat = ((Number(state.east.seat) || 0) + (Number(state.lian.seat) || 0)) / 2;
+  // 总表调时架次 = 东上航 + 联航 调时航班数
+  state.total.tuneCount = (state.east.tuneList || []).length + (state.lian.tuneList || []).length;
+  // 总表无特服列 / 无调时航班串列
+  state.total.tuneList = [];
+}
+
+/* ============================================================
+   渲染输出表（统一用东上航列序显示）
+   ============================================================ */
+function fmtVal(v, col) {
+  if (col.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+  if (col.text) return Array.isArray(v) ? v.join('、') : (v || '');
+  return (v === '' || v === null || v === undefined) ? '' : (Number(v) || 0).toLocaleString('zh-CN');
+}
+function renderOutput() {
+  const head = document.getElementById('outHead');
+  let h = '<tr><th>项目 \\ 列' +
+    '<div class="row-act">' +
+    '<button data-row="east">复制东上航</button>' +
+    '<button data-row="lian">复制联航</button>' +
+    '<button data-row="total">复制总表</button>' +
+    '</div></th>';
+  COLS_EAST.forEach(c => { h += '<th>' + c.label + '</th>'; });
+  h += '</tr>';
+  head.innerHTML = h;
+
+  const body = document.getElementById('outBody');
+  let b = '';
+  ROW_KEYS.forEach(rk => {
+    const r = state[rk];
+    b += '<tr class="' + (rk === 'total' ? 'total' : '') + '"><th class="rname">' + ROW_NAMES[rk] + '</th>';
+    COLS_EAST.forEach(c => {
+      if (rk === 'total' && c.skipForTotal) {
+        b += '<td class="auto" style="color:var(--muted-2)">—</td>';
+      } else if (c.editable) {
+        b += '<td class="editable"><input data-row="' + rk + '" data-key="' + c.editable + '" value="' +
+          (r[c.editable] === '' ? '' : r[c.editable]) + '" placeholder="填"></td>';
+      } else if (c.text) {
+        b += '<td class="txt" title="' + (Array.isArray(r[c.key]) ? r[c.key].join('、') : (r[c.key] || '')) + '">' +
+          fmtVal(r[c.key], c) + '</td>';
+      } else {
+        b += '<td class="auto">' + fmtVal(r[c.key], c) + '</td>';
+      }
+    });
+    b += '</tr>';
+  });
+  body.innerHTML = b;
+
+  // 绑定复制按钮
+  head.querySelectorAll('button[data-row]').forEach(btn => {
+    btn.addEventListener('click', () => copyRow(btn.getAttribute('data-row')));
+  });
+  // 绑定手填编辑
+  body.querySelectorAll('input[data-key]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const rk = inp.getAttribute('data-row');
+      const k = inp.getAttribute('data-key');
+      state[rk][k] = inp.value;
+    });
+  });
+}
+
+/* ============================================================
+   逐行复制（按对应 sheet 列序）
+   ============================================================ */
+function rowToTsv(rowKey) {
+  const r = state[rowKey];
+  const cols = (rowKey === 'total') ? COLS_TOTAL : COLS_EAST;
+  const arr = cols.map(c => {
+    let v = r[c.key];
+    if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+    if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
+    if (v === '' || v === null || v === undefined) return '';
+    return (Number(v) || 0).toLocaleString('zh-CN');
+  });
+  return arr.join('\t');
+}
+function copyText(text, tip) {
+  const tipEl = document.getElementById('copiedTip');
+  const done = () => { tipEl.textContent = tip + ' ✓'; tipEl.classList.add('show'); setTimeout(() => tipEl.classList.remove('show'), 1800); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function copyRow(rowKey) {
+  copyText(rowToTsv(rowKey), '已复制「' + ROW_NAMES[rowKey] + '」整行');
+}
+
+/* 复制整表（统一列序，3 行） */
+document.getElementById('copyAllBtn').addEventListener('click', () => {
+  const lines = ROW_KEYS.map(rk => rowToTsv(rk));
+  copyText(lines.join('\n'), '已复制整表（统一列序）');
+});
+/* 仅复制总表行 */
+document.getElementById('copyTotalOnlyBtn').addEventListener('click', () => copyRow('total'));
+
+/* ============================================================
+   导出 Excel（3 行，统一列序）
+   ============================================================ */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const aoa = [
+    ['项目'].concat(COLS_EAST.map(c => c.label)),
+  ];
+  ROW_KEYS.forEach(rk => {
+    const r = state[rk];
+    const line = [ROW_NAMES[rk]].concat(COLS_EAST.map(c => {
+      let v = r[c.key];
+      if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+      if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
+      if (v === '' || v === null || v === undefined) return '';
+      return Number(v) || 0;
+    }));
+    aoa.push(line);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = COLS_EAST.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '东上联日汇总');
+  const d = document.getElementById('dataDate').value || '';
+  XLSX.writeFile(wb, '东上联日数据汇总' + (d ? '_' + d : '') + '.xlsx');
+});
+
+/* 初始化 */
+renderOutput();
+</script>
+</body>
+</html>
