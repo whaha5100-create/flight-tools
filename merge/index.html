@@ -646,9 +646,15 @@ function rebuildTotalFromParts() {
 /* ============================================================
    渲染输出表（统一用东上航列序显示）
    ============================================================ */
+// 出港调时情况航班：多航班用「 / 」分隔，无则单一个「/」（与原卡片 stats 一致）
+function fmtTune(v) {
+  const arr = Array.isArray(v) ? v : (v ? [v] : []);
+  const list = arr.filter(x => x !== '' && x !== null && x !== undefined).map(String);
+  return list.length ? list.join(' / ') : '/';
+}
 function fmtVal(v, col) {
   if (col.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
-  if (col.text) return Array.isArray(v) ? v.join('、') : (v || '');
+  if (col.text) return fmtTune(v);
   return (v === '' || v === null || v === undefined) ? '' : (Number(v) || 0).toLocaleString('zh-CN');
 }
 function renderOutput() {
@@ -703,7 +709,7 @@ function renderCell(rk, r, c) {
     return '<td class="editable"><input data-row="' + rk + '" data-key="' + c.editable + '" value="' +
       (r[c.editable] === '' ? '' : r[c.editable]) + '" placeholder="填"></td>';
   } else if (c.text) {
-    return '<td class="txt" title="' + (Array.isArray(r[c.key]) ? r[c.key].join('、') : (r[c.key] || '')) + '">' +
+    return '<td class="txt" title="' + fmtTune(r[c.key]) + '">' +
       fmtVal(r[c.key], c) + '</td>';
   }
   return '<td class="auto">' + fmtVal(r[c.key], c) + '</td>';
@@ -718,7 +724,7 @@ function rowToTsv(rowKey) {
   const arr = cols.map(c => {
     let v = r[c.key];
     if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
-    if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
+    if (c.text) return fmtTune(v);
     if (v === '' || v === null || v === undefined) return '';
     return (Number(v) || 0).toLocaleString('zh-CN');
   });
@@ -776,7 +782,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 function cellVal(r, c) {
   let v = r[c.key];
   if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
-  if (c.text) return Array.isArray(v) ? v.join('、') : (v || '');
+  if (c.text) return fmtTune(v);
   if (v === '' || v === null || v === undefined) return '';
   return Number(v) || 0;
 }
