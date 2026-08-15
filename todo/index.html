@@ -18,7 +18,6 @@
     --ok: #16a34a; --ok-light: #dcfce7;
     --warn: #d97706; --warn-light: #fef3c7;
     --danger: #dc2626; --danger-light: #fee2e2;
-    --p-high: #dc2626; --p-mid: #d97706; --p-low: #64748b;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
@@ -89,7 +88,6 @@
   .addbar { background: var(--card); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding:14px 16px; margin-top:16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
   .addbar input[type=text] { flex:1; min-width: 200px; font:inherit; font-size:14px; padding:11px 13px; border:1px solid var(--line); border-radius: var(--radius-sm); color:var(--ink); }
   .addbar input[type=text]:focus { outline:none; border-color: var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
-  .addbar select { font:inherit; font-size:13px; padding:10px 10px; border:1px solid var(--line); border-radius: var(--radius-sm); color:var(--ink-2); background:#fff; cursor:pointer; }
   .addbar .btn-primary { padding:11px 18px; }
 
   /* ============ Filter ============ */
@@ -107,13 +105,6 @@
   .item .main { flex:1; min-width:0; }
   .item .txt { font-size:15px; color: var(--ink); word-break:break-word; }
   .item.done .txt { text-decoration: line-through; color: var(--muted-2); }
-  .item .meta { display:flex; gap:8px; margin-top:7px; flex-wrap:wrap; align-items:center; }
-  .pill { font-size:11.5px; padding:3px 9px; border-radius:999px; font-weight:600; }
-  .pill.cat { background: var(--brand-light); color: var(--brand-dark); }
-  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; vertical-align:middle; }
-  .pill.p-high { background: var(--danger-light); color: var(--p-high); }
-  .pill.p-mid { background: var(--warn-light); color: var(--p-mid); }
-  .pill.p-low { background:#f1f5f9; color: var(--p-low); }
   .item .edit-input { font:inherit; font-size:15px; width:100%; padding:6px 8px; border:1px solid var(--brand); border-radius:8px; color:var(--ink); }
   .item .ops { display:flex; gap:6px; flex-shrink:0; }
   .icon-btn { border:0; background:transparent; cursor:pointer; font-size:15px; color:var(--muted-2); padding:4px 6px; border-radius:8px; line-height:1; transition:.15s; }
@@ -174,7 +165,6 @@
   .tpl-add { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; }
   .tpl-add input[type=text] { flex:1; min-width:160px; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink); }
   .tpl-add input[type=text]:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
-  .tpl-add select { font:inherit; font-size:13px; padding:10px 10px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink-2); background:#fff; cursor:pointer; }
   .tpl-tip { font-size:12.5px; color:var(--muted); margin-bottom:4px; }
 
   .hidden { display:none !important; }
@@ -209,10 +199,10 @@
     <div class="tool-row">
       <button class="btn btn-ghost" onclick="openTemplates()">📌 固定事项</button>
       <button class="btn btn-ghost" onclick="copyYesterday()">📥 复制昨日待办</button>
-      <button class="btn btn-ghost" onclick="exportAll()">⬇️ 导出备份</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆️ 导入备份</button>
+      <button class="btn btn-ghost" onclick="exportAll()">⬇️ 导出 Excel</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆️ 导入 Excel</button>
       <button class="btn btn-danger" onclick="clearToday()">🗑 清空当天</button>
-      <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importAll(this)">
+      <input type="file" id="importFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" onchange="importAll(this)">
     </div>
 
     <!-- ====== 当日视图 ====== -->
@@ -231,16 +221,6 @@
 
       <div class="addbar">
         <input type="text" id="addInput" placeholder="写点今天要做的事，回车添加…" onkeydown="if(event.key==='Enter')addItem()">
-        <select id="addPri">
-          <option value="high">高优先级</option>
-          <option value="mid" selected>中优先级</option>
-          <option value="low">低优先级</option>
-        </select>
-        <select id="addCat">
-          <option value="work" selected>工作</option>
-          <option value="life">生活</option>
-          <option value="study">学习</option>
-        </select>
         <button class="btn btn-primary" onclick="addItem()">＋ 添加</button>
       </div>
 
@@ -290,16 +270,6 @@
       <div id="tplList"></div>
       <div class="tpl-add">
         <input type="text" id="tplInput" placeholder="新增一条固定事项…" onkeydown="if(event.key==='Enter')addTemplate()">
-        <select id="tplPri">
-          <option value="high">高</option>
-          <option value="mid" selected>中</option>
-          <option value="low">低</option>
-        </select>
-        <select id="tplCat">
-          <option value="work" selected>工作</option>
-          <option value="life">生活</option>
-          <option value="study">学习</option>
-        </select>
         <button class="btn btn-primary" onclick="addTemplate()">＋ 新增</button>
       </div>
       <div class="acts" style="margin-top:18px">
@@ -321,6 +291,7 @@
     </div>
   </div>
 
+<script src="libs/xlsx.full.min.js"></script>
 <script>
   /* ===================== 数据层 ===================== */
   const KEY = 'flight-todo-v1';
@@ -347,15 +318,11 @@
   }
   function getDay(ds) { return DB[ds] || []; }
   function setDay(ds, list) { DB[ds] = list; save(); }
-
-  const PRI_LABEL = { high: '高', mid: '中', low: '低' };
-  const CAT_LABEL = { work: '工作', life: '生活', study: '学习' };
-  const PRI_ORDER = { high: 0, mid: 1, low: 2 };
+  function uid() { return Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
 
   /* ===================== 固定事项（模板）===================== */
   const TPL_KEY = 'flight-todo-templates';
   let templates = loadTemplates();
-  function uid() { return Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
   function loadTemplates() {
     try {
       const d = JSON.parse(localStorage.getItem(TPL_KEY) || 'null');
@@ -363,8 +330,8 @@
     } catch (e) {}
     // 首次使用：预置用户给出的两条固定事项
     const def = [
-      { id: uid(), text: '检查数字装载是否已经全部点击确认', priority: 'high', cat: 'work' },
-      { id: uid(), text: '是否已经更新下班打卡', priority: 'high', cat: 'work' }
+      { id: uid(), text: '检查数字装载是否已经全部点击确认' },
+      { id: uid(), text: '是否已经更新下班打卡' }
     ];
     localStorage.setItem(TPL_KEY, JSON.stringify(def));
     return def;
@@ -389,7 +356,6 @@
           <input type="checkbox" data-tpl="${t.id}" ${exists ? 'checked disabled' : ''}>
           <span class="txt">${escHtml(t.text)}</span>
         </label>
-        <span class="pill p-${t.priority}">${PRI_LABEL[t.priority]}优先</span>
         <button class="icon-btn del" title="删除固定事项" onclick="delTemplate('${t.id}')">🗑</button>
       </div>`;
     }).join('');
@@ -406,7 +372,7 @@
     const inp = document.getElementById('tplInput');
     const text = inp.value.trim();
     if (!text) { inp.focus(); return; }
-    templates.push({ id: uid(), text, priority: document.getElementById('tplPri').value, cat: document.getElementById('tplCat').value });
+    templates.push({ id: uid(), text });
     saveTpl(); inp.value = ''; renderTplList(); inp.focus();
   }
 
@@ -419,7 +385,7 @@
       const t = templates.find(x => x.id === cb.dataset.tpl);
       if (!t) return;
       if (list.some(x => x.text === t.text)) return; // 去重
-      list.push({ id: uid(), text: t.text, done: false, priority: t.priority, cat: t.cat, createdAt: Date.now(), doneAt: null });
+      list.push({ id: uid(), text: t.text, done: false, createdAt: Date.now(), doneAt: null });
       added++;
     });
     DB[ds] = list; save(); closeTemplates(); render();
@@ -468,8 +434,6 @@
       id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       text,
       done: false,
-      priority: document.getElementById('addPri').value,
-      cat: document.getElementById('addCat').value,
       createdAt: Date.now(),
       doneAt: null
     });
@@ -541,7 +505,7 @@
     src.forEach(s => {
       dst.push({
         id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-        text: s.text, done: false, priority: s.priority, cat: s.cat,
+        text: s.text, done: false,
         createdAt: Date.now(), doneAt: null
       });
       added++;
@@ -583,11 +547,8 @@
     let list = getDay(ds).slice();
     if (filterMode === 'undone') list = list.filter(x => !x.done);
     else if (filterMode === 'done') list = list.filter(x => x.done);
-    // 排序：未完成在前；同状态按优先级 high→low
-    list.sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1;
-      return PRI_ORDER[a.priority] - PRI_ORDER[b.priority];
-    });
+    // 排序：未完成在前，同状态保持原顺序
+    list.sort((a, b) => (a.done === b.done ? 0 : (a.done ? 1 : -1)));
 
     const box = document.getElementById('list');
     if (list.length === 0) {
@@ -601,16 +562,10 @@
   }
 
   function itemHTML(it) {
-    const pCls = 'p-' + it.priority;
-    const dotColor = it.priority === 'high' ? 'var(--p-high)' : it.priority === 'mid' ? 'var(--p-mid)' : 'var(--p-low)';
     return `<div class="item ${it.done ? 'done' : ''}">
       <div class="chk" onclick="toggleItem('${it.id}')">${it.done ? '✓' : ''}</div>
       <div class="main">
         <div class="txt" data-edit="${it.id}" ondblclick="startEdit('${it.id}')">${escHtml(it.text)}</div>
-        <div class="meta">
-          <span class="pill ${pCls}"><i class="dot" style="background:${dotColor}"></i>${PRI_LABEL[it.priority]}优先</span>
-          <span class="pill cat">${CAT_LABEL[it.cat] || it.cat}</span>
-        </div>
       </div>
       <div class="ops">
         <button class="icon-btn" title="编辑" onclick="startEdit('${it.id}')">✏️</button>
@@ -702,15 +657,10 @@
           <span class="rate ${allDone ? '' : 'partial'}">${done}/${total} 完成</span>
         </div>`;
       html += items.map(it => {
-        const dotColor = it.priority === 'high' ? 'var(--p-high)' : it.priority === 'mid' ? 'var(--p-mid)' : 'var(--p-low)';
         return `<div class="item ${it.done ? 'done' : ''}" style="cursor:default">
           <div class="chk" style="cursor:default">${it.done ? '✓' : ''}</div>
           <div class="main">
             <div class="txt">${escHtml(it.text)}</div>
-            <div class="meta">
-              <span class="pill p-${it.priority}"><i class="dot" style="background:${dotColor}"></i>${PRI_LABEL[it.priority]}优先</span>
-              <span class="pill cat">${CAT_LABEL[it.cat] || it.cat}</span>
-            </div>
           </div>
         </div>`;
       }).join('');
@@ -721,34 +671,70 @@
     else box.innerHTML = html;
   }
 
-  /* ===================== 导入 / 导出 ===================== */
+  /* ===================== 导入 / 导出（Excel）===================== */
   function exportAll() {
-    const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+    const rows = [];
+    const dates = Object.keys(DB).filter(ds => DB[ds] && DB[ds].length).sort();
+    for (const ds of dates) {
+      DB[ds].forEach((it, i) => {
+        rows.push({ '日期': ds, '序号': i + 1, '内容': it.text, '状态': it.done ? '已完成' : '未完成' });
+      });
+    }
+    if (rows.length === 0) { toast('还没有任何待办可导出'); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '待办备份');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `每日待办备份_${todayStr().replace(/-/g, '')}.json`;
+    a.download = `每日待办备份_${todayStr().replace(/-/g, '')}.xlsx`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast('已导出全部待办备份');
+    toast('已导出 Excel 备份');
   }
 
   function importAll(input) {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = (e) => {
       try {
-        const data = JSON.parse(reader.result);
-        if (typeof data !== 'object' || Array.isArray(data)) throw new Error('格式不对');
-        confirmAction('导入备份？', `将用备份文件覆盖当前所有待办数据（共 ${Object.keys(data).length} 天）。建议先导出当前数据再操作。`, () => {
-          DB = data; save(); render(); toast('导入成功');
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!rows.length) throw new Error('表格是空的');
+        // 识别列（按表头关键词，兼容你改过列名）
+        const headers = Object.keys(rows[0]);
+        const findKey = (...kws) => headers.find(h => kws.some(k => String(h).includes(k)));
+        const dateKey = findKey('日期', '时间');
+        const textKey = findKey('内容', '待办', '事项');
+        const statusKey = findKey('状态', '完成');
+        if (!textKey) throw new Error('找不到「内容」列');
+        const newDB = {};
+        let count = 0;
+        for (const r of rows) {
+          const text = String(r[textKey] || '').trim();
+          if (!text) continue;
+          const ds = dateKey ? String(r[dateKey] || '').trim() : '';
+          if (!ds) continue;
+          const st = statusKey ? String(r[statusKey] || '') : '';
+          const done = /完成|是|1/.test(st) && !/未/.test(st);
+          if (!newDB[ds]) newDB[ds] = [];
+          newDB[ds].push({ id: uid(), text, done, createdAt: Date.now(), doneAt: done ? Date.now() : null });
+          count++;
+        }
+        if (!count) throw new Error('没有有效数据');
+        const dayN = Object.keys(newDB).length;
+        confirmAction('导入 Excel 备份？', `将用该文件覆盖当前所有待办（共 ${dayN} 天、${count} 条）。建议先导出当前数据再操作。`, () => {
+          DB = newDB; save(); render(); toast('导入成功');
         });
-      } catch (e) {
-        toast('导入失败：文件格式不正确');
+      } catch (err) {
+        toast('导入失败：' + err.message);
       }
       input.value = '';
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   }
 
   /* ===================== 工具 ===================== */
