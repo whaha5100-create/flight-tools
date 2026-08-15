@@ -165,6 +165,18 @@
   .modal p { font-size:14px; color:var(--ink-2); margin-bottom:20px; }
   .modal .acts { display:flex; gap:10px; justify-content:flex-end; }
 
+  /* ============ 固定事项面板 ============ */
+  .tpl-item { display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line); }
+  .tpl-item:last-child { border-bottom:0; }
+  .tpl-item label { flex:1; display:flex; align-items:center; gap:10px; cursor:pointer; min-width:0; }
+  .tpl-item label input[type=checkbox] { width:18px; height:18px; flex-shrink:0; cursor:pointer; }
+  .tpl-item .txt { font-size:14px; color:var(--ink); word-break:break-word; }
+  .tpl-add { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; }
+  .tpl-add input[type=text] { flex:1; min-width:160px; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink); }
+  .tpl-add input[type=text]:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+  .tpl-add select { font:inherit; font-size:13px; padding:10px 10px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink-2); background:#fff; cursor:pointer; }
+  .tpl-tip { font-size:12.5px; color:var(--muted); margin-bottom:4px; }
+
   .hidden { display:none !important; }
 </style>
 </head>
@@ -195,6 +207,7 @@
 
     <!-- 顶部操作 -->
     <div class="tool-row">
+      <button class="btn btn-ghost" onclick="openTemplates()">📌 固定事项</button>
       <button class="btn btn-ghost" onclick="copyYesterday()">📥 复制昨日待办</button>
       <button class="btn btn-ghost" onclick="exportAll()">⬇️ 导出备份</button>
       <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆️ 导入备份</button>
@@ -269,6 +282,33 @@
     <footer>每日待办 · 数据只保存在你这台浏览器的本地，不会上传任何服务器</footer>
   </div>
 
+  <!-- 固定事项面板 -->
+  <div class="mask" id="tplMask">
+    <div class="modal" style="max-width:480px">
+      <h4>📌 固定事项</h4>
+      <p class="tpl-tip">勾选今天要加入的事项，点「加入今日所选」；也可随时新增 / 删除固定事项。今天已加入的会自动勾上且不可重复添加。</p>
+      <div id="tplList"></div>
+      <div class="tpl-add">
+        <input type="text" id="tplInput" placeholder="新增一条固定事项…" onkeydown="if(event.key==='Enter')addTemplate()">
+        <select id="tplPri">
+          <option value="high">高</option>
+          <option value="mid" selected>中</option>
+          <option value="low">低</option>
+        </select>
+        <select id="tplCat">
+          <option value="work" selected>工作</option>
+          <option value="life">生活</option>
+          <option value="study">学习</option>
+        </select>
+        <button class="btn btn-primary" onclick="addTemplate()">＋ 新增</button>
+      </div>
+      <div class="acts" style="margin-top:18px">
+        <button class="btn btn-ghost" onclick="closeTemplates()">关闭</button>
+        <button class="btn btn-primary" onclick="addCheckedTemplates()">加入今日所选</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 确认弹窗 -->
   <div class="mask" id="mask">
     <div class="modal">
@@ -311,6 +351,81 @@
   const PRI_LABEL = { high: '高', mid: '中', low: '低' };
   const CAT_LABEL = { work: '工作', life: '生活', study: '学习' };
   const PRI_ORDER = { high: 0, mid: 1, low: 2 };
+
+  /* ===================== 固定事项（模板）===================== */
+  const TPL_KEY = 'flight-todo-templates';
+  let templates = loadTemplates();
+  function uid() { return Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+  function loadTemplates() {
+    try {
+      const d = JSON.parse(localStorage.getItem(TPL_KEY) || 'null');
+      if (Array.isArray(d)) return d;
+    } catch (e) {}
+    // 首次使用：预置用户给出的两条固定事项
+    const def = [
+      { id: uid(), text: '检查数字装载是否已经全部点击确认', priority: 'high', cat: 'work' },
+      { id: uid(), text: '是否已经更新下班打卡', priority: 'high', cat: 'work' }
+    ];
+    localStorage.setItem(TPL_KEY, JSON.stringify(def));
+    return def;
+  }
+  function saveTpl() { localStorage.setItem(TPL_KEY, JSON.stringify(templates)); }
+
+  function openTemplates() { renderTplList(); document.getElementById('tplMask').classList.add('show'); }
+  function closeTemplates() { document.getElementById('tplMask').classList.remove('show'); }
+
+  function renderTplList() {
+    const ds = datePick.value || todayStr();
+    const today = DB[ds] || [];
+    const box = document.getElementById('tplList');
+    if (templates.length === 0) {
+      box.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 2px">还没有固定事项，在下面加一条吧</div>';
+      return;
+    }
+    box.innerHTML = templates.map(t => {
+      const exists = today.some(x => x.text === t.text);
+      return `<div class="tpl-item">
+        <label>
+          <input type="checkbox" data-tpl="${t.id}" ${exists ? 'checked disabled' : ''}>
+          <span class="txt">${escHtml(t.text)}</span>
+        </label>
+        <span class="pill p-${t.priority}">${PRI_LABEL[t.priority]}优先</span>
+        <button class="icon-btn del" title="删除固定事项" onclick="delTemplate('${t.id}')">🗑</button>
+      </div>`;
+    }).join('');
+  }
+
+  function delTemplate(id) {
+    confirmAction('删除固定事项？', '该模板会从列表中移除，已经加入当天的待办不受影响。', () => {
+      templates = templates.filter(t => t.id !== id);
+      saveTpl(); renderTplList();
+    });
+  }
+
+  function addTemplate() {
+    const inp = document.getElementById('tplInput');
+    const text = inp.value.trim();
+    if (!text) { inp.focus(); return; }
+    templates.push({ id: uid(), text, priority: document.getElementById('tplPri').value, cat: document.getElementById('tplCat').value });
+    saveTpl(); inp.value = ''; renderTplList(); inp.focus();
+  }
+
+  function addCheckedTemplates() {
+    const ds = datePick.value || todayStr();
+    let list = (DB[ds] || []).slice();
+    let added = 0;
+    document.querySelectorAll('#tplList input[data-tpl]').forEach(cb => {
+      if (!cb.checked || cb.disabled) return;
+      const t = templates.find(x => x.id === cb.dataset.tpl);
+      if (!t) return;
+      if (list.some(x => x.text === t.text)) return; // 去重
+      list.push({ id: uid(), text: t.text, done: false, priority: t.priority, cat: t.cat, createdAt: Date.now(), doneAt: null });
+      added++;
+    });
+    DB[ds] = list; save(); closeTemplates(); render();
+    toast(added ? `已加入 ${added} 条固定事项` : '所选固定事项今天已存在，未重复添加');
+  }
+
 
   /* ===================== 初始化 ===================== */
   const datePick = document.getElementById('datePick');
@@ -673,6 +788,9 @@
   };
   document.getElementById('mask').addEventListener('click', (e) => {
     if (e.target.id === 'mask') { document.getElementById('mask').classList.remove('show'); pendingOk = null; }
+  });
+  document.getElementById('tplMask').addEventListener('click', (e) => {
+    if (e.target.id === 'tplMask') closeTemplates();
   });
 </script>
 </body>
