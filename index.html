@@ -130,6 +130,10 @@
   .card.c8 .card-ic { background: #cffafe; color: #0891b2; }
   .card.c8 .go { color: #0891b2; }
   .card:nth-child(8){ animation-delay:.96s; }
+  .card.c9::before { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+  .card.c9 .card-ic { background: #f3e8ff; color: #7c3aed; }
+  .card.c9 .go { color: #7c3aed; }
+  .card:nth-child(9){ animation-delay:1.09s; }
   .tag.testing { background: #fef3c7; color: #b45309; font-weight: 600; }
   .card .go .arrow { transition: transform .2s; }
   .card:hover .go .arrow { transform: translateX(5px); }
@@ -169,7 +173,7 @@
     <div class="header-main">
       <span class="eyebrow">✈ 航班工作工具集</span>
       <h1>航班工作工具集</h1>
-      <p>七个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
+      <p>九个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
     </div>
     <div class="plane">✈️</div>
   </header>
@@ -285,6 +289,20 @@
             <span class="tag">三行汇总</span>
             <span class="tag">逐行复制</span>
             <span class="tag">导出 Excel</span>
+          </div>
+          <div class="go">打开工具 <span class="arrow">→</span></div>
+        </a>
+
+        <a class="card c9" href="./todo/index.html">
+          <div class="card-top">
+            <span class="card-ic">📝</span>
+            <h3>每日待办</h3>
+          </div>
+          <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，支持优先级与分类。</p>
+          <div class="tags">
+            <span class="tag">按日记录</span>
+            <span class="tag">历史回看</span>
+            <span class="tag">本地保存</span>
           </div>
           <div class="go">打开工具 <span class="arrow">→</span></div>
         </a>
