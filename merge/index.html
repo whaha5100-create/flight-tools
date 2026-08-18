@@ -135,6 +135,15 @@
   .airline-grid input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px;
     font-size: 14px; text-align: center; color: var(--ink); background: #fff; }
   .airline-grid input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  /* 录入区航司品牌色：东航/上航=蓝(东上航司)，中联航=青 */
+  .airline-grid .ar.grp-east { color: var(--brand-dark); border-left: 3px solid var(--brand); padding-left: 8px; }
+  .airline-grid .ar.grp-lian { color: #0e7490; border-left: 3px solid #0891b2; padding-left: 8px; }
+  .airline-grid .ah.grp-east { color: var(--brand-dark); }
+  .airline-grid .ah.grp-lian { color: #0e7490; }
+  .airline-grid input.grp-east { background: #f5f9ff; }
+  .airline-grid input.grp-lian { background: #f0fdff; }
+  .airline-grid input.grp-east:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .airline-grid input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #cffafe; }
   .seat-row { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; margin-top: 12px; }
   .seat-row .sl { font-weight: 600; color: var(--ink); font-size: 14px; }
 
@@ -166,6 +175,13 @@
   table.out thead th .row-act button:hover { background: #dbeafe; }
   table.out tbody th.rname { background: var(--brand-light); color: var(--brand-dark); font-weight: 700; font-size: 13px; }
   table.out tbody tr.total th.rname { background: #fef3c7; color: #b45309; }
+  /* 输出表区块品牌色：东上联=蓝，总表=金 */
+  table.out.tbl-total thead th { background: #92400e; }
+  table.out.tbl-total thead th .row-act button { color: #92400e; }
+  table.out.tbl-total thead th .row-act button:hover { background: #fde68a; }
+  .out-title .badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 9px; border-radius: 999px; vertical-align: 2px; margin-left: 8px; }
+  .out-title .badge.east { background: var(--brand-deep); }
+  .out-title .badge.total { background: #b45309; }
   table.out td.auto { color: var(--ink); background: #fafdff; }
   table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--brand-soft);
     border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: #fffdf5; }
@@ -191,7 +207,7 @@
       <div class="header-main">
         <span class="eyebrow">✈ 航班工作工具集</span>
         <h1>东上联日数据汇总</h1>
-        <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表、录入运量，一键生成东上航 / 联航 / 总表三行数据，逐行复制到共享文档。</p>
+        <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
       </div>
       <div class="plane">🧮</div>
     </header>
@@ -261,17 +277,17 @@
         <input type="date" id="dataDate">
       </div>
 
-      <h3 class="out-title">东上航 / 联航（24 列，对应东上航、联航 sheet）</h3>
+      <h3 class="out-title">东上航 / 联航（24 列，对应东上航、联航 sheet）<span class="badge east">东上航司</span></h3>
       <div class="table-scroll">
-        <table class="out" id="outTableEast">
+        <table class="out tbl-east" id="outTableEast">
           <thead id="outHeadEast"></thead>
           <tbody id="outBodyEast"></tbody>
         </table>
       </div>
 
-      <h3 class="out-title">总表（23 列，对应总表 sheet）</h3>
+      <h3 class="out-title">总表（23 列，对应总表 sheet）<span class="badge total">总表</span></h3>
       <div class="table-scroll">
-        <table class="out" id="outTableTotal">
+        <table class="out tbl-total" id="outTableTotal">
           <thead id="outHeadTotal"></thead>
           <tbody id="outBodyTotal"></tbody>
         </table>
@@ -526,20 +542,21 @@ const FIELDS_A = ['国内国际出港旅客总人数', '国际出港旅客总人
 const FIELDS_B = ['国内国际进港人数', '国际进港人数', '国内国际进港行李', '国际进港行李'];
 (function buildAirlineGrid() {
   const g = document.getElementById('airlineGrid');
+  const grpOf = i => (i < 2 ? 'grp-east' : 'grp-lian');
   let html = '<div class="ah"></div>';
-  AIRLINES.forEach(a => html += '<div class="ah">' + a + '</div>');
+  AIRLINES.forEach((a, i) => html += '<div class="ah ' + grpOf(i) + '">' + a + '</div>');
   for (let f = 0; f < 4; f++) {
     html += '<div class="ar">' + FIELDS_A[f] + '</div>';
-    for (let a = 0; a < 3; a++) html += '<div><input id="inA_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
+    for (let a = 0; a < 3; a++) html += '<div><input class="' + grpOf(a) + '" id="inA_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
   }
   for (let f = 0; f < 4; f++) {
     html += '<div class="ar">' + FIELDS_B[f] + '</div>';
-    for (let a = 0; a < 3; a++) html += '<div><input id="inB_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
+    for (let a = 0; a < 3; a++) html += '<div><input class="' + grpOf(a) + '" id="inB_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
   }
   g.innerHTML = html;
   const sr = document.getElementById('seatRow');
   let sh = '<div class="sl">出港客座率（%）</div>';
-  AIRLINES.forEach((a, a2) => sh += '<div><input id="inS_' + a2 + '" placeholder="如 85" inputmode="decimal"></div>');
+  AIRLINES.forEach((a, a2) => sh += '<div><input class="' + grpOf(a2) + '" id="inS_' + a2 + '" placeholder="如 85" inputmode="decimal"></div>');
   sr.innerHTML = sh;
 })();
 function val(id) { const el = document.getElementById(id); return el ? el.value : ''; }
