@@ -10,193 +10,59 @@
     document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
   }
 </script>
+<link rel="stylesheet" href="../assets/site.css">
 <style>
-  :root {
-    --brand:        #2563eb;
-    --brand-dark:   #1d4ed8;
-    --brand-deep:   #1e3a8a;
-    --brand-light:  #eff6ff;
-    --brand-soft:   #dbeafe;
-    --ink:          #0f172a;
-    --ink-2:        #334155;
-    --muted:        #64748b;
-    --muted-2:      #94a3b8;
-    --line:         #e2e8f0;
-    --bg:           #f1f5f9;
-    --card:         #ffffff;
-    --success:      #059669;
-    --success-dark: #047857;
-    --amber:        #d97706;
-    --radius:       16px;
-    --radius-sm:    10px;
-    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
-    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
-    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
-    background:
-      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
-      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
-      var(--bg);
-  }
-  .container { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  /* ============ 东上联日数据汇总 · 页面特有 ============ */
+  :root { --tool: #1f6f8b; }
 
-  /* Header */
-  .header {
-    position: relative; overflow: hidden;
-    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
-    color: #fff; padding: 34px 40px; border-radius: 22px; margin-bottom: 22px;
-    display: flex; align-items: center; justify-content: space-between; gap: 24px;
-    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
-  }
-  .header::before {
-    content: ""; position: absolute; top: -60px; right: -30px;
-    width: 260px; height: 260px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
-  }
-  .header::after {
-    content: ""; position: absolute; bottom: -80px; left: 20%;
-    width: 220px; height: 220px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
-  }
-  .header .header-main { position: relative; z-index: 1; }
-  .header .eyebrow {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
-    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
-    backdrop-filter: blur(6px); margin-bottom: 12px;
-  }
-  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
-  .header p { font-size: 14px; opacity: 0.9; margin-top: 8px; max-width: 680px; }
-  .header .plane { position: relative; z-index: 1; font-size: 54px; line-height: 1; animation: floaty 4s ease-in-out infinite; flex-shrink: 0; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2)); }
-
-  /* back-home */
-  .back-home { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 16px 2px;
-    background: var(--card); border: 1px solid var(--line); border-radius: 999px;
-    padding: 8px 16px; font-size: 13.5px; font-weight: 600; color: var(--brand-dark);
-    text-decoration: none; box-shadow: var(--shadow-sm); transition: transform .18s, box-shadow .18s; }
-  .back-home:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-
-  /* Rules panel */
-  .rules-panel { background: var(--card); border-radius: var(--radius); margin-bottom: 22px;
-    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line); }
-  .rules-panel summary { list-style: none; cursor: pointer; user-select: none;
-    display: flex; align-items: center; justify-content: space-between; padding: 16px 22px;
-    font-size: 15.5px; font-weight: 700; color: var(--ink); }
-  .rules-panel summary::-webkit-details-marker { display: none; }
-  .rules-panel summary .r-title { display: flex; align-items: center; gap: 10px; }
-  .rules-panel summary .r-ic { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-    background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
-  .rules-panel .r-chev { transition: transform .3s; color: var(--muted); }
-  .rules-panel[open] .r-chev { transform: rotate(180deg); }
-  .rules-panel .r-body { padding: 0 22px 20px; font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
-  .rules-panel .r-body ul { padding-left: 20px; margin: 6px 0; }
-  .rules-panel .r-body li { margin: 5px 0; }
-  .rules-panel .r-body b { color: var(--ink); }
-  .rules-panel .r-body code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
-
-  /* Panel / section */
-  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: var(--shadow-sm); padding: 22px 24px; margin-bottom: 22px; }
-  .panel > h2 { font-size: 17px; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
-  .panel > h2 .step { width: 26px; height: 26px; border-radius: 8px; background: var(--brand); color: #fff;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
-  .panel > .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-
-  /* upload */
-  .upload-zone { display: block; width: 100%; box-sizing: border-box; border: 2px dashed var(--brand-soft); border-radius: 12px; background: var(--brand-light);
-    padding: 22px; text-align: center; cursor: pointer; transition: background .2s, border-color .2s; }
-  .upload-zone:hover { background: #e0ecff; border-color: var(--brand); }
-  .upload-zone .uz-ic { font-size: 30px; }
-  .upload-zone .uz-t { font-weight: 600; color: var(--ink); margin-top: 6px; }
-  .upload-zone .uz-d { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
-  .upload-zone { position: relative; }
-  .upload-zone input[type=file] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
-  .upload-zone.drag { background: #dbeafe; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
-  .pdf-msg { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5; display: none; }
+  /* PDF 导入提示（显隐由 JS 控制） */
+  .pdf-msg { margin-top: 14px; display: none; }
   .pdf-msg.show { display: block; }
-  .pdf-msg.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-  .pdf-msg.warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-  .pdf-msg.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
   .pdf-msg b { color: inherit; }
 
-  /* form grid */
+  /* 运量录入网格（航司品牌色：东上=藏青，中联航=青） */
   .airline-grid { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; }
   .airline-grid .ah { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; }
   .airline-grid .ar { font-weight: 600; color: var(--ink); font-size: 14px; }
-  .airline-grid input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px;
-    font-size: 14px; text-align: center; color: var(--ink); background: #fff; }
-  .airline-grid input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-  /* 录入区航司品牌色：东航/上航=蓝(东上航司)，中联航=青 */
+  .airline-grid input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; text-align: center; color: var(--ink); background: var(--card); transition: border-color .15s, box-shadow .15s; }
   .airline-grid .ar.grp-east { color: var(--brand-dark); border-left: 3px solid var(--brand); padding-left: 8px; }
   .airline-grid .ar.grp-lian { color: #0e7490; border-left: 3px solid #0891b2; padding-left: 8px; }
   .airline-grid .ah.grp-east { color: var(--brand-dark); }
   .airline-grid .ah.grp-lian { color: #0e7490; }
-  .airline-grid input.grp-east { background: #f5f9ff; }
-  .airline-grid input.grp-lian { background: #f0fdff; }
-  .airline-grid input.grp-east:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-  .airline-grid input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #cffafe; }
+  .airline-grid input.grp-east { background: #f2f6fa; }
+  .airline-grid input.grp-lian { background: #eef8fa; }
+  .airline-grid input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .airline-grid input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #d5f0f7; }
   .seat-row { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; margin-top: 12px; }
   .seat-row .sl { font-weight: 600; color: var(--ink); font-size: 14px; }
 
-  .btn { display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer;
-    font-size: 14px; font-weight: 600; padding: 11px 20px; border-radius: 11px;
-    background: var(--brand); color: #fff; box-shadow: var(--shadow-sm); transition: transform .18s, box-shadow .18s, background .18s; }
-  .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); background: var(--brand-dark); }
-  .btn.ghost { background: var(--brand-light); color: var(--brand-dark); box-shadow: none; }
-  .btn.ghost:hover { background: var(--brand-soft); }
-  .btn.green { background: var(--success); }
-  .btn.green:hover { background: var(--success-dark); }
-  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
-
-  .hint-ok { color: var(--success-dark); font-size: 13px; font-weight: 600; margin-top: 12px; }
-  .hint-err { color: #dc2626; font-size: 13px; font-weight: 600; margin-top: 12px; }
-
-  /* output table */
+  /* 输出表 */
   .date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   .date-row label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-  .date-row input[type=date] { padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 14px; color: var(--ink); }
-  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
-  .out-title { font-size: 15px; color: var(--brand-deep); margin: 20px 0 8px; font-weight: 700; }
+  .date-row input[type=date] { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); background: var(--card); }
+  .out-title { font-size: 14.5px; color: var(--ink); margin: 22px 0 8px; font-weight: 700; }
   table.out { border-collapse: collapse; width: 100%; min-width: 1900px; font-size: 12.5px; }
-  table.out th, table.out td { border: 1px solid var(--line); padding: 8px 9px; text-align: center; white-space: nowrap; }
-  table.out thead th { background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; z-index: 2; }
   table.out thead th .row-act { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
   table.out thead th .row-act button { border: none; cursor: pointer; font-size: 11.5px; font-weight: 700;
-    padding: 5px 9px; border-radius: 7px; background: #fff; color: var(--brand-deep); }
-  table.out thead th .row-act button:hover { background: #dbeafe; }
-  table.out tbody th.rname { background: var(--brand-light); color: var(--brand-dark); font-weight: 700; font-size: 13px; }
-  table.out tbody tr.total th.rname { background: #fef3c7; color: #b45309; }
-  /* 输出表区块品牌色：东上联=蓝，总表=金 */
+    padding: 4px 9px; border-radius: 6px; background: rgba(255,255,255,.92); color: var(--brand-deep);
+    transition: background .15s; }
+  table.out thead th .row-act button:hover { background: #fff; }
+  /* 区块品牌色：东上联=藏青，总表=金 */
   table.out.tbl-total thead th { background: #92400e; }
   table.out.tbl-total thead th .row-act button { color: #92400e; }
   table.out.tbl-total thead th .row-act button:hover { background: #fde68a; }
   .out-title .badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 9px; border-radius: 999px; vertical-align: 2px; margin-left: 8px; }
   .out-title .badge.east { background: var(--brand-deep); }
   .out-title .badge.total { background: #b45309; }
-  table.out td.auto { color: var(--ink); background: #fafdff; }
-  table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--brand-soft);
-    border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: #fffdf5; }
-  table.out td.editable input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px #fde68a; }
-  table.out td.txt { text-align: left; background: #fafdff; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-  .legend { font-size: 12.5px; color: var(--muted); margin-top: 10px; display: flex; gap: 18px; flex-wrap: wrap; }
+  table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--amber);
+    border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: #fffaf0; transition: border-color .15s, box-shadow .15s; }
+  table.out td.editable input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
+  .legend { font-size: 12.5px; color: var(--muted); margin-top: 12px; display: flex; gap: 18px; flex-wrap: wrap; }
   .legend span b { color: var(--ink); }
   .dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-  .dot.auto { background: #fafdff; border: 1px solid var(--line); }
-  .dot.edit { background: #fffdf5; border: 1px solid var(--amber); }
-
-  .copied-tip { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
-    background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
-    box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; }
-  .copied-tip.show { opacity: 1; }
+  .dot.auto { background: #fbfcfd; border: 1px solid var(--line); }
+  .dot.edit { background: #fffaf0; border: 1px solid var(--amber); }
 </style>
 </head>
 <body>
@@ -205,11 +71,10 @@
 
     <header class="header">
       <div class="header-main">
-        <span class="eyebrow">✈ 航班工作工具集</span>
+        <p class="eyebrow"><span class="no">08</span>航班工作工具集 · FLIGHT TOOLS</p>
         <h1>东上联日数据汇总</h1>
         <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
       </div>
-      <div class="plane">🧮</div>
     </header>
 
     <details class="rules-panel" open>

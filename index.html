@@ -4,328 +4,253 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>航班工作工具集 · 导航</title>
+<link rel="stylesheet" href="./assets/site.css">
 <style>
-  /* ============ Design Tokens（与升舱/名单/统计/汇总四页统一）============ */
-  :root {
-    --brand:        #2563eb;
-    --brand-dark:   #1d4ed8;
-    --brand-deep:   #1e3a8a;
-    --brand-light:  #eff6ff;
-    --brand-soft:   #dbeafe;
-    --ink:          #0f172a;
-    --ink-2:        #334155;
-    --muted:        #64748b;
-    --muted-2:      #94a3b8;
-    --line:         #e2e8f0;
-    --bg:           #f1f5f9;
-    --card:         #ffffff;
-    --radius:       16px;
-    --radius-sm:    10px;
-    --shadow-sm:    0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
-    --shadow:       0 4px 6px -1px rgba(15,23,42,0.07), 0 2px 4px -2px rgba(15,23,42,0.05);
-    --shadow-lg:    0 20px 25px -5px rgba(15,23,42,0.10), 0 8px 10px -6px rgba(15,23,42,0.06);
-    --c-blue:  #2563eb; --c-gold: #d97706; --c-teal: #0d9488; --c-purple: #7c3aed;
+  /* ============ 导航页特有样式 ============ */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 2px 18px; margin-bottom: 0;
+    border-bottom: 1px solid var(--line);
   }
+  .topbar .brandmark { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+  .topbar .brandmark svg { display: block; color: var(--brand); }
+  .topbar .brandmark .bm-t { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: .2px; }
+  .topbar .meta {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+    color: var(--muted-2); text-transform: uppercase;
+  }
+  .topbar .meta b { color: var(--muted); font-weight: 500; }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-behavior: smooth; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: var(--ink-2); line-height: 1.6; min-height: 100vh;
-    background:
-      radial-gradient(1200px 600px at 100% -10%, #e0ecff 0%, rgba(224,236,255,0) 55%),
-      radial-gradient(900px 500px at -10% 0%, #eef2ff 0%, rgba(238,242,255,0) 50%),
-      var(--bg);
+  .hero { padding: 52px 2px 40px; }
+  .hero h1 {
+    font-size: clamp(30px, 4.2vw, 42px); font-weight: 800;
+    letter-spacing: -1px; line-height: 1.15; color: var(--ink);
   }
+  .hero .lede {
+    margin-top: 14px; font-size: 14.5px; color: var(--muted);
+    max-width: 560px; line-height: 1.75;
+  }
+  .hero .factrow { display: flex; gap: 26px; margin-top: 22px; flex-wrap: wrap; }
+  .hero .fact { display: flex; align-items: baseline; gap: 8px; }
+  .hero .fact .fv { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--brand); }
+  .hero .fact .fl { font-size: 12px; color: var(--muted-2); }
+  .hero .stripe { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 34px; max-width: 420px; }
+  .hero .stripe i { flex: 1; }
 
-  /* ============ Animations ============ */
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-  @keyframes rise { to { opacity: 1; transform: translateY(0); } }
-  .anim { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
-
-  /* ============ Header（与四页统一）============ */
-  .header {
-    position: relative; overflow: hidden;
-    background: linear-gradient(130deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
-    color: #fff; padding: 40px 40px; border-radius: 22px; margin: 28px 24px;
-    display: flex; align-items: center; justify-content: space-between; gap: 24px;
-    box-shadow: 0 18px 40px -12px rgba(37,99,235,0.45);
+  /* ============ 工具网格 ============ */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px; margin-top: 26px;
   }
-  .header::before {
-    content: ""; position: absolute; top: -60px; right: -30px;
-    width: 260px; height: 260px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,255,255,0) 70%);
-  }
-  .header::after {
-    content: ""; position: absolute; bottom: -80px; left: 20%;
-    width: 220px; height: 220px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.12), rgba(255,255,255,0) 70%);
-  }
-  .header .header-main { position: relative; z-index: 1; }
-  .header .eyebrow {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
-    background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 20px;
-    backdrop-filter: blur(6px); margin-bottom: 14px;
-  }
-  .header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
-  .header p { font-size: 14.5px; opacity: 0.9; margin-top: 8px; max-width: 640px; }
-  .header .plane {
-    position: relative; z-index: 1; font-size: 60px; line-height: 1;
-    animation: floaty 4s ease-in-out infinite; flex-shrink: 0;
-    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.2));
-  }
-
-  .container { max-width: 1440px; margin: 0 auto; padding: 0 24px 48px; }
-
-  /* ============ Cards（summary-card 风格，与四页统一）============ */
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 22px; margin-top: 4px; }
   .card {
-    position: relative; overflow: hidden;
+    position: relative; display: flex; flex-direction: column;
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: var(--shadow-sm); text-decoration: none; color: inherit;
-    padding: 24px 24px 22px; display: flex; flex-direction: column;
-    opacity: 0; transform: translateY(18px); animation: rise .6s ease forwards;
-    transition: transform 0.22s, box-shadow 0.22s;
+    text-decoration: none; color: inherit;
+    padding: 20px 22px 18px;
+    opacity: 0; transform: translateY(8px); animation: fadeUp .3s ease-out forwards;
+    transition: border-color .15s, box-shadow .15s, transform .15s;
   }
-  .card:nth-child(1){ animation-delay:.05s; } .card:nth-child(2){ animation-delay:.18s; }
-  .card:nth-child(3){ animation-delay:.31s; } .card:nth-child(4){ animation-delay:.44s; }
-  .card:nth-child(5){ animation-delay:.57s; }
-  .card::before {
-    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-    background: linear-gradient(90deg, var(--brand), #60a5fa);
+  .card:hover { border-color: var(--tool); box-shadow: var(--shadow); transform: translateY(-2px); }
+  .card .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .card .no {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    color: var(--tool); letter-spacing: 1px;
   }
-  .card.c2::before { background: linear-gradient(90deg, var(--c-gold), #f59e0b); }
-  .card.c3::before { background: linear-gradient(90deg, var(--c-teal), #14b8a6); }
-  .card.c4::before { background: linear-gradient(90deg, var(--c-purple), #8b5cf6); }
-  .card.c5::before { background: linear-gradient(90deg, #f97316, #ea580c); }
-  .card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
-  .card .card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .card .card-go {
+    font-size: 15px; color: var(--muted-2); line-height: 1;
+    transition: color .15s, transform .15s;
+  }
+  .card:hover .card-go { color: var(--tool); transform: translate(2px, -2px); }
   .card .card-ic {
-    width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 24px;
-    background: var(--brand-light); color: var(--brand-dark);
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--brand-light); margin-bottom: 12px;
   }
-  .card.c2 .card-ic { background: #fef3c7; color: var(--c-gold); }
-  .card.c3 .card-ic { background: #ccfbf1; color: var(--c-teal); }
-  .card.c4 .card-ic { background: #ede9fe; color: var(--c-purple); }
-  .card.c5 .card-ic { background: #ffedd5; color: #c2410c; }
-  .card h3 { font-size: 18px; font-weight: 700; color: var(--ink); }
-  .card p { color: var(--muted); font-size: 14px; line-height: 1.65; margin-top: 8px; flex: 1; }
-  .card .tags { margin: 14px 0 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--bg); color: #475569; }
-  .card .go { display: flex; align-items: center; gap: 6px; color: var(--brand); font-weight: 600; font-size: 14px; }
-  .card.c2 .go { color: var(--c-gold); } .card.c3 .go { color: var(--c-teal); } .card.c4 .go { color: var(--c-purple); }
-  .card.c5 .go { color: #ea580c; }
-  .card.c6::before { background: linear-gradient(90deg, #16a34a, #22c55e); }
-  .card.c6 .card-ic { background: #dcfce7; color: #16a34a; }
-  .card.c6 .go { color: #16a34a; }
-  .card.c7::before { background: linear-gradient(90deg, #dc2626, #ef4444); }
-  .card.c7 .card-ic { background: #fee2e2; color: #dc2626; }
-  .card.c7 .go { color: #dc2626; }
-  .card:nth-child(6){ animation-delay:.70s; }
-  .card:nth-child(7){ animation-delay:.83s; }
-  .card.c8::before { background: linear-gradient(90deg, #0891b2, #06b6d4); }
-  .card.c8 .card-ic { background: #cffafe; color: #0891b2; }
-  .card.c8 .go { color: #0891b2; }
-  .card:nth-child(8){ animation-delay:.96s; }
-  .card.c9::before { background: linear-gradient(90deg, #7c3aed, #a855f7); }
-  .card.c9 .card-ic { background: #f3e8ff; color: #7c3aed; }
-  .card.c9 .go { color: #7c3aed; }
-  .card:nth-child(9){ animation-delay:1.09s; }
-  .tag.testing { background: #fef3c7; color: #b45309; font-weight: 600; }
-  .card .go .arrow { transition: transform .2s; }
-  .card:hover .go .arrow { transform: translateX(5px); }
+  .card .card-ic svg { display: block; }
+  .card h3 { font-size: 16.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.2px; }
+  .card p { color: var(--muted); font-size: 13px; line-height: 1.65; margin-top: 7px; flex: 1; }
+  .card .tags { margin: 13px 0 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .card .tag {
+    font-size: 11.5px; padding: 2px 0; border-radius: 0; background: none;
+    color: var(--muted-2);
+  }
+  .card .tag::before { content: "·"; margin-right: 6px; color: var(--muted-2); }
+  .card .tag:first-child::before { content: none; }
+  .card .tag.testing { color: var(--amber); font-weight: 600; }
 
-  /* ============ Notice panel（同 rules-panel 外观）============ */
+  /* ============ 使用须知 ============ */
   .notice {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: var(--shadow-sm); overflow: hidden; margin-top: 28px;
+    box-shadow: none; overflow: hidden; margin-top: 34px;
   }
   .notice > summary {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 26px; cursor: pointer; user-select: none; list-style: none;
-    font-size: 16px; font-weight: 700; color: var(--ink);
+    padding: 15px 22px; cursor: pointer; user-select: none; list-style: none;
+    font-size: 14px; font-weight: 600; color: var(--ink);
   }
   .notice > summary::-webkit-details-marker { display: none; }
-  .notice > summary .title { display: flex; align-items: center; gap: 10px; }
+  .notice > summary .title { display: flex; align-items: center; gap: 9px; }
   .notice > summary .ic {
-    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-    background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 17px;
-    box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: var(--brand-light); color: var(--brand);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
   }
-  .notice > summary .chev { transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); color: var(--muted); }
+  .notice > summary .chev { transition: transform .25s ease; color: var(--muted); }
   .notice[open] > summary .chev { transform: rotate(180deg); }
-  .notice .nbody { padding: 0 26px 24px; color: var(--ink-2); font-size: 14px; line-height: 1.75; }
-  .notice .nbody ul { padding-left: 20px; margin: 8px 0; }
+  .notice .nbody { padding: 0 22px 18px; color: var(--ink-2); font-size: 13.5px; line-height: 1.75; }
+  .notice .nbody ul { padding-left: 20px; margin: 6px 0; }
   .notice .nbody li { margin: 6px 0; }
   .notice .nbody b { color: var(--ink); }
-  .notice .nbody code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .notice .nbody code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: var(--mono); }
 
-  footer { text-align: center; color: var(--muted-2); font-size: 13px; padding: 0 20px 44px; }
-  @media (max-width:560px){ .header{ padding:32px 24px; flex-direction:column; text-align:center; } .header h1{ font-size:26px; } }
+  .site-footer { margin-top: 44px; padding: 20px 0 0; border-top: 1px solid var(--line); }
+
+  @media (max-width: 560px) {
+    .hero { padding: 38px 0 30px; }
+    .topbar .meta { display: none; }
+  }
 </style>
 </head>
 <body>
-  <header class="header">
-    <div class="header-main">
-      <span class="eyebrow">✈ 航班工作工具集</span>
-      <h1>航班工作工具集</h1>
-      <p>九个纯前端工具 · 数据只在你浏览器本地处理，不上传任何服务器</p>
-    </div>
-    <div class="plane">✈️</div>
-  </header>
-
   <div class="container">
-    <div class="anim">
-      <main class="grid">
-        <a class="card c1" href="./manifest/index.html">
-          <div class="card-top">
-            <span class="card-ic">📋</span>
-            <h3>国际名单转化</h3>
-          </div>
-          <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
-          <div class="tags">
-            <span class="tag">海关模板</span>
-            <span class="tag">出入境判定</span>
-            <span class="tag">Excel 预览</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c2" href="./upgrade/index.html">
-          <div class="card-top">
-            <span class="card-ic">💰</span>
-            <h3>升舱金额计算器</h3>
-          </div>
-          <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
-          <div class="tags">
-            <span class="tag">岗位比例</span>
-            <span class="tag">交叉汇总</span>
-            <span class="tag">下载 Excel</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c3" href="./stats/index.html">
-          <div class="card-top">
-            <span class="card-ic">📊</span>
-            <h3>航班数据统计</h3>
-          </div>
-          <p>导入当日航班 Excel，自动区分东上航 / 中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量，导出统计表。</p>
-          <div class="tags">
-            <span class="tag">航司分类</span>
-            <span class="tag">多维统计</span>
-            <span class="tag">下载 Excel</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c4" href="./summary/index.html">
-          <div class="card-top">
-            <span class="card-ic">📈</span>
-            <h3>航班运量汇总</h3>
-          </div>
-          <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，自动汇总东上航、联航及总计，输入框支持四则运算表达式。</p>
-          <div class="tags">
-            <span class="tag">东上航汇总</span>
-            <span class="tag">客座率</span>
-            <span class="tag">下载 Excel</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c5" href="./schedule/index.html">
-          <div class="card-top">
-            <span class="card-ic">📅</span>
-            <h3>出港排班表</h3>
-          </div>
-          <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
-          <div class="tags">
-            <span class="tag">登机口分配</span>
-            <span class="tag">负责人选择</span>
-            <span class="tag">下载 Excel</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c6" href="./daily-report/index.html">
-          <div class="card-top">
-            <span class="card-ic">📰</span>
-            <h3>航班日报生成器</h3>
-          </div>
-          <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，可导出 PDF 或直接打印。</p>
-          <div class="tags">
-            <span class="tag testing">🚧 功能测试中...</span>
-            <span class="tag">日报生成</span>
-            <span class="tag">导出 PDF</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c7" href="./kn-stats/index.html">
-          <div class="card-top">
-            <span class="card-ic">🛫</span>
-            <h3>KN航班出港统计</h3>
-          </div>
-          <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
-          <div class="tags">
-            <span class="tag">KN航班</span>
-            <span class="tag">截载时间</span>
-            <span class="tag">导出图片</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c8" href="./merge/index.html">
-          <div class="card-top">
-            <span class="card-ic">🧮</span>
-            <h3>东上联日数据汇总</h3>
-          </div>
-          <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
-          <div class="tags">
-            <span class="tag">东上联/总表</span>
-            <span class="tag">PDF自动填</span>
-            <span class="tag">导出 Excel</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-
-        <a class="card c9" href="./todo/index.html">
-          <div class="card-top">
-            <span class="card-ic">📝</span>
-            <h3>每日待办</h3>
-          </div>
-          <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
-          <div class="tags">
-            <span class="tag">按日记录</span>
-            <span class="tag">历史回看</span>
-            <span class="tag">本地保存</span>
-          </div>
-          <div class="go">打开工具 <span class="arrow">→</span></div>
-        </a>
-      </main>
-
-      <details class="notice">
-        <summary>
-          <span class="title"><span class="ic">🔒</span> 使用须知 & 数据安全</span>
-          <span class="chev">▾</span>
-        </summary>
-        <div class="nbody">
-          <ul>
-            <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel / 名单文件不会被上传到任何服务器，数据只留在本地。</li>
-            <li><b>长期有效：</b>本站由 WorkBuddy 部署至 GitHub Pages（公开仓库），链接长期有效、不会回收，可随时打开使用。</li>
-            <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
-            <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用 Excel「另存为」转出无密码版本再上传。</li>
-            <li><b>规则口径：</b>各工具的转换 / 分配 / 统计 / 计算规则，详见每个工具页内的「规则说明」面板（可点击展开），口径以页面规则为准。</li>
-          </ul>
-        </div>
-      </details>
-
-      <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages · 免费 · 永久在线</footer>
+    <!-- 顶栏 -->
+    <div class="topbar">
+      <a class="brandmark" href="./index.html">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4.2 20.6 3.3c-.9-.9-2.7-.4-4.2 1.1L13 7.9 4.8 6.1c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-4 5H2.5l-.5 1 3.5 2 .9-.2 1.6-2.9 4.9 4.9c.4.4 1 .4 1.4.1l.5-.3c.4-.3.6-.7.5-1.2l-1.8-8.2"/>
+        </svg>
+        <span class="bm-t">航班工作工具集</span>
+      </a>
+      <div class="meta"><b>9</b> TOOLS · LOCAL ONLY</div>
     </div>
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1>九个工具，<br>装进出港的一天。</h1>
+      <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。纯前端运行，所有数据只在你自己的浏览器里处理。</p>
+      <div class="factrow">
+        <div class="fact"><span class="fv">9</span><span class="fl">个在线工具</span></div>
+        <div class="fact"><span class="fv">0</span><span class="fl">数据上传</span></div>
+        <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
+      </div>
+      <div class="stripe" aria-hidden="true">
+        <i style="background:#3d6b8f"></i><i style="background:#8f6b2e"></i><i style="background:#2e7d74"></i>
+        <i style="background:#4e6393"></i><i style="background:#a05a2c"></i><i style="background:#8c3b45"></i>
+        <i style="background:#35708e"></i><i style="background:#1f6f8b"></i><i style="background:#4e7d4e"></i>
+      </div>
+    </section>
+
+    <!-- 工具网格 -->
+    <main class="grid">
+
+      <a class="card" style="--tool:#3d6b8f" href="./manifest/index.html">
+        <div class="card-top"><span class="no">01</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#eef3f7">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#3d6b8f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+        </span>
+        <h3>国际名单转化</h3>
+        <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
+        <div class="tags"><span class="tag">海关模板</span><span class="tag">出入境判定</span><span class="tag">Excel 预览</span></div>
+      </a>
+
+      <a class="card" style="--tool:#8f6b2e" href="./upgrade/index.html">
+        <div class="card-top"><span class="no">02</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#f8f3ea">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8f6b2e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>
+        </span>
+        <h3>升舱金额计算器</h3>
+        <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
+        <div class="tags"><span class="tag">岗位比例</span><span class="tag">交叉汇总</span><span class="tag">下载 Excel</span></div>
+      </a>
+
+      <a class="card" style="--tool:#2e7d74" href="./stats/index.html">
+        <div class="card-top"><span class="no">03</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#ecf5f3">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#2e7d74" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15v-4M12 15V8M17 15v-6"/></svg>
+        </span>
+        <h3>航班数据统计</h3>
+        <p>导入当日航班 Excel，自动区分东上航 / 中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量，导出统计表。</p>
+        <div class="tags"><span class="tag">航司分类</span><span class="tag">多维统计</span><span class="tag">下载 Excel</span></div>
+      </a>
+
+      <a class="card" style="--tool:#4e6393" href="./summary/index.html">
+        <div class="card-top"><span class="no">04</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#eff0f6">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#4e6393" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 14l3-3 3 3 5-6"/><path d="M18 8h-2M18 8v2" transform="rotate(180 18 8) translate(-4 0)" opacity="0"/><path d="M16 8h.01"/></svg>
+        </span>
+        <h3>航班运量汇总</h3>
+        <p>录入东航 / 上航 / 中联航的旅客、行李与客座率，自动汇总东上航、联航及总计，输入框支持四则运算表达式。</p>
+        <div class="tags"><span class="tag">东上航汇总</span><span class="tag">客座率</span><span class="tag">下载 Excel</span></div>
+      </a>
+
+      <a class="card" style="--tool:#a05a2c" href="./schedule/index.html">
+        <div class="card-top"><span class="no">05</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#f9f1ea">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#a05a2c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2M14 17h2"/></svg>
+        </span>
+        <h3>出港排班表</h3>
+        <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
+        <div class="tags"><span class="tag">登机口分配</span><span class="tag">负责人选择</span><span class="tag">下载 Excel</span></div>
+      </a>
+
+      <a class="card" style="--tool:#8c3b45" href="./daily-report/index.html">
+        <div class="card-top"><span class="no">06</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#f8eff0">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8c3b45" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0V9"/><path d="M12 6h6M12 10h6M12 14h6M12 18h3"/></svg>
+        </span>
+        <h3>航班日报生成器</h3>
+        <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，可导出 PDF 或直接打印。</p>
+        <div class="tags"><span class="tag testing">🚧 功能测试中</span><span class="tag">日报生成</span><span class="tag">导出 PDF</span></div>
+      </a>
+
+      <a class="card" style="--tool:#35708e" href="./kn-stats/index.html">
+        <div class="card-top"><span class="no">07</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#edf3f7">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#35708e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l20-20-4 1-3 4-6 1-2 2 5 3 3 5 2-2 1-6z"/><path d="M2 22l6-6"/></svg>
+        </span>
+        <h3>KN航班出港统计</h3>
+        <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
+        <div class="tags"><span class="tag">KN航班</span><span class="tag">截载时间</span><span class="tag">导出图片</span></div>
+      </a>
+
+      <a class="card" style="--tool:#1f6f8b" href="./merge/index.html">
+        <div class="card-top"><span class="no">08</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#eaf3f7">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#1f6f8b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/></svg>
+        </span>
+        <h3>东上联日数据汇总</h3>
+        <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
+        <div class="tags"><span class="tag">东上联/总表</span><span class="tag">PDF自动填</span><span class="tag">导出 Excel</span></div>
+      </a>
+
+      <a class="card" style="--tool:#4e7d4e" href="./todo/index.html">
+        <div class="card-top"><span class="no">09</span><span class="card-go">↗</span></div>
+        <span class="card-ic" style="background:#eff5ef">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#4e7d4e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4a2 2 0 0 1 2 2v2H8V4a2 2 0 0 1 2-2z"/><rect x="4" y="6" width="16" height="16" rx="2"/><path d="M9 13l2 2 4-4"/></svg>
+        </span>
+        <h3>每日待办</h3>
+        <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
+        <div class="tags"><span class="tag">按日记录</span><span class="tag">历史回看</span><span class="tag">本地保存</span></div>
+      </a>
+    </main>
+
+    <details class="notice">
+      <summary>
+        <span class="title"><span class="ic">🔒</span> 使用须知 & 数据安全</span>
+        <span class="chev">▾</span>
+      </summary>
+      <div class="nbody">
+        <ul>
+          <li><b>纯前端运行：</b>所有计算都在你自己的浏览器里完成，Excel / 名单文件不会被上传到任何服务器，数据只留在本地。</li>
+          <li><b>长期有效：</b>本站由 WorkBuddy 部署至 GitHub Pages（公开仓库），链接长期有效、不会回收，可随时打开使用。</li>
+          <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
+          <li><b>加密文件：</b>浏览器版 SheetJS 不支持读取带密码的 Excel；如遇加密名单，请先在本地用 Excel「另存为」转出无密码版本再上传。</li>
+          <li><b>规则口径：</b>各工具的转换 / 分配 / 统计 / 计算规则，详见每个工具页内的「规则说明」面板（可点击展开），口径以页面规则为准。</li>
+        </ul>
+      </div>
+    </details>
+
+    <footer class="site-footer">航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages · 免费 · 永久在线</footer>
   </div>
 </body>
 </html>
