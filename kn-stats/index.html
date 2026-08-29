@@ -33,7 +33,7 @@ tbody tr:nth-child(even) { background:#f7faff; }
 .note-tag { display:inline-block; background:#fff1e6; color:#c2410c; font-weight:700; font-size:12.5px;
     padding:3px 10px; border-radius:999px; border:1px solid #fdba74; }
 /* 早始发汇总行：紧跟早始发航班之后（表格内分组小计），背景必须整行撑满 */
-.summary-row td { background: var(--brand) !important; color: #ffffff !important; text-align: center !important;
+.early-summary-row td { background: var(--brand) !important; color: #ffffff !important; text-align: center !important;
   font-weight: 700; font-size: 14.5px; padding: 14px 20px; letter-spacing: 0.3px; white-space: nowrap; }
 .empty { padding:40px; text-align:center; color:var(--muted); }
 /* ============ Rules Panel ============ */
@@ -257,7 +257,7 @@ tbody tr:nth-child(even) { background:#f7faff; }
     earlyRows.forEach(function(x){ html += rowHtml(x); });
     // 早始发汇总行：紧跟早始发航班之后（计飞 10:30 前），作为分组小计
     if (earlyRows.length > 0) {
-      html += '<tr class="summary-row"><td colspan="6">早始发人数：' + earlyTotal +
+      html += '<tr class="early-summary-row"><td colspan="6">早始发人数：' + earlyTotal +
               '（' + earlyRows.length + ' 班，计飞 10:30 前）</td></tr>';
     }
     lateRows.forEach(function(x){ html += rowHtml(x); });
