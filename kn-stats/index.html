@@ -32,14 +32,9 @@ tbody td:first-child { text-align:center; font-weight:700; color:var(--ink); }
 tbody tr:nth-child(even) { background:#f7faff; }
 .note-tag { display:inline-block; background:#fff1e6; color:#c2410c; font-weight:700; font-size:12.5px;
     padding:3px 10px; border-radius:999px; border:1px solid #fdba74; }
-.summary-row td { background: var(--brand); color: #ffffff; text-align: center;
-  font-weight: 700; font-size: 14.5px; padding: 16px 20px; letter-spacing: 0.3px; white-space: nowrap; }
-/* 独立早始发汇总 banner（在表格外，背景自然撑满） */
-.summary-banner { background: var(--brand); color: #ffffff; text-align: center;
-  padding: 16px 20px; font-size: 14.5px; font-weight: 700; letter-spacing: 0.3px;
-  border-radius: 0 0 var(--radius) var(--radius); margin-top: -1px;
-  border: 1px solid var(--brand); border-top: none;
-  box-shadow: var(--shadow-sm); }
+/* 早始发汇总行：紧跟早始发航班之后（表格内分组小计），背景必须整行撑满 */
+.summary-row td { background: var(--brand) !important; color: #ffffff !important; text-align: center !important;
+  font-weight: 700; font-size: 14.5px; padding: 14px 20px; letter-spacing: 0.3px; white-space: nowrap; }
 .empty { padding:40px; text-align:center; color:var(--muted); }
 /* ============ Rules Panel ============ */
   .rules-panel {
@@ -142,7 +137,6 @@ tbody tr:nth-child(even) { background:#f7faff; }
           <tbody id="tbody"></tbody>
         </table>
       </div>
-      <div class="summary-banner" id="summaryBanner" hidden></div>
       <div class="actions">
         <button class="btn btn-primary" type="button" onclick="exportImage()">🖼 导出图片</button>
       </div>
@@ -261,20 +255,16 @@ tbody tr:nth-child(even) { background:#f7faff; }
     var lateRows  = processed.filter(function(x){ return !x.early; });
     var html = '';
     earlyRows.forEach(function(x){ html += rowHtml(x); });
+    // 早始发汇总行：紧跟早始发航班之后（计飞 10:30 前），作为分组小计
+    if (earlyRows.length > 0) {
+      html += '<tr class="summary-row"><td colspan="6">早始发人数：' + earlyTotal +
+              '（' + earlyRows.length + ' 班，计飞 10:30 前）</td></tr>';
+    }
     lateRows.forEach(function(x){ html += rowHtml(x); });
     if(!processed.length){
       html = '<tr><td colspan="6" class="empty">未找到符合条件的 KN 出港航班，请检查文件。</td></tr>';
     }
     document.getElementById('tbody').innerHTML = html;
-
-    // 独立早始发汇总 banner（表格外，背景自然撑满整行）
-    var sb = document.getElementById('summaryBanner');
-    if (earlyRows.length > 0) {
-      sb.textContent = '早始发人数：' + earlyTotal + '（' + earlyRows.length + ' 班，计飞 10:30 前）';
-      sb.hidden = false;
-    } else {
-      sb.hidden = true;
-    }
 
     document.getElementById('statsBar').innerHTML =
       '<span class="stat-pill">✈ KN出港航班 <b>' + processed.length + '</b> 班</span>' +
@@ -411,9 +401,7 @@ tbody tr:nth-child(even) { background:#f7faff; }
       y += rowH;
     }
     earlyRows.forEach(function(x){ drawRow(x, idx%2===0?'#ffffff':'#fafbfc'); idx++; });
-    lateRows.forEach(function(x){  drawRow(x, idx%2===0?'#ffffff':'#fafbfc'); idx++; });
-
-    // —— 早始发汇总条（深藏青整条 · 白字居中）——
+    // —— 早始发汇总条（紧跟早始发航班之后，分组小计）——
     if (hasSummary) {
       y += summaryGap;
       roundRect(ctx, cardX, y, tableW, summaryH, 8);
@@ -423,7 +411,9 @@ tbody tr:nth-child(even) { background:#f7faff; }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('早始发人数：' + earlyTotal + '  ·  ' + earlyRows.length + ' 班（计飞 10:30 前）',
         cardX + tableW/2, y + summaryH/2 + 1);
+      y += summaryH;
     }
+    lateRows.forEach(function(x){  drawRow(x, idx%2===0?'#ffffff':'#fafbfc'); idx++; });
 
     // —— 页脚 ——
     var fy = H - footerH + 4;
