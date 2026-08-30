@@ -303,3 +303,79 @@ footer, .site-footer { text-align: center; color: var(--muted-2); font-size: 12p
   .header h1 { font-size: 22px; }
   .panel { padding: 18px 16px; }
 }
+
+/* ============================================================
+   Apple-inspired visual refresh
+   只覆盖呈现层：不涉及脚本、数据处理或导出逻辑。
+   ============================================================ */
+:root {
+  --brand: #0071e3;
+  --brand-dark: #005bb5;
+  --brand-deep: #1d1d1f;
+  --brand-light: #eff6ff;
+  --brand-soft: #dcecff;
+  --ink: #1d1d1f;
+  --ink-2: #424245;
+  --muted: #6e6e73;
+  --muted-2: #86868b;
+  --line: #d2d2d7;
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --radius: 18px;
+  --radius-sm: 11px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.035);
+  --shadow: 0 8px 28px rgba(0,0,0,.07);
+  --shadow-lg: 0 18px 46px rgba(0,0,0,.12);
+}
+body { background: var(--bg) !important; color: var(--ink-2) !important; }
+.container { max-width: 1180px !important; padding-top: 32px !important; }
+.back-home { color: var(--muted) !important; font-size: 13px !important; margin-bottom: 22px !important; }
+.back-home:hover { color: var(--brand) !important; }
+.header {
+  padding: 28px 30px !important; margin-bottom: 22px !important;
+  background: rgba(255,255,255,.86) !important; border: 1px solid rgba(210,210,215,.78) !important;
+  border-radius: var(--radius) !important; box-shadow: var(--shadow-sm) !important;
+}
+.header .eyebrow { color: var(--muted) !important; letter-spacing: 1.3px !important; margin-bottom: 12px !important; }
+.header .eyebrow .no { color: var(--brand) !important; }
+.header h1 { font-size: clamp(28px,3.4vw,38px) !important; letter-spacing: -1.2px !important; line-height: 1.12 !important; }
+.header p { max-width: 680px !important; font-size: 14px !important; line-height: 1.7 !important; }
+.rules-panel, .panel, .table-wrapper, .table-wrap, .out-wrap, .toolbar, .stats, .addbar, .upload {
+  border-color: rgba(210,210,215,.9) !important; border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.rules-panel summary, .rules-header { padding: 17px 21px !important; }
+.rules-header:hover, .rules-panel summary:hover { background: #fafafa !important; }
+.rules-header .title .ic, .rules-panel summary .r-ic { background: #f5f5f7 !important; color: var(--brand) !important; border-radius: 9px !important; }
+.panel { padding: 24px !important; }
+.upload-zone, .upload {
+  border-color: #c7c7cc !important; border-radius: var(--radius) !important; background: #fff !important;
+}
+.upload-zone:hover, .upload-zone.dragover, .upload-zone.drag, .upload.drag { background: #f7fbff !important; border-color: var(--brand) !important; }
+.summary-card { border-radius: var(--radius) !important; padding: 20px !important; box-shadow: var(--shadow-sm) !important; }
+.summary-card .card-ic { background: #f5f5f7 !important; color: var(--brand) !important; border-radius: 11px !important; }
+.btn, .btn-primary, .btn-success {
+  border-radius: 980px !important; background: var(--brand) !important; box-shadow: none !important;
+  font-weight: 600 !important; padding: 10px 18px !important;
+}
+.btn:hover, .btn-primary:hover, .btn-success:hover { background: var(--brand-dark) !important; box-shadow: none !important; transform: none !important; }
+.btn.ghost, .btn-ghost, .btn-sm { border-radius: 980px !important; }
+.btn.ghost, .btn-ghost { background: #f5f5f7 !important; color: var(--brand) !important; }
+.btn-sm { border-color: #d2d2d7 !important; background: #fff !important; color: var(--ink-2) !important; }
+input[type="text"], input[type="number"], input[type="date"], input:not([type]), select, textarea {
+  border-color: #d2d2d7 !important; border-radius: 10px !important; background: #fff !important;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(0,113,227,.14) !important; }
+.table-wrapper, .table-wrap, .out-wrap, .table-scroll { border-color: #d2d2d7 !important; }
+table.out thead th, table.out-table thead th { background: #f5f5f7 !important; color: #424245 !important; }
+table.out th, table.out td, table.io-table th, table.io-table td, table.out-table th, table.out-table td { border-color: #e5e5ea !important; }
+table.out tbody th.rname, table.out-table td.rowname, table.io-table td.al { background: #fafafa !important; color: var(--ink) !important; }
+.stat-pill, .tag, .note-tag { border-radius: 980px !important; box-shadow: none !important; }
+footer, .site-footer, .footer { color: var(--muted-2) !important; }
+
+/* 日报页保持双栏结构，统一编辑面板的视觉质感。 */
+.app { background: var(--bg) !important; }
+.editor { background: rgba(255,255,255,.8) !important; border-right: 1px solid #d2d2d7 !important; }
+.topbar { background: rgba(255,255,255,.92) !important; backdrop-filter: blur(16px); }
+.grp { border-color: #d2d2d7 !important; border-radius: 14px !important; overflow: hidden; box-shadow: none !important; }
+.grp > h2 { background: #fafafa !important; }

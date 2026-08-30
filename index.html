@@ -109,6 +109,50 @@
     .hero { padding: 38px 0 30px; }
     .topbar .meta { display: none; }
   }
+
+  /* Apple-inspired navigation refresh — presentation only */
+  .topbar {
+    margin: 0 -8px; padding: 16px 18px;
+    border: 1px solid rgba(210,210,215,.86); border-radius: 16px;
+    background: rgba(255,255,255,.78); box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  }
+  .topbar .brandmark { gap: 10px; }
+  .topbar .brandmark .bm-t { font-size: 15px; letter-spacing: -.15px; }
+  .topbar .meta { font-size: 10.5px; letter-spacing: 1.15px; }
+  .hero { padding: 76px 4px 46px; max-width: 720px; }
+  .hero h1 { font-size: clamp(40px,5.1vw,58px); letter-spacing: -2.5px; line-height: 1.05; }
+  .hero .lede { max-width: 590px; font-size: 16px; line-height: 1.7; margin-top: 19px; }
+  .hero .factrow { gap: 30px; margin-top: 29px; }
+  .hero .fact .fv { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; font-size: 23px; letter-spacing: -.7px; }
+  .hero .stripe { height: 3px; max-width: 126px; margin-top: 34px; border-radius: 99px; }
+  .grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-top: 20px; }
+  .card {
+    min-height: 260px; padding: 22px; border-radius: 20px;
+    border-color: rgba(210,210,215,.86); box-shadow: 0 1px 2px rgba(0,0,0,.035),0 7px 20px rgba(0,0,0,.03);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .card:hover { border-color: rgba(0,113,227,.35); box-shadow: 0 15px 32px rgba(0,0,0,.09); transform: translateY(-4px); }
+  .card .card-top { margin-bottom: 16px; }
+  .card .no { color: var(--muted-2); font-size: 11px; letter-spacing: 1.2px; }
+  .card .card-go { color: var(--muted-2); font-size: 17px; }
+  .card:hover .card-go { color: var(--brand); }
+  .card .card-ic { width: 44px; height: 44px; border-radius: 13px; margin-bottom: 17px; }
+  .card h3 { font-size: 17px; letter-spacing: -.35px; }
+  .card p { font-size: 13px; line-height: 1.65; margin-top: 8px; }
+  .card .tags { margin-top: 16px; gap: 0; }
+  .card .tag { font-size: 11px; color: var(--muted-2); }
+  .notice { margin-top: 42px; border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .notice > summary { padding: 17px 21px; }
+  .notice .nbody { padding: 0 21px 21px; }
+  .site-footer { margin-top: 52px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+  @media (max-width: 560px) {
+    .topbar { margin: 0; padding: 14px; }
+    .hero { padding: 52px 0 36px; }
+    .hero h1 { font-size: 40px; letter-spacing: -1.8px; }
+    .grid { grid-template-columns: 1fr; gap: 12px; }
+    .card { min-height: 0; }
+  }
 </style>
 </head>
 <body>

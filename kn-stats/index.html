@@ -240,7 +240,7 @@ tbody tr:nth-child(even) { background:#f7faff; }
         cut: fmtTime(cutMin),
         sum: sum,
         note: sum>160 ? '高客座航班' : '',
-        early: (depMin!=null && depMin < 630)         // 1030 = 10*60+30 = 630
+        early: (depMin!=null && depMin <= 630)        // 10:30（含）之前
       });
     }
     // 按计飞升序
@@ -255,10 +255,10 @@ tbody tr:nth-child(even) { background:#f7faff; }
     var lateRows  = processed.filter(function(x){ return !x.early; });
     var html = '';
     earlyRows.forEach(function(x){ html += rowHtml(x); });
-    // 早始发汇总行：紧跟早始发航班之后（计飞 10:30 前），作为分组小计
+    // 早始发汇总行：紧跟早始发航班之后（计飞 10:30 含之前），作为分组小计
     if (earlyRows.length > 0) {
       html += '<tr class="early-summary-row"><td colspan="6">早始发人数：' + earlyTotal +
-              '（' + earlyRows.length + ' 班，计飞 10:30 前）</td></tr>';
+              '（' + earlyRows.length + ' 班，计飞 10:30（含）之前）</td></tr>';
     }
     lateRows.forEach(function(x){ html += rowHtml(x); });
     if(!processed.length){
@@ -286,34 +286,23 @@ tbody tr:nth-child(even) { background:#f7faff; }
     '</tr>';
   }
 
-  // ---------- 导出图片（Canvas 2x · 简约现代高级感） ----------
+  // ---------- 导出图片（Canvas 2x · 简洁克制风格） ----------
   function exportImage(){
     if(!processed.length){ alert('请先上传并生成统计表'); return; }
     var F = '"PingFang SC","Microsoft YaHei",sans-serif';
     var MF = '"SF Mono","Menlo",ui-monospace';
-
     var cols = [
-      {t:'出港航班', w:120}, {t:'到站', w:120}, {t:'计飞', w:80},
-      {t:'截载时间', w:100}, {t:'出港订座', w:100}, {t:'备注', w:130}
+      {t:'出港航班', w:130, a:'left'}, {t:'到站', w:130, a:'left'}, {t:'计飞', w:90, a:'center'},
+      {t:'截载时间', w:112, a:'center'}, {t:'出港订座', w:108, a:'right'}, {t:'备注', w:130, a:'center'}
     ];
     var tableW = cols.reduce(function(a,c){return a+c.w;},0);
-    var padX = 32;            // 画布左右留白
-    var titleH = 72;          // 顶栏区高度
-    var subH = 28;            // 副标题区
-    var cardPad = 16;         // 卡片内 padding
-    var headerH = 48;         // 表头高度
-    var rowH = 44;            // 数据行高度
-    var summaryGap = 12;      // 表格与汇总条间距
-    var summaryH = 52;        // 早始发汇总条高度
-    var footerH = 36;         // 页脚高度
-
     var earlyRows = processed.filter(function(x){ return x.early; });
     var lateRows  = processed.filter(function(x){ return !x.early; });
     var hasSummary = earlyRows.length>0;
-    var tableInnerH = headerH + rowH*processed.length + (hasSummary ? summaryGap + summaryH : 0);
-    var cardH = cardPad + tableInnerH + cardPad;
-    var W = tableW + padX*2;
-    var H = titleH + subH + 4 + cardH + 16 + footerH;
+    var pad = 40, titleH = 70, subH = 34, headerH = 46, rowH = 48, summaryH = 52, footerH = 48;
+    var W = tableW + pad*2;
+    var bodyH = headerH + rowH*processed.length + (hasSummary ? summaryH : 0);
+    var H = titleH + subH + 22 + bodyH + footerH + 20;
 
     var scale = 2;
     var canvas = document.createElement('canvas');
@@ -321,110 +310,56 @@ tbody tr:nth-child(even) { background:#f7faff; }
     var ctx = canvas.getContext('2d');
     ctx.scale(scale,scale);
 
-    // —— 纸感背景 ——
-    ctx.fillStyle = '#f5f6f7';
+    // 苹果式浅灰背景，重点交给内容本身
+    ctx.fillStyle = '#f5f5f7';
     ctx.fillRect(0,0,W,H);
-
-    // —— 顶栏：飞机 logo + 标题 + 右侧日期 ——
-    drawLogo(ctx, padX, 26, 22, '#1b4f72');
-    ctx.fillStyle = '#1c2b36';
-    ctx.font = '800 22px ' + F;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText('KN航班出港统计', padX+34, 28+6);
-    // 右侧日期（等宽）
     var now = new Date();
     var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-    ctx.fillStyle = '#8fa0ab'; ctx.font = '500 12px ' + MF; ctx.textAlign = 'right';
-    ctx.fillText(dateStr, W-padX, 28+2);
-    // 顶栏下分隔线（极淡）
-    ctx.strokeStyle = '#e8ecee'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padX, titleH); ctx.lineTo(W-padX, titleH); ctx.stroke();
-
-    // —— 副标题（meta 行）——
-    ctx.fillStyle = '#64757f'; ctx.font = '500 13px ' + F; ctx.textAlign = 'left';
-    ctx.fillText('出港 ' + processed.length + ' 班  ·  早始发 ' + earlyRows.length + ' 班（计飞 10:30 前）', padX, titleH + subH - 6);
-
-    // —— 主卡片：白底圆角，包含表格 ——
-    var cardX = padX, cardY = titleH + subH + 4;
-    roundRect(ctx, cardX, cardY, tableW, cardH, 12);
-    ctx.fillStyle = '#ffffff'; ctx.fill();
-    ctx.strokeStyle = '#e8ecee'; ctx.lineWidth = 1; ctx.stroke();
-
-    // —— 表头（深藏青实色）——
-    var hy = cardY + cardPad;
-    ctx.fillStyle = '#1b4f72';
-    ctx.fillRect(cardX, hy, tableW, headerH);
-    ctx.fillStyle = '#ffffff'; ctx.font = '700 14px ' + F; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-    var cx = cardX;
-    cols.forEach(function(c){ ctx.fillText(c.t, cx + c.w/2, hy + headerH/2 + 1); cx += c.w; });
-
-    // —— 数据行（斑马纹 + 极细分隔线）——
-    var y = hy + headerH;
-    var idx = 0;
-    function drawRow(x, bg){
-      ctx.fillStyle = bg;
-      ctx.fillRect(cardX, y, tableW, rowH);
-      ctx.strokeStyle = '#eef0f2'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cardX, y+rowH); ctx.lineTo(cardX+tableW, y+rowH); ctx.stroke();
-
-      var vals = [x.flight, x.dest, x.dep, x.cut, String(x.sum), x.note];
-      var cx2 = cardX;
-      for (var k=0; k<cols.length; k++){
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        if (k === 0) { // 航班号
-          ctx.fillStyle = '#1c2b36'; ctx.font = '700 15px ' + F;
-        } else if (k === 4) { // 订座人数（数字强调）
-          ctx.fillStyle = '#1c2b36'; ctx.font = '700 15px ' + MF;
-        } else if (k === 5) { // 备注
-          ctx.fillStyle = '#3a4a57'; ctx.font = '500 14px ' + F;
-        } else {
-          ctx.fillStyle = '#3a4a57'; ctx.font = '500 14px ' + F;
-        }
-        var tx = cx2 + cols[k].w/2;
-        if (k === 5 && x.note) {
-          // 高客座标签：橙色描边胶囊
-          ctx.font = '700 12px ' + F;
-          var tw = ctx.measureText(x.note).width;
-          var padX2 = 14, chipW = tw + padX2*2, chipH = 24;
-          var chipX = cx2 + (cols[k].w - chipW)/2;
-          var chipY = y + (rowH - chipH)/2;
-          roundRect(ctx, chipX, chipY, chipW, chipH, 12);
-          ctx.fillStyle = '#fdf3e3'; ctx.fill();
-          ctx.strokeStyle = '#d97706'; ctx.lineWidth = 1; ctx.stroke();
-          ctx.fillStyle = '#b4610d';
-          ctx.fillText(x.note, cx2 + cols[k].w/2, y + rowH/2 + 1);
-        } else {
-          ctx.fillText(vals[k], tx, y + rowH/2 + 1);
-        }
-        cx2 += cols[k].w;
-      }
-      y += rowH;
+    // 仅保留原有标题与日期，以清爽的黑白灰建立层级
+    drawLogo(ctx, pad, 25, 23, '#0071e3');
+    ctx.fillStyle = '#1d1d1f'; ctx.font = '700 24px ' + F; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('KN航班出港统计', pad+34, 38);
+    ctx.fillStyle='#86868b'; ctx.font='500 12px '+MF; ctx.textAlign='right'; ctx.fillText(dateStr,W-pad,38);
+    ctx.strokeStyle='#d2d2d7';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,titleH);ctx.lineTo(W-pad,titleH);ctx.stroke();
+    ctx.fillStyle='#6e6e73';ctx.font='500 13px '+F;ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText('出港 ' + processed.length + ' 班',pad,titleH+21);
+    var tableY = titleH + subH + 22;
+    roundRect(ctx,pad,tableY,tableW,bodyH,10); ctx.fillStyle='#ffffff'; ctx.fill();
+    ctx.save(); roundRect(ctx,pad,tableY,tableW,bodyH,12); ctx.clip();
+    ctx.fillStyle='#f5f5f7'; ctx.fillRect(pad,tableY,tableW,headerH);
+    var cx = pad;
+    cols.forEach(function(c){
+      ctx.fillStyle='#6e6e73'; ctx.font='600 12px '+F; ctx.textBaseline='middle'; ctx.textAlign=c.a==='left'?'left':(c.a==='right'?'right':'center');
+      ctx.fillText(c.t,cx+(c.a==='left'?18:(c.a==='right'?c.w-18:c.w/2)),tableY+headerH/2); cx+=c.w;
+    });
+    var y = tableY+headerH, idx = 0;
+    function drawRow(x){
+      ctx.fillStyle='#ffffff'; ctx.fillRect(pad,y,tableW,rowH);
+      ctx.strokeStyle='#e5e5ea'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pad,y+rowH);ctx.lineTo(pad+tableW,y+rowH);ctx.stroke();
+      var values=[x.flight,x.dest,x.dep,x.cut,String(x.sum),x.note]; var xPos=pad;
+      values.forEach(function(value,k){ var c=cols[k], align=c.a; ctx.textAlign=align==='left'?'left':(align==='right'?'right':'center'); ctx.textBaseline='middle';
+        var tx=xPos+(align==='left'?18:(align==='right'?c.w-18:c.w/2));
+        if(k===0){ctx.fillStyle='#1d1d1f';ctx.font='700 14px '+MF;}
+        else if(k===4){ctx.fillStyle='#1d1d1f';ctx.font='700 15px '+MF;}
+        else {ctx.fillStyle='#424245';ctx.font='400 14px '+F;}
+        if(k===5 && value){ var cw=76,ch=22; roundRect(ctx,xPos+(c.w-cw)/2,y+(rowH-ch)/2,cw,ch,11);ctx.fillStyle='#fff2e7';ctx.fill();ctx.fillStyle='#c45b16';ctx.font='600 11px '+F;ctx.textAlign='center';ctx.fillText('高客座',xPos+c.w/2,y+rowH/2+1); }
+        else if(k!==5 || value){ctx.fillText(value,tx,y+rowH/2+1);} xPos+=c.w;
+      });
+      y+=rowH; idx++;
     }
-    earlyRows.forEach(function(x){ drawRow(x, idx%2===0?'#ffffff':'#fafbfc'); idx++; });
-    // —— 早始发汇总条（紧跟早始发航班之后，分组小计）——
-    if (hasSummary) {
-      y += summaryGap;
-      roundRect(ctx, cardX, y, tableW, summaryH, 8);
-      ctx.fillStyle = '#1b4f72'; ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '700 16px ' + F;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('早始发人数：' + earlyTotal + '  ·  ' + earlyRows.length + ' 班（计飞 10:30 前）',
-        cardX + tableW/2, y + summaryH/2 + 1);
-      y += summaryH;
+    earlyRows.forEach(drawRow);
+    if(hasSummary){
+      ctx.fillStyle='#f5f5f7';ctx.fillRect(pad,y,tableW,summaryH);
+      ctx.strokeStyle='#e5e5ea';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,y+summaryH);ctx.lineTo(pad+tableW,y+summaryH);ctx.stroke();
+      ctx.fillStyle='#1d1d1f';ctx.font='700 14px '+F;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('早始发人数：' + earlyTotal,pad+18,y+summaryH/2);
+      ctx.fillStyle='#6e6e73';ctx.font='500 13px '+F;ctx.textAlign='right';ctx.fillText(earlyRows.length+' 班，计飞 10:30（含）之前',pad+tableW-18,y+summaryH/2);y+=summaryH;
     }
-    lateRows.forEach(function(x){  drawRow(x, idx%2===0?'#ffffff':'#fafbfc'); idx++; });
-
-    // —— 页脚 ——
-    var fy = H - footerH + 4;
-    ctx.fillStyle = '#8fa0ab';
-    ctx.font = '500 11px ' + MF;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    lateRows.forEach(drawRow); ctx.restore();
+    roundRect(ctx,pad,tableY,tableW,bodyH,10);ctx.strokeStyle='#d2d2d7';ctx.lineWidth=1;ctx.stroke();
+    var fy=H-footerH+24; ctx.fillStyle='#86868b'; ctx.font='500 11px '+MF;ctx.textAlign='left';ctx.textBaseline='alphabetic';
     var timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    ctx.fillText('航班工作工具集  ·  生成于 ' + dateStr + ' ' + timeStr, padX, fy + 14);
-    // 右侧：页码式元数据
-    ctx.textAlign = 'right';
-    ctx.fillText('KN · 01 / 01', W - padX, fy + 14);
+    ctx.fillText('航班工作工具集  ·  生成于 ' + dateStr + ' ' + timeStr,pad,fy);
+    ctx.textAlign='right';ctx.fillText('KN · 01 / 01',W-pad,fy);
 
     var a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
