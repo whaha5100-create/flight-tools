@@ -24,16 +24,17 @@
   .airline-grid { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; }
   .airline-grid .ah { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; }
   .airline-grid .ar { font-weight: 600; color: var(--ink); font-size: 14px; }
-  .airline-grid input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+  .airline-grid input, .seat-row input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
     font-size: 14px; text-align: center; color: var(--ink); background: var(--card); transition: border-color .15s, box-shadow .15s; }
   .airline-grid .ar.grp-east { color: var(--brand-dark); border-left: 3px solid var(--brand); padding-left: 8px; }
   .airline-grid .ar.grp-lian { color: #0e7490; border-left: 3px solid #0891b2; padding-left: 8px; }
   .airline-grid .ah.grp-east { color: var(--brand-dark); }
   .airline-grid .ah.grp-lian { color: #0e7490; }
-  .airline-grid input.grp-east { background: #f2f6fa; }
-  .airline-grid input.grp-lian { background: #eef8fa; }
-  .airline-grid input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-  .airline-grid input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #d5f0f7; }
+  .airline-grid input.grp-east, .seat-row input.grp-east { background: #f2f6fa; }
+  .airline-grid input.grp-lian, .seat-row input.grp-lian { background: #eef8fa; }
+  .airline-grid input:focus, .seat-row input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .airline-grid input:focus::placeholder, .seat-row input:focus::placeholder { color: transparent; }
+  .airline-grid input.grp-lian:focus, .seat-row input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #d5f0f7; }
   .seat-row { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; margin-top: 12px; }
   .seat-row .sl { font-weight: 600; color: var(--ink); font-size: 14px; }
 
