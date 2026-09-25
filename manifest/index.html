@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>航班名单转换工具</title>
+<title>国际名单转化 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="国际航班旅客名单转海关上传模板：自动转换国籍/性别/证件代码，判定出入境与往来机场，导出可直接上传的 Excel。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="国际名单转化 · 航班工作工具集">
+<meta property="og:description" content="国际航班旅客名单转海关上传模板：自动转换国籍/性别/证件代码，判定出入境与往来机场，导出可直接上传的 Excel。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/manifest/index.html">
+<meta name="theme-color" content="#0071e3">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
 <script>
@@ -18,53 +25,13 @@
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* ============ Rules Panel（可折叠转换规则）============ */
-  .rules-panel {
-    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
-    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
-    transition: box-shadow 0.25s;
-  }
-.rules-panel:hover { box-shadow: var(--shadow); }
-.rules-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
-  }
-.rules-header:hover { background: var(--brand-light); }
-.rules-header .title {
-    font-size: 16px; font-weight: 700; color: var(--ink);
-    display: flex; align-items: center; gap: 10px;
-  }
-.rules-header .title .ic {
-    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-    background: var(--brand);
-    color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
-  }
-.rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
-.rules-header .arrow {
-    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
-  }
-.rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
-.rules-body {
-    max-height: 0; overflow: hidden; padding: 0 26px;
-    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
-  }
-.rules-panel.open .rules-body { max-height: 1200px; padding: 4px 26px 24px; }
-.rules-intro { font-size: 14px; color: var(--muted); margin-bottom: 14px; line-height: 1.75; }
-.rules-intro b { color: var(--ink-2); }
-.rules-inner ul { margin: 0 0 0 18px; }
-.rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
-.rules-inner code {
-    background: var(--brand-light); color: var(--brand-dark);
-    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
-  }
 /* ============ Enc hint ============ */
   .enc-hint {
-    margin-top: 4px; padding: 13px 16px; border: 1px solid #fde68a;
+    margin-top: 4px; padding: 13px 16px; border: 1px solid #eed9b8;
     background: var(--amber-soft); border-left: 4px solid var(--amber);
     border-radius: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.8; margin-bottom: 22px;
   }
-.enc-hint b { color: #b45309; }
+.enc-hint b { color: var(--amber); }
 /* ============ Preview / Table ============ */
   .table-wrapper {
     background: var(--card); border-radius: var(--radius); overflow: hidden;
@@ -94,8 +61,8 @@
     background: var(--card); position: sticky; left: 0; z-index: 1;
     border-right: 1px solid var(--line);
   }
-#previewBody tbody tr:nth-child(even) td { background: #f8fafc; }
-#previewBody tbody tr:nth-child(even) td:first-child { background: #f8fafc; }
+#previewBody tbody tr:nth-child(even) td { background: #fafafa; }
+#previewBody tbody tr:nth-child(even) td:first-child { background: #fafafa; }
 #previewBody tbody tr:hover td { background: var(--brand-light); }
 #previewBody tbody tr:hover td:first-child { background: var(--brand-light); }
 /* ============ Tags (warnings / skipped) ============ */
@@ -111,15 +78,15 @@
     border: 1px solid var(--brand-soft); transition: transform 0.15s, background 0.15s;
   }
 .tag:hover { transform: translateY(-1px); background: var(--brand-soft); }
-.tag.warn { background: #ffedd5; border-color: #fdba74; color: #c2410c; }
+.tag.warn { background: var(--amber-soft); border-color: #eed9b8; color: var(--amber); }
 /* ============ Controls ============ */
   .controls { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 .controls .info { font-size: 13.5px; color: var(--muted); background: var(--card); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); }
 .btn-success {
     background: linear-gradient(135deg, var(--success), var(--success-dark)); color: #fff;
-    box-shadow: 0 8px 18px -6px rgba(5,150,105,0.6);
+    box-shadow: 0 8px 18px -6px rgba(0,0,0,.05);
   }
-.btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(5,150,105,0.7); }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(0,0,0,.06); }
 .btn-success:active { transform: translateY(0); }
 /* ============ Loading ============ */
   .loading { display: none; text-align: center; padding: 56px; }
@@ -133,17 +100,12 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 /* ============ Error ============ */
   .error-msg {
-    background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #b91c1c;
+    background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft)); color: var(--danger);
     padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
-    display: none; border: 1px solid #fecaca; border-left: 4px solid #dc2626; font-size: 14px; line-height: 1.7;
+    display: none; border: 1px solid #eccfcb; border-left: 4px solid var(--danger); font-size: 14px; line-height: 1.7;
   }
 .error-msg.active { display: block; }
 /* ============ Footer ============ */
-  .footer {
-    margin-top: 32px; text-align: center; font-size: 12.5px; color: var(--muted-2);
-    display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
-  }
-.footer .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted-2); }
 /* ============ Responsive ============ */
   @media (max-width: 768px) {
     .container { padding: 18px 14px 36px; }
@@ -280,13 +242,7 @@
   </div>
 
   <!-- Footer -->
-  <div class="footer">
-    <span>🔒 数据仅在本地浏览器处理，不会上传</span>
-    <span class="dot"></span>
-    <span>纯前端运行</span>
-    <span class="dot"></span>
-    <span>海关上传模板 v1.0</span>
-  </div>
+  <footer class="site-footer">航班工作工具集 · 数据只在本地浏览器处理，不上传服务器</footer>
 
 </div>
 

@@ -3,14 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KN航班出港统计</title>
+<title>KN航班出港统计 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="KN航班出港统计 · 航班工作工具集">
+<meta property="og:description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/kn-stats/index.html">
+<meta name="theme-color" content="#0071e3">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ kn-stats · 页面特有样式（通用样式见 ../assets/site.css）============ */
   :root { --tool: #35708e; }
 
 * { box-sizing:border-box; }
-.upload { margin-top:24px; border:2px dashed #c7d2fe; border-radius:var(--radius); background:#fff;
+.upload { margin-top:24px; border:2px dashed var(--line); border-radius:var(--radius); background:#fff;
     transition:border-color .2s, background .2s; }
 .upload.drag { border-color:var(--brand); background:var(--brand-light); }
 .upload-inner { padding:42px 24px; text-align:center; }
@@ -27,55 +34,15 @@
 table { width:100%; border-collapse:collapse; font-size:16px; }
 thead th { background:var(--brand-deep); color:#fff; font-weight:700; padding:12px 14px;
     text-align:center; font-size:16px; letter-spacing:.5px; }
-tbody td { padding:9px 14px; text-align:center; border-top:1px solid #eef2f7; }
+tbody td { padding:9px 14px; text-align:center; border-top:1px solid #e5e5ea; }
 tbody td:first-child { text-align:center; font-weight:700; color:var(--ink); }
 tbody tr:nth-child(even) { background:#f7faff; }
-.note-tag { display:inline-block; background:#fff1e6; color:#c2410c; font-weight:700; font-size:12.5px;
-    padding:3px 10px; border-radius:999px; border:1px solid #fdba74; }
+.note-tag { display:inline-block; background:var(--amber-soft); color:var(--amber); font-weight:700; font-size:12.5px;
+    padding:3px 10px; border-radius:999px; border:1px solid #eed9b8; }
 /* 早始发汇总行：紧跟早始发航班之后（表格内分组小计），背景必须整行撑满 */
 .early-summary-row td { background: var(--brand) !important; color: #ffffff !important; text-align: center !important;
   font-weight: 700; font-size: 14.5px; padding: 14px 20px; letter-spacing: 0.3px; white-space: nowrap; }
 .empty { padding:40px; text-align:center; color:var(--muted); }
-/* ============ Rules Panel ============ */
-  .rules-panel {
-    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
-    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
-    transition: box-shadow 0.25s;
-  }
-.rules-panel:hover { box-shadow: var(--shadow-lg); }
-.rules-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 24px; cursor: pointer; user-select: none; transition: background 0.2s;
-  }
-.rules-header:hover { background: var(--brand-light); }
-.rules-header .title {
-    font-size: 16px; font-weight: 700; color: var(--ink);
-    display: flex; align-items: center; gap: 10px;
-  }
-.rules-header .title .ic {
-    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-    color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
-  }
-.rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
-.rules-header .arrow {
-    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
-  }
-.rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
-.rules-body {
-    max-height: 0; overflow: hidden; padding: 0 24px;
-    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
-  }
-.rules-panel.open .rules-body { max-height: 1200px; padding: 4px 24px 20px; }
-.rules-intro { font-size: 14px; color: var(--muted); margin-bottom: 12px; line-height: 1.75; }
-.rules-intro b { color: var(--ink); }
-.rules-inner ul { margin: 0 0 0 18px; }
-.rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
-.rules-inner code {
-    background: var(--brand-light); color: var(--brand-dark);
-    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
-  }
 </style>
 </head>
 <body>
@@ -144,7 +111,7 @@ tbody tr:nth-child(even) { background:#f7faff; }
     </div>
   </div>
 
-  <footer>KN航班出港统计 · 纯前端工具</footer>
+  <footer class="site-footer">航班工作工具集 · 数据只在本地浏览器处理，不上传服务器</footer>
 
   <script src="libs/xlsx.full.min.js"></script>
   <script>

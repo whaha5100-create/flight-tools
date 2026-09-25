@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>航班运量汇总</title>
+<title>航班运量汇总 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="录入东航/上航/中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算表达式。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="航班运量汇总 · 航班工作工具集">
+<meta property="og:description" content="录入东航/上航/中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算表达式。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/summary/index.html">
+<meta name="theme-color" content="#0071e3">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
 <script>
@@ -18,61 +25,23 @@
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* ============ Rules Panel（可折叠计算规则，与三页统一）============ */
-  .rules-panel {
-    background: var(--card); border-radius: var(--radius); margin-bottom: 24px;
-    box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid var(--line);
-    transition: box-shadow 0.25s;
-  }
-.rules-panel:hover { box-shadow: var(--shadow); }
-.rules-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 26px; cursor: pointer; user-select: none; transition: background 0.2s;
-  }
-.rules-header:hover { background: var(--brand-light); }
-.rules-header .title {
-    font-size: 16px; font-weight: 700; color: var(--ink);
-    display: flex; align-items: center; gap: 10px;
-  }
-.rules-header .title .ic {
-    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-    background: var(--brand);
-    color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 17px; box-shadow: 0 4px 10px -3px rgba(37,99,235,0.6);
-  }
-.rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
-.rules-header .arrow {
-    font-size: 12px; color: var(--muted); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
-  }
-.rules-panel.open .rules-header .arrow { transform: rotate(180deg); }
-.rules-body {
-    max-height: 0; overflow: hidden; padding: 0 26px;
-    transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1), padding 0.4s ease;
-  }
-.rules-panel.open .rules-body { max-height: 900px; padding: 4px 26px 24px; }
-.rules-inner ul { margin: 0 0 0 18px; }
-.rules-inner li { font-size: 13.5px; color: #374151; margin: 6px 0; line-height: 1.7; }
-.rules-inner code {
-    background: var(--brand-light); color: var(--brand-dark);
-    padding: 1px 6px; border-radius: 5px; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
-  }
 /* ============ IO Table ============ */
   table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 table.io-table th, table.io-table td { border: 1px solid var(--line); padding: 9px 10px; text-align: center; }
 table.io-table thead th { background: var(--brand-light); color: var(--ink-2); font-weight: 600; }
 table.io-table td.al { background: var(--brand-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
-table.io-table input { width: 100%; min-width: 90px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px;
+table.io-table input { width: 100%; min-width: 90px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
                         font-size: 14px; text-align: center; outline: none; transition: border .15s; }
-table.io-table input::placeholder { color: #cbd5e1; }
-table.io-table input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+table.io-table input::placeholder { color: var(--line); }
+table.io-table input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
 table.io-table input:focus::placeholder { color: transparent; }
 .seat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
 .seat-cell { background: var(--brand-light); border: 1px solid var(--brand-soft); border-radius: 10px; padding: 14px; text-align: center; }
 .seat-cell .lab { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; font-weight: 600; }
-.seat-cell input { width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 15px;
+.seat-cell input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; font-size: 15px;
                     text-align: center; outline: none; transition: border .15s; }
-.seat-cell input::placeholder { color: #cbd5e1; }
-.seat-cell input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.seat-cell input::placeholder { color: var(--line); }
+.seat-cell input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
 .seat-cell input:focus::placeholder { color: transparent; }
 /* ============ Output Table ============ */
   .out-wrap { overflow-x: auto; margin-top: 6px; border-radius: 10px; border: 1px solid var(--line); }
@@ -80,7 +49,7 @@ table.out-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min
 table.out-table th, table.out-table td { border: 1px solid var(--line); padding: 10px 12px; text-align: center; white-space: nowrap; }
 table.out-table thead th { background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; }
 table.out-table td.rowname { background: var(--brand-light); font-weight: 700; color: var(--ink); position: sticky; left: 0; }
-table.out-table tr.total td { background: #fef9c3; font-weight: 700; }
+table.out-table tr.total td { background: #f5f5f7; font-weight: 700; }
 table.out-table tr.eastsup td.rowname { color: var(--brand-dark); }
 .out-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .btn-sm { background: #fff; color: var(--brand); border: 1px solid var(--brand); cursor: pointer; font-size: 14px;
@@ -174,7 +143,7 @@ table.out-table tr.eastsup td.rowname { color: var(--brand-dark); }
         </div>
       </div>
 
-      <footer>航班工作工具集 · 由 WorkBuddy 部署至 GitHub Pages</footer>
+      <footer class="site-footer">航班工作工具集 · 数据只在本地浏览器处理，不上传服务器</footer>
     </div>
   </div>
 

@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>东上联日数据汇总 · 航班工具集</title>
+<title>东上联日数据汇总 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="东上联日数据汇总 · 航班工作工具集">
+<meta property="og:description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/merge/index.html">
+<meta name="theme-color" content="#0071e3">
 <script src="libs/xlsx.full.min.js"></script>
 <script>
   if (typeof XLSX === 'undefined') {
@@ -30,7 +37,7 @@
   .airline-grid .ar.grp-lian { color: #0e7490; border-left: 3px solid #0891b2; padding-left: 8px; }
   .airline-grid .ah.grp-east { color: var(--brand-dark); }
   .airline-grid .ah.grp-lian { color: #0e7490; }
-  .airline-grid input.grp-east, .seat-row input.grp-east { background: #f2f6fa; }
+  .airline-grid input.grp-east, .seat-row input.grp-east { background: #f5f5f7; }
   .airline-grid input.grp-lian, .seat-row input.grp-lian { background: #eef8fa; }
   .airline-grid input:focus, .seat-row input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   .airline-grid input:focus::placeholder, .seat-row input:focus::placeholder { color: transparent; }
@@ -52,17 +59,17 @@
   /* 区块品牌色：东上联=藏青，总表=金 */
   table.out.tbl-total thead th { background: #92400e; }
   table.out.tbl-total thead th .row-act button { color: #92400e; }
-  table.out.tbl-total thead th .row-act button:hover { background: #fde68a; }
+  table.out.tbl-total thead th .row-act button:hover { background: #eed9b8; }
   .out-title .badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 9px; border-radius: 999px; vertical-align: 2px; margin-left: 8px; }
   .out-title .badge.east { background: var(--brand-deep); }
-  .out-title .badge.total { background: #b45309; }
+  .out-title .badge.total { background: var(--amber); }
   table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--amber);
     border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: #fffaf0; transition: border-color .15s, box-shadow .15s; }
   table.out td.editable input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
   .legend { font-size: 12.5px; color: var(--muted); margin-top: 12px; display: flex; gap: 18px; flex-wrap: wrap; }
   .legend span b { color: var(--ink); }
   .dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-  .dot.auto { background: #fbfcfd; border: 1px solid var(--line); }
+  .dot.auto { background: #fafafa; border: 1px solid var(--line); }
   .dot.edit { background: #fffaf0; border: 1px solid var(--amber); }
 </style>
 </head>
@@ -169,6 +176,8 @@
         <button class="btn ghost" id="copyTotalOnlyBtn">仅复制总表行</button>
       </div>
     </section>
+
+    <footer class="site-footer">航班工作工具集 · 数据只在本地浏览器处理，不上传服务器</footer>
   </div>
 
   <div class="copied-tip" id="copiedTip">已复制 ✓</div>
