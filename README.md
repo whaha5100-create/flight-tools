@@ -6,7 +6,7 @@
 
 | 环境 | 链接 | 说明 |
 |---|---|---|
-| WorkBuddy（国内推荐） | https://47bd1bc7936b44ca9c8d1e13340248ae.sg.agentos-app.run/ | 国内访问稳定，日常优先用这个 |
+| WorkBuddy（国内推荐） | https://c32870ff8b804d8dbc60a4ff7e4c9488.sg.agentos-app.run/ | 国内访问稳定，日常优先用这个 |
 | GitHub Pages（备用） | https://whaha5100-create.github.io/flight-tools/ | 原始站点，国内可能加载较慢 |
 
 > ⚠️ **入口地址请用 `index.html`，不要用 `index.htm`。**
@@ -118,4 +118,6 @@
 3. **推 WorkBuddy**：用 WorkBuddy 的「发布为应用」重新发布 **git 工作副本目录**
    （发布工具会把目录原样打包上传，所以工作副本里不能有 `.workbuddy-ai/` 这类内部文件）
 
-> ⚠️ WorkBuddy 重新发布后**域名可能发生变化**，发布完要重新确认一次访问链接。
+> ⚠️ **WorkBuddy 每次重新发布，域名都会变**（已连续 3 次验证），且**旧域名会立刻失效（HTTP 400）**。
+> 所以每次发布完，必须把上面「在线访问」表里的链接更新为新域名，否则文档指向死链。
+> GitHub Pages 的地址则始终不变。
