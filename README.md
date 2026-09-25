@@ -1,18 +1,20 @@
 # 航班工作工具集
 
-一组纯前端的航空地服工作小工具（共 **9 个**），部署在 **GitHub Pages** 与 **腾讯 CloudStudio** 双平台。免安装、免登录、离线可用，**所有数据只在浏览器本地处理，不上传任何服务器**。
+一组纯前端的航空地服工作小工具（共 **9 个**），部署在 **WorkBuddy** 与 **GitHub Pages** 双平台。免安装、免登录、离线可用，**所有数据只在浏览器本地处理，不上传任何服务器**。
 
 ## 在线访问
 
 | 环境 | 链接 | 说明 |
 |---|---|---|
-| 腾讯 CloudStudio（国内推荐） | https://2e86a5d168134f70bd1c7c2871c9d7d6.app.codebuddy.work/ | 国内访问稳定，日常优先用这个 |
+| WorkBuddy（国内推荐） | https://47bd1bc7936b44ca9c8d1e13340248ae.sg.agentos-app.run/ | 国内访问稳定，日常优先用这个 |
 | GitHub Pages（备用） | https://whaha5100-create.github.io/flight-tools/ | 原始站点，国内可能加载较慢 |
 
 > ⚠️ **入口地址请用 `index.html`，不要用 `index.htm`。**
 > 仓库里只有 `index.html`，访问 `.../index.htm` 会 404。收藏夹里如果存的是 `index.htm`，请改成目录地址（上面表格中的两个链接就是正确的）。
 >
-> 两个站点的内容一致；CloudStudio 侧为手动同步，个别时候可能比 GitHub 慢半拍。任选其一即可。
+> 📌 旧的 CloudStudio 地址（`*.app.codebuddy.work`）**已停用、不再更新**，请改用上表中的链接。
+>
+> 两个站点是各自独立的部署，内容一致；WorkBuddy 侧为手动重新发布，个别时候可能比 GitHub 慢半拍。任选其一即可。
 
 ## 工具列表
 
@@ -105,4 +107,15 @@
 
 ## 部署
 
-本地目录不是 git 仓库。发布流程为：把本目录内容同步到 git 工作副本 → `git add / commit / push origin main` → GitHub Pages 自动更新，同时同步部署到腾讯 CloudStudio。
+本地目录不是 git 仓库，两个站点各自发布。完整流程：
+
+1. **同步**：把本目录内容 `rsync` 到 git 工作副本
+   （`/Users/pangtouhema/WorkBuddy/2026-07-14-22-40-54/github-pages-prep/flight-tools/`），
+   排除 `.DS_Store` / `.workbuddy-ai/` / `.wbapp_*.genie` / `.workbuddy/` / `.git/`
+2. **推 GitHub**：`git add -A && git commit && git push origin main`
+   → GitHub Pages 自动重新构建
+   （走代理时 `git push` 经常被 502 打回，需 `GIT_HTTP_VERSION=1` 并循环重试十几次）
+3. **推 WorkBuddy**：用 WorkBuddy 的「发布为应用」重新发布 **git 工作副本目录**
+   （发布工具会把目录原样打包上传，所以工作副本里不能有 `.workbuddy-ai/` 这类内部文件）
+
+> ⚠️ WorkBuddy 重新发布后**域名可能发生变化**，发布完要重新确认一次访问链接。
