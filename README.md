@@ -108,7 +108,7 @@
 只有 **GitHub Pages** 一个站点。本地目录不是 git 仓库，改完同步到 git 工作副本再推送：
 
 1. **同步**：把本目录内容 `rsync` / `cp` 到 git 工作副本
-   （`/Users/pangtouhema/WorkBuddy/2026-07-14-22-40-54/github-pages-prep/flight-tools/`），
+   （`~/WorkBuddy/2026-07-14-22-40-54/github-pages-prep/flight-tools/`），
    排除 `.DS_Store` / `.workbuddy-ai/` / `.git/`
 2. **推 GitHub**：`git add -A && git commit && git push origin main`
    → GitHub Pages 自动重新构建

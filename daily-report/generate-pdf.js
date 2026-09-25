@@ -1,9 +1,15 @@
 /**
  * 一键生成干净 PDF（无浏览器自带页眉页脚，保留可选中文字）
- * 运行方式：
- *   cd "日报生成器" 目录
- *   NODE_PATH=/Users/pangtouhema/.workbuddy/binaries/node/workspace/node_modules \
- *   /Users/pangtouhema/.workbuddy/binaries/node/versions/22.22.2/bin/node generate-pdf.js
+ *
+ * 运行方式（在本目录下执行）：
+ *   node generate-pdf.js
+ *
+ * 依赖 puppeteer-core。脚本会按以下顺序自动查找，通常无需任何配置：
+ *   1) 环境变量 PUPPETEER_CORE_PATH 指向的 node_modules
+ *   2) 环境变量 NODE_PATH 里的各个 node_modules
+ *   3) 脚本同级 / 上级目录的 node_modules
+ *   4) npm 全局目录（npm root -g）
+ * 找不到时的处理办法见下方报错提示。
  *
  * 脚本会启动本机 Chrome，等待页面 JS 渲染完成，然后导出 A4 PDF。
  * 不再包含浏览器自动加的日期、标题、URL、页码，只保留你定义的页眉页脚。
@@ -11,12 +17,48 @@
 const fs = require('fs');
 const path = require('path');
 
-// 优先使用隔离工作区里的 puppeteer-core
-const ws = '/Users/pangtouhema/.workbuddy/binaries/node/workspace/node_modules';
-if (fs.existsSync(ws) && !module.paths.includes(ws)) {
+// 在若干候选目录里定位名为 name 的模块，返回其 node_modules 目录
+function resolveModuleDir(name) {
+  const dirs = [];
+  if (process.env.PUPPETEER_CORE_PATH) dirs.push(process.env.PUPPETEER_CORE_PATH);
+  (process.env.NODE_PATH || '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .forEach((p) => dirs.push(p));
+  dirs.push(path.join(__dirname, 'node_modules'));
+  dirs.push(path.join(__dirname, '..', 'node_modules'));
+  try {
+    const g = require('child_process')
+      .execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .trim();
+    if (g) dirs.push(g);
+  } catch (_) {
+    /* npm 不可用时忽略，继续用其它候选 */
+  }
+  for (const d of dirs) {
+    const nm = d.endsWith('node_modules') ? d : path.join(d, 'node_modules');
+    if (fs.existsSync(path.join(nm, name))) return nm;
+  }
+  return null;
+}
+
+const ws = resolveModuleDir('puppeteer-core');
+if (ws && !module.paths.includes(ws)) {
   module.paths.unshift(ws);
 }
-const puppeteer = require('puppeteer-core');
+
+let puppeteer;
+try {
+  puppeteer = require('puppeteer-core');
+} catch (e) {
+  console.error(
+    '未找到 puppeteer-core，请任选一种方式后重试：\n' +
+      '  1) 在本目录执行  npm install puppeteer-core\n' +
+      '  2) 设置环境变量  NODE_PATH=/你的/node_modules\n' +
+      '  3) 设置环境变量  PUPPETEER_CORE_PATH=/你的/node_modules'
+  );
+  process.exit(1);
+}
 
 const root = __dirname;
 const htmlFile = path.join(root, '日报生成器.html');
