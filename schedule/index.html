@@ -178,7 +178,7 @@ table.sch-table input.gate-input:focus { border-color: var(--brand); box-shadow:
           <li><b>登机口预填：</b>登机口统一以 <code>2</code> 开头预填，你只需补全后两位数字。</li>
           <li><b>负责人选择：</b>点格子内「＋ / 添加」展开选择器，勾选预设人员或输入自定义姓名；可多人协作，不同负责人用不同颜色标签区分。</li>
           <li><b>备注列顺序：</b>备注自动按「预推时间 → 特服 → 航班调时」三段拼接展示，便于快速读取保障要点。</li>
-          <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续，数据仅存浏览器本地。</li>
+          <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续。</li>
           <li><b>导出：</b>支持导出当前页 / 全部为 Excel，以及导出排班图为图片，便于发群或打印。</li>
         </ul>
       </div>
@@ -190,7 +190,7 @@ table.sch-table input.gate-input:focus { border-color: var(--brand); box-shadow:
     <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
       <div class="icon">📅</div>
       <div class="text">点击或拖拽上传航班 Excel 文件</div>
-      <div class="hint">支持 .xls / .xlsx 格式 · 仅读取出港航班数据 · 数据在浏览器本地处理</div>
+      <div class="hint">支持 .xls / .xlsx 格式 · 仅读取出港航班数据</div>
       <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="handleFile(this.files[0])">
     </div>
 
@@ -230,7 +230,7 @@ table.sch-table input.gate-input:focus { border-color: var(--brand); box-shadow:
       </div>
     </div>
 
-    <footer class="site-footer">航班工作工具集 · 数据只在本地浏览器处理，不上传服务器</footer>
+    <footer class="site-footer">航班工作工具集</footer>
   </div>
 
 <script>

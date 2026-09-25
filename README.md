@@ -1,20 +1,18 @@
 # 航班工作工具集
 
-一组纯前端的航空地服工作小工具（共 **9 个**），部署在 **WorkBuddy** 与 **GitHub Pages** 双平台。免安装、免登录、离线可用，**所有数据只在浏览器本地处理，不上传任何服务器**。
+一组纯前端的航空地服工作小工具（共 **9 个**），部署在 **GitHub Pages**。免安装、免登录、离线可用。
 
 ## 在线访问
 
 | 环境 | 链接 | 说明 |
 |---|---|---|
-| WorkBuddy（国内推荐） | https://c32870ff8b804d8dbc60a4ff7e4c9488.sg.agentos-app.run/ | 国内访问稳定，日常优先用这个 |
-| GitHub Pages（备用） | https://whaha5100-create.github.io/flight-tools/ | 原始站点，国内可能加载较慢 |
+| GitHub Pages | https://whaha5100-create.github.io/flight-tools/ | 唯一在线入口 |
 
 > ⚠️ **入口地址请用 `index.html`，不要用 `index.htm`。**
-> 仓库里只有 `index.html`，访问 `.../index.htm` 会 404。收藏夹里如果存的是 `index.htm`，请改成目录地址（上面表格中的两个链接就是正确的）。
+> 仓库里只有 `index.html`，访问 `.../index.htm` 会 404。收藏夹里如果存的是 `index.htm`，请改成目录地址（上面表格中的链接就是正确的）。
 >
-> 📌 旧的 CloudStudio 地址（`*.app.codebuddy.work`）**已停用、不再更新**，请改用上表中的链接。
->
-> 两个站点是各自独立的部署，内容一致；WorkBuddy 侧为手动重新发布，个别时候可能比 GitHub 慢半拍。任选其一即可。
+> 📌 旧的 CloudStudio 地址（`*.app.codebuddy.work`）**已停用、不再更新**；
+> WorkBuddy 侧的发布**已下线**，今后不再使用。请只用上表中的 GitHub Pages 链接。
 
 ## 工具列表
 
@@ -103,21 +101,18 @@
 
 直接用浏览器打开根目录的 `index.html` 即可；也可以打开任意工具目录下的 `index.html` 单独测试。
 
-> 因为全部是本地处理，双击 `file://` 打开也能正常使用；只有 `/merge/` 读取 PDF 时依赖 ES Module，建议用本地静态服务器打开（例如 `python3 -m http.server`）。
+> 双击 `file://` 打开也能正常使用；只有 `/merge/` 读取 PDF 时依赖 ES Module，建议用本地静态服务器打开（例如 `python3 -m http.server`）。
 
 ## 部署
 
-本地目录不是 git 仓库，两个站点各自发布。完整流程：
+只有 **GitHub Pages** 一个站点。本地目录不是 git 仓库，改完同步到 git 工作副本再推送：
 
-1. **同步**：把本目录内容 `rsync` 到 git 工作副本
+1. **同步**：把本目录内容 `rsync` / `cp` 到 git 工作副本
    （`/Users/pangtouhema/WorkBuddy/2026-07-14-22-40-54/github-pages-prep/flight-tools/`），
-   排除 `.DS_Store` / `.workbuddy-ai/` / `.wbapp_*.genie` / `.workbuddy/` / `.git/`
+   排除 `.DS_Store` / `.workbuddy-ai/` / `.git/`
 2. **推 GitHub**：`git add -A && git commit && git push origin main`
    → GitHub Pages 自动重新构建
-   （走代理时 `git push` 经常被 502 打回，需 `GIT_HTTP_VERSION=1` 并循环重试十几次）
-3. **推 WorkBuddy**：用 WorkBuddy 的「发布为应用」重新发布 **git 工作副本目录**
-   （发布工具会把目录原样打包上传，所以工作副本里不能有 `.workbuddy-ai/` 这类内部文件）
+   （走代理时 `git push` 经常被 502 打回，需 `GIT_HTTP_VERSION=1` 并循环重试）
 
-> ⚠️ **WorkBuddy 每次重新发布，域名都会变**（已连续 3 次验证），且**旧域名会立刻失效（HTTP 400）**。
-> 所以每次发布完，必须把上面「在线访问」表里的链接更新为新域名，否则文档指向死链。
-> GitHub Pages 的地址则始终不变。
+> GitHub Pages 地址固定不变；推送后等十几秒构建完成即可。
+> 工作副本路径里含 `WorkBuddy` 只是历史遗留的目录名，与发布平台无关。
