@@ -265,11 +265,11 @@ body {
 table.out, table.io-table, table.out-table { border-collapse: collapse; font-size: 13px; }
 table.out th, table.out td { border: 1px solid var(--line); padding: 8px 10px; text-align: center; white-space: nowrap; }
 table.out thead th, table.io-table thead th {
-  background: var(--brand-deep); color: #fff; font-weight: 600; position: sticky; top: 0; z-index: 2;
+  background: #f5f5f7; color: var(--muted); font-weight: 600; position: sticky; top: 0; z-index: 2;
   font-size: 12.5px; line-height: 1.35;
 }
 table.io-table th, table.io-table td { border: 1px solid var(--line); padding: 9px 10px; text-align: center; }
-table.io-table thead th { background: var(--brand-light); color: var(--ink-2); font-weight: 600; }
+table.io-table thead th { background: #f5f5f7; color: var(--muted); font-weight: 600; }
 table.io-table td.al { background: var(--brand-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
 table.out td.auto { color: var(--ink); background: #fbfcfd; }
 table.out td.txt { text-align: left; background: #fbfcfd; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
