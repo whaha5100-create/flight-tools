@@ -27,23 +27,29 @@
   .pdf-msg.show { display: block; }
   .pdf-msg b { color: inherit; }
 
-  /* 运量录入网格（航司品牌色：东上=藏青，中联航=青） */
-  .airline-grid { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; }
-  .airline-grid .ah { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; }
-  .airline-grid .ar { font-weight: 600; color: var(--ink); font-size: 14px; }
-  .airline-grid input, .seat-row input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
-    font-size: 14px; text-align: center; color: var(--ink); background: var(--card); transition: border-color .15s, box-shadow .15s; }
-  .airline-grid .ar.grp-east { color: var(--brand-dark); border-left: 3px solid var(--brand); padding-left: 8px; }
-  .airline-grid .ar.grp-lian { color: #0e7490; border-left: 3px solid #0891b2; padding-left: 8px; }
-  .airline-grid .ah.grp-east { color: var(--brand-dark); }
-  .airline-grid .ah.grp-lian { color: #0e7490; }
-  .airline-grid input.grp-east, .seat-row input.grp-east { background: #f5f5f7; }
-  .airline-grid input.grp-lian, .seat-row input.grp-lian { background: #eef8fa; }
-  .airline-grid input:focus, .seat-row input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-  .airline-grid input:focus::placeholder, .seat-row input:focus::placeholder { color: transparent; }
-  .airline-grid input.grp-lian:focus, .seat-row input.grp-lian:focus { border-color: #0891b2; box-shadow: 0 0 0 3px #d5f0f7; }
-  .seat-row { display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 8px 10px; align-items: center; margin-top: 12px; }
-  .seat-row .sl { font-weight: 600; color: var(--ink); font-size: 14px; }
+  /* 运量录入表（航司为行、指标为列，与步骤 3 导出表同向；航司品牌色：东上=藏青，中联航=青） */
+  table.airline-table { border-collapse: collapse; width: 100%; min-width: 920px; font-size: 12.5px; }
+  table.airline-table th, table.airline-table td { border: 1px solid #e5e5ea; padding: 5px 6px; text-align: center; vertical-align: middle; }
+  /* 表头：第 1 行分组、第 2 行指标 */
+  table.airline-table thead th { background: #f5f5f7; color: var(--muted); font-weight: 700;
+    padding: 7px 8px; line-height: 1.35; }
+  table.airline-table thead tr.al-grp th { background: #e8e8ed; color: var(--ink-2); font-size: 12px; letter-spacing: .3px; }
+  table.airline-table thead th.al-corner { font-size: 13px; color: var(--ink); }
+  table.airline-table thead th.al-seat-h { color: var(--brand-dark); }
+  /* 行首航司名 */
+  table.airline-table tbody th.rname { background: #fafafa; font-size: 13.5px; font-weight: 700;
+    padding: 10px 12px; text-align: left; white-space: nowrap; }
+  table.airline-table tbody tr.al-east th.rname { color: var(--brand-dark); box-shadow: inset 3px 0 0 var(--brand); }
+  table.airline-table tbody tr.al-lian th.rname { color: #0e7490; box-shadow: inset 3px 0 0 #0891b2; }
+  /* 输入格：沿用共享设计系统的白底 / 圆角 / 描边，本页只覆盖尺寸与航司分组底色。
+     这里的 !important 是**有意为之**：site.css 的 input:not([type]) 把输入框底色
+     固定成了 background:#fff !important，本页要按航司分组着色，必须同权重 + 更靠后声明才生效。
+     （注：原网格里 .grp-east / .grp-lian 的底色正因缺了这个 !important，一直是失效的。） */
+  table.airline-table input { width: 100%; min-width: 62px; padding: 8px 6px; font-size: 13.5px;
+    text-align: center; border: 1px solid var(--line); }
+  table.airline-table tr.al-east input { background: #f5f5f7 !important; }
+  table.airline-table tr.al-lian input { background: #eef8fa !important; }
+  table.airline-table input:focus::placeholder { color: transparent; }
 
   /* 输出表 */
   .date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -132,8 +138,12 @@
     <section class="panel">
       <h2><span class="step">2</span> 录入东航 / 上航 / 中联航运量（自动汇总旅客 / 行李 / 客座率）</h2>
       <div class="sub">填写国际 + 国内合计值（与国际出港值分开填）。单元格支持四则运算，如 <code>11+65+231</code>、<code>16*78/15</code>；空值按 0 计。</div>
-      <div class="airline-grid" id="airlineGrid"></div>
-      <div class="seat-row" id="seatRow"></div>
+      <div class="table-scroll">
+        <table class="airline-table" id="airlineTable">
+          <thead id="airlineHead"></thead>
+          <tbody id="airlineBody"></tbody>
+        </table>
+      </div>
       <div class="btn-row">
         <button class="btn" id="calcBtn">计算并生成汇总表</button>
         <button class="btn ghost" id="clearInputBtn">清空录入</button>
@@ -410,29 +420,33 @@ function emptyRow() {
 const state = { east: emptyRow(), lian: emptyRow(), total: emptyRow() };
 
 /* ============================================================
-   运量录入界面构建
+   运量录入表格构建（航司为行、指标为列）
    ============================================================ */
 const AIRLINES = ['东航', '上航', '中联航'];
 const FIELDS_A = ['国内国际出港旅客总人数', '国际出港旅客总人数', '国内国际托运总件数', '国际托运总件数'];
 const FIELDS_B = ['国内国际进港人数', '国际进港人数', '国内国际进港行李', '国际进港行李'];
-(function buildAirlineGrid() {
-  const g = document.getElementById('airlineGrid');
+(function buildAirlineTable() {
   const grpOf = i => (i < 2 ? 'grp-east' : 'grp-lian');
-  let html = '<div class="ah"></div>';
-  AIRLINES.forEach((a, i) => html += '<div class="ah ' + grpOf(i) + '">' + a + '</div>');
-  for (let f = 0; f < 4; f++) {
-    html += '<div class="ar">' + FIELDS_A[f] + '</div>';
-    for (let a = 0; a < 3; a++) html += '<div><input class="' + grpOf(a) + '" id="inA_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
-  }
-  for (let f = 0; f < 4; f++) {
-    html += '<div class="ar">' + FIELDS_B[f] + '</div>';
-    for (let a = 0; a < 3; a++) html += '<div><input class="' + grpOf(a) + '" id="inB_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></div>';
-  }
-  g.innerHTML = html;
-  const sr = document.getElementById('seatRow');
-  let sh = '<div class="sl">出港客座率（%）</div>';
-  AIRLINES.forEach((a, a2) => sh += '<div><input class="' + grpOf(a2) + '" id="inS_' + a2 + '" placeholder="如 85" inputmode="decimal"></div>');
-  sr.innerHTML = sh;
+  const rowCls = i => (i < 2 ? 'al-east' : 'al-lian');
+  const inp = (id, ph, a) => '<td><input class="' + grpOf(a) + '" id="' + id + '" placeholder="' + ph + '" inputmode="decimal"></td>';
+  // 表头两行：第 1 行分组、第 2 行指标。列序 = 出港/托运 4 项 → 进港/行李 4 项 → 出港客座率
+  document.getElementById('airlineHead').innerHTML =
+    '<tr class="al-grp">' +
+      '<th class="al-corner" rowspan="2">航司</th>' +
+      '<th colspan="4">出港 / 托运</th>' +
+      '<th colspan="4">进港 / 行李</th>' +
+      '<th class="al-seat-h" rowspan="2">出港客座率<br>(%)</th>' +
+    '</tr>' +
+    '<tr>' + FIELDS_A.map(f => '<th>' + f + '</th>').join('') +
+             FIELDS_B.map(f => '<th>' + f + '</th>').join('') + '</tr>';
+  // 数据行：一行一个航司，列与上表头一一对应（东上航=藏青行，中联航=青行）
+  document.getElementById('airlineBody').innerHTML = AIRLINES.map((a, i) =>
+    '<tr class="' + rowCls(i) + '">' +
+      '<th class="rname">' + a + '</th>' +
+      FIELDS_A.map((_, k) => inp('inA_' + i + '_' + k, '0', i)).join('') +
+      FIELDS_B.map((_, k) => inp('inB_' + i + '_' + k, '0', i)).join('') +
+      inp('inS_' + i, '如 85', i) +
+    '</tr>').join('');
 })();
 function val(id) { const el = document.getElementById(id); return el ? el.value : ''; }
 function readGrid(prefix, fields) {
