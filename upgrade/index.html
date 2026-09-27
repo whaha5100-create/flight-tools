@@ -254,8 +254,18 @@ const tableWrapper = document.getElementById('tableWrapper');
 const tableScroll  = document.getElementById('tableScroll');
 
 // ============================================================
-// Excel 序列号 → 日期（基准 1899-12-30，与原 Python 逻辑一致）
+// Excel 日期 → 'YYYY-MM-DD'（基准 1899-12-30，与原 Python 逻辑一致）
+//
+// ⚠️ 时区陷阱（2026-09-27 修复）：SheetJS 在 cellDates:true 下返回的是
+//    「**本地时区**午夜」的 Date。东八区下 2026-09-27 会得到
+//        Sun Sep 27 2026 00:00:00 GMT+0800   →   toISOString() = 2026-09-26T16:00:00Z
+//    此时若直接用 getUTC* 取值，就会读成 2026-09-26 —— **整体少一天**。
+//    所以先把任意来源的 Date 归一到 **UTC 午夜**，之后一律用 UTC 取值格式化。
 // ============================================================
+function toUTCMidnight(d) {
+  // 取「本地日历日」重建为 UTC 午夜：东八区 2026-09-27 00:00(+08) → 2026-09-27T00:00Z
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
 function serialToDate(serial) {
   const base = Date.UTC(1899, 11, 30); // 1899-12-30
   return new Date(base + Math.floor(serial) * 86400000);
@@ -296,7 +306,7 @@ function parseExcel(data) {
     // --- 日期 ---
     let dateVal = row[0];
     let dateObj = null;
-    if (dateVal instanceof Date) dateObj = dateVal;
+    if (dateVal instanceof Date) dateObj = toUTCMidnight(dateVal);  // SheetJS 给的是本地午夜，先归一
     else if (typeof dateVal === 'number') dateObj = serialToDate(dateVal);
     if (!dateObj) continue;
 
