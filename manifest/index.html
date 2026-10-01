@@ -25,13 +25,26 @@
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* ============ Enc hint ============ */
-  .enc-hint {
-    margin-top: 4px; padding: 13px 16px; border: 1px solid #eed9b8;
-    background: var(--amber-soft); border-left: 4px solid var(--amber);
-    border-radius: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.8; margin-bottom: 22px;
+/* ============ 文件密码（只有加密名单才需要填）============ */
+  .pwd-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--brand);
+    border-radius: 10px; padding: 13px 18px; margin-bottom: 22px; box-shadow: var(--shadow-sm);
   }
-.enc-hint b { color: var(--amber); }
+.pwd-row .pwd-label { font-size: 13.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+/* ⚠️ site.css:401 的输入框规则只覆盖 text / number / date / 无 type 的 input，
+   **不含 input[type="password"]** —— 所以这里必须自己把字体、描边、圆角、底色写全，
+   否则密码框会掉回浏览器默认外观，跟页面其它输入框对不上。
+   焦点态不用管：site.css:404 的 `input:focus` 是裸选择器，会照常接管（品牌蓝描边 + 光晕）。 */
+.pwd-row input[type="password"] {
+    flex: 1 1 220px; min-width: 170px;
+    font-family: inherit; font-size: 14px; color: var(--ink); letter-spacing: .4px;
+    padding: 9px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  }
+.pwd-row .pwd-hint { font-size: 12.5px; color: var(--muted-2); line-height: 1.6; }
+/* 文件确实加密、但还没填密码时，整行变红提示一下 */
+.pwd-row.needed { border-color: #eccfcb; border-left-color: var(--danger); background: var(--danger-soft); }
+.pwd-row.needed .pwd-hint { color: var(--danger); font-weight: 600; }
 /* ============ Preview / Table ============ */
   .table-wrapper {
     background: var(--card); border-radius: var(--radius); overflow: hidden;
@@ -173,15 +186,18 @@
     <div class="filename" id="filename"></div>
   </div>
 
+  <!-- 文件密码：系统导出的名单是加密的，在这里填密码即可直接转换（留空 = 按未加密文件读）
+       放在「开始转换」按钮之前 —— 阅读顺序是 选文件 → 填密码 → 点转换 -->
+  <div class="pwd-row anim" id="pwdRow" style="animation-delay:0.1s">
+    <label class="pwd-label" for="pwdInput">🔒 文件密码</label>
+    <input type="password" id="pwdInput" placeholder="文件没有密码就留空" autocomplete="off" spellcheck="false">
+    <span class="pwd-hint" id="pwdHint">加密的名单直接在这里填密码，不用先手工去密码</span>
+  </div>
+
   <!-- 显式开始转换按钮（选文件后出现） -->
   <div class="controls" id="convertRow" style="display:none">
     <button class="btn btn-success" id="convertBtn">🚀 开始转换</button>
     <span class="info" id="convertInfo">已选择文件，点击开始转换</span>
-  </div>
-
-  <div class="enc-hint">
-    ⚠️ 浏览器版<b>不支持读取加密的 Excel</b>。若上传后提示「File is password-protected」，
-    请先用电脑上 <b>国际名单转化 → 解密工具</b> 里的工具把文件转成无密码版，再上传本页。
   </div>
 
   <!-- Error -->
@@ -264,6 +280,9 @@ const warnBox     = document.getElementById('warnBox');
 const skipBox     = document.getElementById('skipBox');
 const controls    = document.getElementById('controls');
 const downloadBtn = document.getElementById('downloadBtn');
+const pwdRow      = document.getElementById('pwdRow');
+const pwdInput    = document.getElementById('pwdInput');
+const pwdHint     = document.getElementById('pwdHint');
 
 // 折叠规则面板
 const rulesPanel = document.getElementById('rulesPanel');
@@ -277,6 +296,7 @@ fileInput.addEventListener('change', () => {
     filenameEl.textContent = '已选择：' + fileInput.files[0].name;
     document.getElementById('convertRow').style.display = 'flex';
     document.getElementById('convertInfo').textContent = '已选择 ' + fileInput.files[0].name + '，点击开始转换';
+    resetPwdState();
   }
 });
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -290,6 +310,7 @@ uploadZone.addEventListener('drop', (e) => {
     filenameEl.textContent = '已选择：' + f.name;
     document.getElementById('convertRow').style.display = 'flex';
     document.getElementById('convertInfo').textContent = '已选择 ' + f.name + '，点击开始转换';
+    resetPwdState();
   }
 });
 
@@ -381,6 +402,44 @@ function downloadResult() {
   if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
 }
 
+// ================ 加密名单解密（xlsx-populate，按需加载）================
+// SheetJS 本身不能解密：碰到加密文件会抛 "File is password-protected"。
+// 这里用 xlsx-populate 的**带加密**浏览器包（libs/xlsx-populate.min.js），
+// 靠浏览器自带的 WebCrypto 在本地完成 ECMA-376 Agile 解密，不需要后端。
+// 这 642KB 只在**真的遇到加密文件**时才加载 —— 未加密文件走的还是原来那条路。
+let decryptLibPromise = null;
+function loadDecryptLib() {
+  if (window.XlsxPopulate) return Promise.resolve();
+  if (decryptLibPromise) return decryptLibPromise;
+  decryptLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'libs/xlsx-populate.min.js';
+    s.onload = () => (window.XlsxPopulate ? resolve() : reject(new Error('解密组件未初始化')));
+    s.onerror = () => { decryptLibPromise = null; reject(new Error('解密组件加载失败')); };
+    document.head.appendChild(s);
+  });
+  return decryptLibPromise;
+}
+async function decryptWorkbook(arrayBuffer, password) {
+  await loadDecryptLib();
+  const wb = await XlsxPopulate.fromDataAsync(new Uint8Array(arrayBuffer), { password: password });
+  const blob = await wb.outputAsync();          // 浏览器环境下返回 Blob
+  return await blob.arrayBuffer();
+}
+const PWD_HINT_DEFAULT = '加密的名单直接在这里填密码，不用先手工去密码';
+// 换文件时把密码行的提示状态复位（不清空已输入的密码）
+function resetPwdState() {
+  pwdRow.classList.remove('needed');
+  pwdHint.textContent = PWD_HINT_DEFAULT;
+}
+// 文件确实加密、但还没填密码（或密码不对）时，把密码行标红并聚焦
+function promptPassword(msg) {
+  pwdRow.classList.add('needed');
+  pwdHint.textContent = '这个文件是加密的，请在这里填入密码';
+  showError(msg);
+  pwdInput.focus();
+}
+
 // ================ Main ================
 async function doConvert() {
   const file = fileInput.files[0];
@@ -394,15 +453,46 @@ async function doConvert() {
     const buf = await file.arrayBuffer();
     let wb;
     try {
+      // 未加密的文件走这条老路 —— 行为与加密码功能之前完全一致
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     } catch (e) {
-      loading.classList.remove('active');
       const msg = (e && e.message) ? e.message : ('' + e);
-      const tip = /password/i.test(msg)
-        ? '。该文件已加密，浏览器版无法读取。请先用桌面「国际名单转化 → 解密工具」里的工具把文件转成无密码版，再上传。'
-        : '。';
-      showError('❌ 读取文件失败：' + msg + tip);
-      return;
+      if (!/password/i.test(msg)) {          // 不是加密问题 → 维持原来的报错
+        loading.classList.remove('active');
+        showError('❌ 读取文件失败：' + msg + '。');
+        return;
+      }
+      // 文件是加密的 → 需要密码
+      const pwd = pwdInput.value;
+      if (!pwd) {
+        loading.classList.remove('active');
+        promptPassword('🔒 这个文件已加密，请在上方「文件密码」里填入密码，再点一次「开始转换」。');
+        return;
+      }
+      let plain;
+      try {
+        plain = await decryptWorkbook(buf, pwd);
+      } catch (de) {
+        loading.classList.remove('active');
+        const dmsg = (de && de.message) ? de.message : ('' + de);
+        // 「组件没加载出来」和「密码不对」必须分开报，否则会把人往密码上带
+        if (/加载失败|未初始化/.test(dmsg)) {
+          showError('❌ 解密组件未能加载，请刷新页面后重试。');
+        } else {
+          promptPassword('🔒 解密失败：请确认密码是否正确（区分大小写）。若密码无误仍失败，'
+            + '说明该文件的加密方式本页暂不支持，可先用电脑上「国际名单转化 → 解密工具」转成无密码版再上传。');
+        }
+        return;
+      }
+      try {
+        wb = XLSX.read(plain, { type: 'array', cellDates: true });
+      } catch (e2) {
+        loading.classList.remove('active');
+        showError('❌ 解密后仍无法读取：' + ((e2 && e2.message) || e2) + '。');
+        return;
+      }
+      pwdRow.classList.remove('needed');
+      pwdHint.textContent = '已用密码解密';
     }
 
     const sheet = wb.Sheets[wb.SheetNames[0]];
