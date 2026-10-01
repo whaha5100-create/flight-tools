@@ -398,6 +398,16 @@ function buildWorkbook(res) {
   XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
   return wb;
 }
+// ================ 导出文件名 ================
+// 海关要的命名格式：「航班订票数据上传模板」+ 航班日期 + 航班号
+// 例：航班订票数据上传模板2025-04-27MU262.xlsx
+// 日期或航班号缺失时退回「原文件名_海关上传.xlsx」，免得导出个半截名字。
+function buildOutName(meta, file) {
+  const date = (meta && meta.flight_date) ? String(meta.flight_date).trim() : '';
+  const code = (meta && meta.flight_code) ? String(meta.flight_code).trim() : '';
+  if (date && code) return '航班订票数据上传模板' + date + code + '.xlsx';
+  return file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx';
+}
 function downloadResult() {
   if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
 }
@@ -509,10 +519,11 @@ async function doConvert() {
     renderWarn(res.skipped, skipBox, 'skipLabel', '🗑️ 已跳过不完整记录', false);
 
     controls.style.display = 'flex';
-    downloadBtn.textContent = '📥 下载转换结果（' + file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx）';
+    const outName = buildOutName(res.meta, file);
+    downloadBtn.textContent = '📥 下载转换结果（' + outName + '）';
 
     window.__lastOut = buildWorkbook(res);
-    window.__lastName = file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx';
+    window.__lastName = outName;
   } catch (e) {
     loading.classList.remove('active');
     showError('❌ 转换出错：' + ((e && e.message) || e));
