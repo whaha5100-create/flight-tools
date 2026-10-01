@@ -11,14 +11,16 @@
 > ⚠️ **入口地址请用 `index.html`，不要用 `index.htm`。**
 > 仓库里只有 `index.html`，访问 `.../index.htm` 会 404。收藏夹里如果存的是 `index.htm`，请改成目录地址（上面表格中的链接就是正确的）。
 >
-> 📌 旧的 CloudStudio 地址（`*.app.codebuddy.work`）**已停用、不再更新**；
-> WorkBuddy 侧的发布**已下线**，今后不再使用。请只用上表中的 GitHub Pages 链接。
+> 📌 **旧地址已全部弃用，请只用上表中的 GitHub Pages 链接。**
+> - WorkBuddy 侧的发布**已下线**，今后不再使用。
+> - 更早的 CloudStudio 地址（`*.app.codebuddy.work`）**内容陈旧、不再更新**。
+>   该站点需在 CloudStudio 控制台自行下线，本仓库无法删除它，**请不要再用**。
 
 ## 工具列表
 
 | # | 工具 | 路径 | 说明 |
 |---|---|---|---|
-| 01 | 国际名单转化 | `/manifest/` | 国际航班旅客名单 → 海关上传模板：转换国籍 / 性别 / 证件代码，判定出入境与往来机场 |
+| 01 | 国际名单转化 | `/manifest/` | 国际航班旅客名单 → 海关上传模板：转换国籍 / 性别 / 证件代码，判定出入境与往来机场；**加密名单可直接填密码读取** |
 | 02 | 升舱金额计算器 | `/upgrade/` | 导入 C2 升舱统计表，按 6 个岗位固定比例分配金额，生成「人员 × 日期」交叉汇总表 |
 | 03 | 航班数据统计 | `/stats/` | 导入当日航班 Excel，区分东上航 / 中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服 |
 | 04 | 航班运量汇总 | `/summary/` | 录入东航 / 上航 / 中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算 |
@@ -31,6 +33,27 @@
 每个工具页顶部都有「← 回到导航页」按钮，一键返回首页。
 
 ## 重点功能说明
+
+### 国际名单转化（`/manifest/`）
+
+- 上传系统导出的国际航班旅客名单 Excel，自动生成海关上传模板
+- **加密名单直接填密码即可**：系统导出的名单默认带密码，在「🔒 文件密码」框里填上密码就能直接转换，
+  不需要先用别的工具去密码。
+  - 文件没加密 → 密码框留空，走原来的路径（行为完全不变）
+  - 文件加密但没填密码 → 该行标红，提示填密码
+  - 密码填错 → 提示确认密码（区分大小写）
+  - 解密全部在浏览器本地完成（`libs/xlsx-populate.min.js` 的 ECMA-376 Agile 解密，走浏览器自带 WebCrypto），
+    那个库有 642 KB，**只在真的遇到加密文件时才加载**
+  - ⚠️ 目前只支持 **ECMA-376 Agile** 这一种加密方式（Office 2010 以后的默认方式）。
+    如果你的文件是更老的 Standard / RC4 加密，页面会明确提示不支持，
+    可改用桌面上的本地脚本 `国际名单转化/解密工具/解密.command` 转成无密码版再上传
+    （该脚本用 `msoffcrypto-tool`，支持的加密方式比浏览器版更全）
+- 转换规则：国籍 → 3 字码（含常见错别字修正）、性别 `1/2` → `M/F`、
+  按航班号判定出入境（`MU261/751` 出境、`MU262/752` 入境）与往来地（马德里 / 罗马）
+- **导出文件名**：按海关要求的格式自动命名 ——
+  「航班订票数据上传模板」+ 航班日期 + 航班号，例如 `航班订票数据上传模板2025-04-27MU262.xlsx`。
+  万一日期或航班号读不出来，退回 `原文件名_海关上传.xlsx`，不会导出半截名字
+- 转换后展示预览表、汇总卡、国籍代码异常与已跳过记录的明细，逐条可核对
 
 ### 出港排班表（`/schedule/`）
 
@@ -75,7 +98,8 @@
 │   └── favicon.svg         # 站点图标
 ├── manifest/  upgrade/  stats/  summary/  schedule/
 ├── daily-report/  kn-stats/  merge/  todo/
-│   └── index.html          # 每个工具自包含：CSS / JS 内联，另有 libs/ 依赖
+│   ├── index.html          # 每个工具自包含：CSS / JS 内联
+│   └── libs/               # 该工具自己的依赖（xlsx / pdf.js / xlsx-populate / html2canvas 等）
 └── README.md
 ```
 
@@ -85,6 +109,8 @@
 
 - 纯 HTML / CSS / JS，**无后端、无构建步骤**
 - [SheetJS](https://sheetjs.com/)（`libs/xlsx.full.min.js`）解析 / 导出 Excel
+- [xlsx-populate](https://github.com/dtjohnson/xlsx-populate)（`libs/xlsx-populate.min.js`）
+  解密加密的 Excel —— 仅 `/manifest/` 使用，且**按需加载**（642 KB，只在遇到加密文件时才拉取）
 - [pdf.js](https://mozilla.github.io/pdf.js/)（`libs/pdfjs/pdf.min.mjs`）读取指挥长周报 PDF —— 仅 `/merge/` 使用
 - html2canvas + jsPDF 生成日报 PDF —— 仅 `/daily-report/` 使用
 - Canvas 2 倍分辨率绘制导出图片 —— `/schedule/`、`/kn-stats/`
@@ -102,6 +128,9 @@
 直接用浏览器打开根目录的 `index.html` 即可；也可以打开任意工具目录下的 `index.html` 单独测试。
 
 > 双击 `file://` 打开也能正常使用；只有 `/merge/` 读取 PDF 时依赖 ES Module，建议用本地静态服务器打开（例如 `python3 -m http.server`）。
+>
+> 加密名单解密（`/manifest/`）依赖浏览器的 WebCrypto，`https://`、`http://localhost`
+> 和 `file://` 都满足条件，**离线双击打开也能解密**。
 
 ## 部署
 
