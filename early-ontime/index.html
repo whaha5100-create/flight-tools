@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>早始发正常率测算 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="录入我方与机场的当月早始发班数，按 T1/T2/T3 三档算出还要追回几班正常，并判断剩余航班追不追得上。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="早始发正常率测算 · 航班工作工具集">
+<meta property="og:description" content="录入我方与机场的当月早始发班数，按 T1/T2/T3 三档算出还要追回几班正常，并判断剩余航班追不追得上。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/early-ontime/index.html">
+<meta name="theme-color" content="#0071e3">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* ============ early-ontime · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  :root { --tool: #7d5a8f; }
+
+/* ============ 输入表 ============ */
+  table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.io-table input { width: 100%; min-width: 76px; padding: 8px 10px; font-size: 14px; text-align: center; }
+table.io-table input::placeholder { color: var(--line); }
+table.io-table input:focus::placeholder { color: transparent; }
+/* 自动汇总的格子（东上联）不可编辑 */
+table.io-table td.ro { background: #fafafa !important; color: var(--muted); font-weight: 600; }
+
+/* ============ 月度设置 ============ */
+.set-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.set-cell { background: #fafafa; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 15px; }
+.set-cell .lab { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.set-cell input { width: 100%; padding: 8px 10px; font-size: 14px; text-align: center; }
+.set-cell .unit { font-size: 12px; color: var(--muted-2); margin-top: 6px; text-align: center; }
+
+/* ============ 档位徽标 ============ */
+/* 配色 = 档位高低（越绿越好）：低于 T1 红 → T1 橙 → T2 浅绿 → T3 实心绿。
+   注意 T1 用橙不用红 —— 红留给「低于 T1」，否则「三档都没达到」反而比「刚够 T1」看着更轻。 */
+.tier { display: inline-block; padding: 2px 11px; border-radius: 980px; font-size: 12.5px;
+        font-weight: 700; border: 1px solid var(--line); background: #f5f5f7; color: var(--muted); white-space: nowrap; }
+.tier.t0 { background: var(--danger-soft);  color: var(--danger);  border-color: #eccfcb; }
+.tier.t1 { background: var(--amber-soft);   color: var(--amber);   border-color: #eed9b8; }
+.tier.t2 { background: var(--success-light);color: var(--success); border-color: #c6e3d4; }
+.tier.t3 { background: var(--success);      color: #fff;           border-color: var(--success); }
+
+/* ============ 差距着色（这里「领先机场 = 好」，用绿）============ */
+.d-up   { color: var(--success-dark); font-weight: 700; }
+.d-down { color: var(--danger);       font-weight: 700; }
+.d-flat { color: var(--muted);        font-weight: 700; }
+
+/* ============ 结论文字 ============ */
+.res-done { color: var(--success-dark); font-weight: 700; }
+.res-ok   { color: var(--success-dark); font-weight: 700; }
+.res-bad  { color: var(--danger);       font-weight: 700; }
+.res-idle { color: var(--muted-2); }
+
+/* ============ 目标档位选择条 ============ */
+.goal-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            padding: 13px 18px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+            background: #fafafa; margin-bottom: 20px; }
+.goal-bar .goal-lab { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.goal-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.goal-tabs button {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  padding: 7px 16px; border-radius: 980px; border: 1px solid var(--line);
+  background: #fff; color: var(--muted); transition: border-color .15s, color .15s, background .15s;
+}
+.goal-tabs button:hover { border-color: var(--tool); color: var(--tool); }
+.goal-tabs button.on { background: var(--tool); border-color: var(--tool); color: #fff; }
+.goal-hint { font-size: 12.5px; color: var(--muted-2); margin-left: auto; white-space: nowrap; }
+
+/* ============ 追赶目标卡（结果区主角）============ */
+.goal-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 14px; }
+.goal-card { border: 1px solid var(--line); border-radius: var(--radius-sm);
+             padding: 16px 18px 17px; background: #fff; }
+.goal-card.fail { border-color: #eccfcb; background: var(--danger-soft); }
+.goal-card.done { border-color: #c6e3d4; background: var(--success-light); }
+.gc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gc-name { font-size: 15.5px; font-weight: 700; color: var(--ink); }
+.gc-cur { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.gc-cur b { color: var(--ink); }
+/* 两个关键数字并排：当前缺口（看现状）+ 剩余需正常（指导行动） */
+.gc-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 12px; }
+.gc-metric { background: #fafafa; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.goal-card.done .gc-metric, .goal-card.fail .gc-metric { background: rgba(255,255,255,.72); }
+.gc-metric .lab { font-size: 11.5px; color: var(--muted-2); font-weight: 600; }
+.gc-metric .val { font-size: 27px; font-weight: 800; letter-spacing: -1.2px; color: var(--ink);
+                  font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 2px; }
+.gc-metric .val small { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-left: 3px; }
+.gc-metric .sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.goal-card.fail .gc-metric .val { color: var(--danger); }
+.goal-card.done .gc-metric .val { color: var(--success-dark); }
+.gc-line { font-size: 13px; color: var(--muted); line-height: 1.75; }
+.gc-line b { color: var(--ink); }
+.gc-note { font-size: 12.5px; line-height: 1.7; margin-top: 8px; color: var(--muted); }
+.goal-card.fail .gc-note { color: var(--danger); }
+.gc-note b { color: inherit; }
+
+/* ============ 结果表 ============ */
+/* ⚠️ 共享层只给 table.out-table 定了 border-color 和表头底色，
+   **没有** border / padding / 首列底色 —— 这些必须各页自己写（见 summary/index.html）。
+   漏写的表现是：表格看着有表头灰底，但单元格没框线、文字贴在一起。 */
+.out-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table.out-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.out-table th, table.out-table td {
+  border: 1px solid var(--line); padding: 10px 12px; text-align: center; white-space: nowrap;
+}
+table.out-table thead th { position: sticky; top: 0; z-index: 2; }
+table.out-table thead th:first-child { z-index: 3; }
+/* 粘性首列必须单独给底色，否则会透出后面滚动的单元格 */
+table.out-table td.rowname { background: #fafafa; color: var(--ink); font-weight: 700;
+                             position: sticky; left: 0; z-index: 1; }
+table.out-table td.mono { font-variant-numeric: tabular-nums; }
+/* 三档对照表里，把当前选中的目标档位列标出来 */
+table.out-table td.hl { background: #f4f0f7; }
+table.out-table thead th.hl { background: #f4f0f7 !important; color: var(--tool) !important; }
+
+.empty-tip { text-align: center; color: var(--muted-2); font-size: 13.5px; padding: 26px 0; white-space: normal; }
+
+/* ============ 提示 / 告警条 ============ */
+.alert { display: none; margin-top: 18px; border-radius: var(--radius-sm); padding: 14px 18px;
+         font-size: 13.5px; line-height: 1.8; background: var(--danger-soft);
+         border: 1px solid #eccfcb; border-left: 4px solid var(--danger); color: var(--danger); }
+.alert.show { display: block; }
+.alert b { color: var(--danger); }
+.alert .row { margin-top: 6px; }
+.alert .row:first-child { margin-top: 0; }
+.ref-line { margin-top: 16px; padding: 13px 18px; border-radius: var(--radius-sm);
+            background: #fafafa; border: 1px solid var(--line); font-size: 13.5px; color: var(--muted); line-height: 1.75; }
+.ref-line b { color: var(--ink); }
+/* 三格都填但对不上时提示，复用 ref-line 版式换琥珀色 */
+.ref-line.warn-line { background: var(--amber-soft); border-color: #eed9b8; color: var(--amber); }
+.ref-line.warn-line b { color: var(--amber); }
+
+.sec-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 24px 0 10px; }
+.sec-title .sub2 { font-size: 12.5px; font-weight: 500; color: var(--muted-2); margin-left: 8px; }
+</style>
+</head>
+<body>
+  <a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
+<header class="header">
+    <div class="header-main">
+      <p class="eyebrow"><span class="no">08</span>航班工作工具集 · FLIGHT TOOLS</p>
+      <h1>早始发正常率测算</h1>
+      <p>录入我方与机场的当月早始发班数，按 T1 / T2 / T3 三档算出还要追回几班正常。</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="anim">
+      <!-- 折叠：计算规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>早始发航班</b>：计飞时间 <b>10:30（含）之前</b> 的航班，与「KN 航班出港统计」口径一致。</li>
+              <li><b>对比主体</b>：中联航、东上航、东上联三个，各自与<b>同一个机场</b>比。
+                  <b>东上航 = 东航 + 上航</b>；<b>东上联 = 中联航 + 东上航</b>（班数自动相加，不用单独填）。</li>
+              <li><b>正常率</b> = 正常班数 ÷ 早始发总班数。<b>差距</b> = 我方正常率 − 机场正常率，单位<b>百分点</b>，正为领先、负为落后。</li>
+              <li><b>考核档位</b>：<b>T1</b> = 比机场低 1 个百分点，<b>T2</b> = 与机场持平，<b>T3</b> = 比机场高 1 个百分点。
+                  结果区可以<b>切换目标档位</b>，页面按选中的档位给出「还要追回几班」。
+                  档位徽标颜色按高低走 —— 低于 T1 红、T1 橙、T2 浅绿、T3 实心绿，<b>越绿档位越高</b>。</li>
+              <li><b>两个「追几班」</b>：
+                  <b>当前缺口</b> = 在当前这批班里，还差几班正常才够目标档（看现状）；
+                  <b>剩余需正常</b> = 全月预计班数下，剩余航班还要保证几班正常（指导行动）。</li>
+              <li><b>填二算一</b>：我方填「总班数 / 正常 / 延误」任意两格；机场填「总班数 / 正常 / 延误 / 正常率」任意两格，其余自动算。</li>
+              <li><b>机场分两组填</b>：② 是<b>当前已知</b>的累计数，③ 是<b>全月预测</b>。
+                  ③ 留空时，按 ② 的当前正常率当月末假设；填了就以 ③ 为准。</li>
+              <li><b>追不上告警</b>：若「剩余需正常」大于「剩余总班数」，说明剩下的班全部正常也追不上，
+                  页面会明确告警，并告诉你最高只能追到哪一档。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 区块①：我方 -->
+      <div class="panel">
+        <h2><span class="dot"></span>① 我方早始发班数（当月累计）</h2>
+        <p class="sub">总班数 / 正常班数 / 延误班数 —— 填任意两格，第三格自动算。东上联为自动汇总，不用填。</p>
+        <div style="overflow-x:auto;">
+          <table class="io-table" id="tblOurs">
+            <thead>
+              <tr>
+                <th>主体</th>
+                <th>早始发总班数</th>
+                <th>正常班数</th>
+                <th>延误班数</th>
+                <th>全月预计班数</th>
+              </tr>
+            </thead>
+            <tbody id="oursBody"><!-- JS 填充 --></tbody>
+          </table>
+        </div>
+        <p class="hint">全月预计班数留空时，按 ④ 区的「本月已过天数 ÷ 本月总天数」线性外推；填了就按填的算。</p>
+      </div>
+
+      <!-- 区块②：机场当前 -->
+      <div class="panel">
+        <h2><span class="dot"></span>② 机场早始发（当月累计 · 已知）</h2>
+        <p class="sub">总班数 / 正常班数 / 延误班数 / 正常率 —— 填<b>任意两格</b>即可，其余自动算。机场数据<b>包含我方航班</b>。</p>
+        <div class="set-row" id="aptRow"><!-- JS 填充 --></div>
+      </div>
+
+      <!-- 区块③：机场全月预测 -->
+      <div class="panel">
+        <h2><span class="dot"></span>③ 机场全月预测</h2>
+        <p class="sub">全月总班数 / 正常班数 / 延误班数 —— 填<b>任意两格</b>，自动推出<b>月末正常率</b>（追赶的目标基准）。
+          整块留空则沿用 ② 的当前正常率。</p>
+        <div class="set-row" id="apmRow"><!-- JS 填充 --></div>
+        <p class="hint" id="apmHint"></p>
+      </div>
+
+      <!-- 区块④：本月进度 -->
+      <div class="panel">
+        <h2><span class="dot"></span>④ 本月进度</h2>
+        <p class="sub">用于外推全月班数，以及把「还要追几班」折算成剩余需保证的正常率。</p>
+        <div class="set-row" id="monthRow"><!-- JS 填充 --></div>
+      </div>
+
+      <!-- 结果 -->
+      <div class="panel" id="outCard">
+        <h2><span class="dot"></span>测算结果</h2>
+
+        <!-- 目标档位 -->
+        <div class="goal-bar">
+          <span class="goal-lab">测算目标</span>
+          <div class="goal-tabs" id="goalTabs"><!-- JS 填充 --></div>
+          <span class="goal-hint" id="goalHint"></span>
+        </div>
+
+        <!-- 追赶目标卡 -->
+        <div class="goal-cards" id="goalCards"></div>
+
+        <div class="alert" id="alertBox"></div>
+
+        <!-- 三档对照 -->
+        <div class="sec-title">三档对照<span class="sub2">剩余航班还需保证几班正常</span></div>
+        <div class="out-wrap">
+          <table class="out-table" id="tierTable">
+            <thead>
+              <tr>
+                <th>主体</th>
+                <th>当前正常率</th>
+                <th>当前档位</th>
+                <th id="thT1">T1 · 低 1 个点</th>
+                <th id="thT2">T2 · 持平机场</th>
+                <th id="thT3">T3 · 高 1 个点</th>
+              </tr>
+            </thead>
+            <tbody id="tierBody"></tbody>
+          </table>
+        </div>
+
+        <!-- 现状对比 -->
+        <div class="sec-title">现状对比<span class="sub2">我方与机场当月累计</span></div>
+        <div class="out-wrap">
+          <table class="out-table" id="cmpTable">
+            <thead>
+              <tr>
+                <th>主体</th>
+                <th>早始发总班数</th>
+                <th>正常班数</th>
+                <th>延误班数</th>
+                <th>我方正常率</th>
+                <th>机场正常率</th>
+                <th>差距（百分点）</th>
+                <th>当前档位</th>
+              </tr>
+            </thead>
+            <tbody id="cmpBody"></tbody>
+          </table>
+        </div>
+
+        <div class="ref-line warn-line" id="warnLine" style="display:none;"></div>
+        <div class="ref-line" id="refLine" style="display:none;"></div>
+      </div>
+
+      <footer class="site-footer">航班工作工具集</footer>
+    </div>
+  </div>
+
+<script>
+/* ================================================================
+   早始发正常率追赶测算
+   ----------------------------------------------------------------
+   数据流：我方三主体班数 + 机场当前累计 + 机场全月预测
+        → 各自正常率 → 差距(百分点) → 当前档位
+        → 按选定档位倒推「还要追回几班正常」
+        → 判断剩余班次够不够（不够则告警）
+   本页不重新定义「正常/延误」判定标准，按机场通报口径直接填班数。
+   ================================================================ */
+
+/* 两个对比主体。kn = 中联航，mu = 东上航；东上联由两者相加得到 */
+var SUBJECTS = [
+  { key:'kn', name:'中联航' },
+  { key:'mu', name:'东上航' }
+];
+
+/* 考核档位：相对机场的偏移量，单位「百分点」 */
+var TIERS = [
+  { key:'T1', name:'T1', desc:'低 1 个点', offset:-1 },
+  { key:'T2', name:'T2', desc:'持平机场', offset: 0 },
+  { key:'T3', name:'T3', desc:'高 1 个点', offset: 1 }
+];
+
+var STORE_KEY = 'flighttools.earlyOntime.v1';
+var GOAL_KEY  = 'flighttools.earlyOntime.goal';
+var goalTier  = 'T2';
+
+/* ---------------- 规则面板开合 ---------------- */
+document.getElementById('rulesHeader').addEventListener('click', function(){
+  document.getElementById('rulesPanel').classList.toggle('open');
+});
+
+/* ---------------- 目标档位选择 ---------------- */
+(function buildGoalTabs(){
+  var box = document.getElementById('goalTabs');
+  box.innerHTML = TIERS.map(function(t){
+    return '<button type="button" data-tier="' + t.key + '">' + t.key + ' · ' + t.desc + '</button>';
+  }).join('');
+  box.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('button[data-tier]') : null;
+    if(!b) return;
+    goalTier = b.getAttribute('data-tier');
+    try{ localStorage.setItem(GOAL_KEY, goalTier); }catch(err){ /* 隐私模式忽略 */ }
+    render();
+  });
+})();
+
+/* ---------------- 输入区构建 ---------------- */
+(function buildOurs(){
+  var html = '';
+  SUBJECTS.forEach(function(s){
+    html += '<tr><td class="al">' + s.name + '</td>'
+          + '<td><input id="' + s.key + '_total" placeholder="如 24" inputmode="decimal"></td>'
+          + '<td><input id="' + s.key + '_ontime" placeholder="如 21" inputmode="decimal"></td>'
+          + '<td><input id="' + s.key + '_delay" placeholder="如 3" inputmode="decimal"></td>'
+          + '<td><input id="' + s.key + '_month" placeholder="如 120" inputmode="decimal"></td>'
+          + '</tr>';
+  });
+  /* 东上联：自动汇总行，只读 */
+  html += '<tr><td class="al">东上联（汇总）</td>'
+        + '<td class="ro" id="total_total">—</td>'
+        + '<td class="ro" id="total_ontime">—</td>'
+        + '<td class="ro" id="total_delay">—</td>'
+        + '<td class="ro" id="total_month">—</td>'
+        + '</tr>';
+  document.getElementById('oursBody').innerHTML = html;
+})();
+
+function buildSetRow(hostId, cells){
+  document.getElementById(hostId).innerHTML = cells.map(function(c){
+    return '<div class="set-cell"><div class="lab">' + c.lab + '</div>'
+         + '<input id="' + c.id + '" placeholder="' + c.ph + '" inputmode="decimal">'
+         + (c.unit ? '<div class="unit">单位：' + c.unit + '</div>' : '')
+         + '</div>';
+  }).join('');
+}
+
+/* 机场：当前累计 */
+buildSetRow('aptRow', [
+  { id:'apt_total',  lab:'机场早始发总班数', ph:'如 500' },
+  { id:'apt_ontime', lab:'机场正常班数',     ph:'如 445' },
+  { id:'apt_delay',  lab:'机场延误班数',     ph:'如 55' },
+  { id:'apt_rate',   lab:'机场正常率',       ph:'如 89', unit:'%' }
+]);
+
+/* 机场：全月预测 */
+buildSetRow('apmRow', [
+  { id:'apm_total',  lab:'全月总班数',   ph:'如 3000' },
+  { id:'apm_ontime', lab:'全月正常班数', ph:'如 2670' },
+  { id:'apm_delay',  lab:'全月延误班数', ph:'如 330' },
+  { id:'apm_rate',   lab:'月末正常率',   ph:'留空按当前值', unit:'%' }
+]);
+
+/* 本月进度 */
+buildSetRow('monthRow', [
+  { id:'days_passed', lab:'本月已过天数', ph:'如 18', unit:'天' },
+  { id:'days_total',  lab:'本月总天数',   ph:'如 30', unit:'天' }
+]);
+
+/* ---------------- 取值 ---------------- */
+function num(id){
+  var el = document.getElementById(id);
+  if(!el) return null;
+  var s = String(el.value == null ? '' : el.value).trim().replace(/[,，\s]/g, '');
+  if(s === '') return null;
+  var n = Number(s);
+  return isFinite(n) ? n : null;
+}
+function setText(id, s){ var el = document.getElementById(id); if(el) el.textContent = s; }
+
+/* 我方一个主体：总班数 / 正常 / 延误 三选二 */
+function resolveOurs(key){
+  var t = num(key + '_total'), g = num(key + '_ontime'), b = num(key + '_delay');
+  var m = num(key + '_month');
+  var filled = (t !== null ? 1 : 0) + (g !== null ? 1 : 0) + (b !== null ? 1 : 0);
+  if(filled < 2) return null;
+
+  var T, G, B, note = '';
+  if(t !== null && g !== null && b !== null){
+    T = t; G = g; B = b;
+    if(Math.abs(G + B - T) > 0.5) note = '正常 + 延误 与总班数对不上';
+  } else if(t !== null && g !== null){ T = t; G = g; B = t - g; }
+  else if(t !== null && b !== null){   T = t; B = b; G = t - b; }
+  else {                               T = g + b; G = g; B = b; }
+
+  if(!(T > 0)) return { bad:'总班数须大于 0' };
+  if(G < 0 || B < 0) return { bad:'正常 / 延误班数不能为负' };
+  return { total:T, ontime:G, delay:B, month:m, note:note };
+}
+
+/* 机场一组数：总班数 / 正常 / 延误 / 正常率 —— 四个量填任意两个即可推出其余。
+   之所以做成四选二：用户手上可能只有「总班数 + 延误班数」，也可能直接有正常率。 */
+function resolveApt(prefix){
+  var t = num(prefix + '_total'), g = num(prefix + '_ontime'),
+      b = num(prefix + '_delay'), r = num(prefix + '_rate');
+  var filled = (t !== null ? 1 : 0) + (g !== null ? 1 : 0) + (b !== null ? 1 : 0) + (r !== null ? 1 : 0);
+  if(filled < 2) return null;
+
+  var T = null, G = null, B = null, R = null, note = '';
+
+  if(t !== null && g !== null){                 /* 总 + 正常，最优先 */
+    T = t; G = g; B = t - g; R = t > 0 ? g / t : null;
+    if(b !== null && Math.abs(g + b - t) > 0.5) note = '正常 + 延误 与总班数对不上';
+    if(r !== null && R !== null && Math.abs(r / 100 - R) > 0.0005){
+      note = (note ? note + '；' : '') + '正常率与总班数 / 正常班数对不上';
+    }
+  } else if(t !== null && b !== null){          /* 总 + 延误 */
+    T = t; B = b; G = t - b; R = t > 0 ? G / t : null;
+  } else if(t !== null && r !== null){          /* 总 + 率 */
+    T = t; R = r / 100; G = R * T; B = T - G;
+  } else if(g !== null && b !== null){          /* 正常 + 延误 */
+    G = g; B = b; T = g + b; R = T > 0 ? G / T : null;
+  } else if(g !== null && r !== null){          /* 正常 + 率 */
+    G = g; R = r / 100; T = R > 0 ? G / R : null; B = T - G;
+  } else {                                       /* 延误 + 率 */
+    B = b; R = r / 100; T = (1 - R) > 0 ? B / (1 - R) : null; G = T - B;
+  }
+
+  if(!(T > 0)) return { bad:'总班数须大于 0' };
+  if(G < 0 || B < 0) return { bad:'正常 / 延误班数不能为负' };
+  if(R === null || !isFinite(R) || R < 0 || R > 1) return { bad:'正常率须在 0～100% 之间' };
+  return { total:T, ontime:G, delay:B, rate:R, note:note };
+}
+
+/* 已达成的最高档位 */
+function achievedTier(delta){
+  if(delta >=  1) return 'T3';
+  if(delta >=  0) return 'T2';
+  if(delta >= -1) return 'T1';
+  return null;                       /* 低于 T1 */
+}
+
+/* ---------------- 单个主体的完整测算 ---------------- */
+function analyze(sub, apt, aptMonthRate){
+  var p = sub.total > 0 ? sub.ontime / sub.total : null;
+  if(p === null) return null;
+
+  var delta = (p - apt.rate) * 100;               /* 百分点 */
+  var tier  = achievedTier(delta);
+
+  var rows = TIERS.map(function(t){
+    var pTarget = aptMonthRate + t.offset / 100;   /* 目标正常率（小数） */
+
+    /* 口径一：当前缺口 —— 当前这批班里还差几班正常 */
+    var needNow = Math.ceil(pTarget * sub.total);
+    var gapNow  = Math.max(0, needNow - sub.ontime);
+
+    /* 口径二：剩余需正常 —— 剩余航班还要保证几班正常 */
+    var Nm = sub.month, Nr = null, Gt = null, Gr = null, remRate = null, verdict = 'nomon';
+    if(Nm !== null && Nm > 0){
+      Nr = Nm - sub.total;
+      Gt = Math.ceil(pTarget * Nm);
+      Gr = Gt - sub.ontime;
+      if(Nr <= 0){
+        verdict = 'ended';
+      } else if(Gr <= 0){
+        verdict = 'done';                 /* 已经够本，剩余全延误也达标 */
+      } else {
+        remRate = Gr / Nr;                /* 追不上时会 >100%，照样显示，信息量最大 */
+        verdict = (Gr <= Nr) ? 'ok' : 'fail';
+      }
+    }
+    return { tier:t, pTarget:pTarget, gapNow:gapNow, Nm:Nm, Nr:Nr, Gt:Gt, Gr:Gr,
+             remRate:remRate, verdict:verdict };
+  });
+
+  /* 理论最高月末正常率（剩余全正常） */
+  var best = null;
+  if(sub.month !== null && sub.month > 0){
+    var left = Math.max(0, sub.month - sub.total);
+    best = (sub.ontime + left) / sub.month;
+  }
+  return { p:p, delta:delta, tier:tier, rows:rows, best:best };
+}
+
+/* ---------------- 格式化 ---------------- */
+function fmtPct(p, d){ return (p * 100).toFixed(d == null ? 2 : d) + '%'; }
+function fmtInt(n){ return Math.round(n).toLocaleString('zh-CN'); }
+function fmtDelta(d){
+  var s = d > 0 ? '+' : (d < 0 ? '−' : '');
+  return s + Math.abs(d).toFixed(2);
+}
+function deltaClass(d){ return d > 0.005 ? 'd-up' : (d < -0.005 ? 'd-down' : 'd-flat'); }
+function tierBadge(t){
+  if(!t) return '<span class="tier t0">低于 T1</span>';
+  return '<span class="tier ' + t.toLowerCase() + '">' + t + '</span>';
+}
+function tierByKey(k){
+  return TIERS.filter(function(t){ return t.key === k; })[0];
+}
+/* 当前能追到的最高档位（用于告警话术） */
+function highestReachable(a){
+  var h = null;
+  a.rows.forEach(function(x){ if(x.verdict === 'done' || x.verdict === 'ok') h = x.tier; });
+  return h;
+}
+
+/* ---------------- 主流程 ---------------- */
+function render(){
+  /* ---- 读取录入 ---- */
+  var ours = {};
+  SUBJECTS.forEach(function(s){ ours[s.key] = resolveOurs(s.key); });
+
+  /* 全月预计班数留空时，按「本月已过天数 / 总天数」线性外推。
+     填了就以填的为准 —— ① 区下方的提示就是这么写的，这里必须真的实现。 */
+  var dp = num('days_passed'), dt = num('days_total');
+  if(dp !== null && dt !== null && dp > 0 && dt >= dp){
+    SUBJECTS.forEach(function(s){
+      var o = ours[s.key];
+      if(o && !o.bad && o.month === null) o.month = o.total / dp * dt;
+    });
+  }
+
+  /* 东上联 = 中联航 + 东上航 */
+  var total = null;
+  if(ours.kn && ours.mu && !ours.kn.bad && !ours.mu.bad){
+    var mKn = ours.kn.month, mMu = ours.mu.month;
+    total = {
+      total:  ours.kn.total  + ours.mu.total,
+      ontime: ours.kn.ontime + ours.mu.ontime,
+      delay:  ours.kn.delay  + ours.mu.delay,
+      month:  (mKn !== null && mMu !== null) ? mKn + mMu : null
+    };
+  }
+  setText('total_total',  total ? fmtInt(total.total)  : '—');
+  setText('total_ontime', total ? fmtInt(total.ontime) : '—');
+  setText('total_delay',  total ? fmtInt(total.delay)  : '—');
+  setText('total_month',  (total && total.month !== null) ? fmtInt(total.month) : '—');
+
+  /* ---- 机场：当前累计 + 全月预测 ---- */
+  var apt = resolveApt('apt');      /* ② 当前已知 */
+  var apm = resolveApt('apm');      /* ③ 全月预测 */
+
+  /* 月末正常率假设：③ 填了就按 ③；留空沿用 ② 的当前正常率 */
+  var aptMonthRate = apm ? apm.rate : (apt ? apt.rate : null);
+  var ready = !!apt && aptMonthRate !== null;
+
+  /* ③ 区的实时回显 */
+  var apmHint = document.getElementById('apmHint');
+  if(apm){
+    apmHint.innerHTML = '→ 推算月末正常率 <b>' + fmtPct(apm.rate) + '</b>'
+      + '（全月 ' + fmtInt(apm.total) + ' 班 / 正常 ' + fmtInt(apm.ontime)
+      + ' 班 / 延误 ' + fmtInt(apm.delay) + ' 班）';
+  } else if(apt){
+    apmHint.innerHTML = '③ 未填，月末正常率按 ② 的当前值 <b>' + fmtPct(apt.rate) + '</b> 计算。';
+  } else {
+    apmHint.textContent = '';
+  }
+
+  /* ---- 逐主体测算 ---- */
+  var results = [];
+  if(ready){
+    SUBJECTS.forEach(function(s){
+      var sub = ours[s.key];
+      if(!sub || sub.bad) return;
+      var a = analyze(sub, apt, aptMonthRate);
+      if(a) results.push({ name:s.name, sub:sub, a:a });
+    });
+    if(total){
+      var at = analyze(total, apt, aptMonthRate);
+      if(at) results.push({ name:'东上联', sub:total, a:at, isTotal:true });
+    }
+  }
+
+  /* ---- 目标档位条 ---- */
+  var gt = tierByKey(goalTier);
+  Array.prototype.forEach.call(document.querySelectorAll('#goalTabs button'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-tier') === goalTier);
+  });
+  setText('goalHint', ready ? ('目标正常率 ' + fmtPct(aptMonthRate + gt.offset / 100)) : '');
+
+  /* ---- 三档对照表表头：标出选中的那一列 ---- */
+  TIERS.forEach(function(t){
+    var th = document.getElementById('th' + t.key);
+    if(th) th.classList.toggle('hl', t.key === goalTier);
+  });
+
+  /* ---- 追赶目标卡 ---- */
+  renderGoalCards(results, aptMonthRate, ready);
+
+  /* ---- 告警（汇总「追不上」的主体）---- */
+  renderAlerts(results, gt, ready);
+
+  /* ---- 三档对照表 ---- */
+  renderTierTable(results, ready);
+
+  /* ---- 现状对比表 ---- */
+  renderCmp(results, apt, ready);
+
+  /* ---- 录入自检：三格都填但对不上时提醒（不依赖机场数据是否已填）---- */
+  var warnLine = document.getElementById('warnLine');
+  var notes = [];
+  SUBJECTS.forEach(function(s){
+    var o = ours[s.key];
+    if(o && !o.bad && o.note) notes.push('<b>' + s.name + '</b>：' + o.note);
+  });
+  if(apt && apt.note) notes.push('<b>机场（当前）</b>：' + apt.note);
+  if(apm && apm.note) notes.push('<b>机场（全月预测）</b>：' + apm.note);
+  if(notes.length){
+    warnLine.innerHTML = '⚠️ 录入自检 —— ' + notes.join('；')
+      + '。同一组里填了两个以上时以「总班数 + 正常班数」为准，请核对后再看结论。';
+    warnLine.style.display = 'block';
+  } else {
+    warnLine.style.display = 'none';
+    warnLine.innerHTML = '';          /* 一并清空：否则隐藏后仍留着上一次的文案，容易误导排查 */
+  }
+
+  /* ---- 机场参考（扣除我方）---- */
+  var refLine = document.getElementById('refLine');
+  if(ready && total && apt.total > total.total && apt.ontime >= total.ontime){
+    var oT = apt.total - total.total;
+    var oG = apt.ontime - total.ontime;
+    var oR = oT > 0 ? oG / oT : null;
+    if(oR !== null){
+      refLine.innerHTML = '参考：机场正常率 <b>' + fmtPct(apt.rate) + '</b> 已包含我方航班。'
+        + '扣除东上联（' + fmtInt(total.total) + ' 班）后，<b>机场其他航司</b>为 '
+        + fmtInt(oT) + ' 班 / 正常 ' + fmtInt(oG) + ' 班，正常率 <b>' + fmtPct(oR) + '</b>。';
+      refLine.style.display = 'block';
+    } else {
+      refLine.style.display = 'none';
+      refLine.innerHTML = '';
+    }
+  } else {
+    refLine.style.display = 'none';
+    refLine.innerHTML = '';
+  }
+}
+
+/* ---------------- 追赶目标卡（结果区主角：目标 + 追几班）---------------- */
+function renderGoalCards(results, aptMonthRate, ready){
+  var box = document.getElementById('goalCards');
+  if(!ready){
+    box.innerHTML = '<div class="empty-tip">请先填写 ② 机场当月累计数据'
+                  + '（总班数 / 正常班数 / 延误班数 / 正常率，填任意两格）</div>';
+    return;
+  }
+  if(!results.length){
+    box.innerHTML = '<div class="empty-tip">请在 ① 我方表格里，为任一主体填入'
+                  + '「总班数 / 正常班数 / 延误班数」中的两格</div>';
+    return;
+  }
+
+  var t = tierByKey(goalTier);
+  var pTarget = aptMonthRate + t.offset / 100;
+  var goalTxt = '<b>' + fmtPct(pTarget) + '</b>（' + t.name + ' · ' + t.desc + '）';
+
+  box.innerHTML = results.map(function(r){
+    var row = r.a.rows.filter(function(x){ return x.tier.key === goalTier; })[0];
+    var cls = '', m1v, m1s, m2v, m2s, note = '';
+
+    /* 左边：当前缺口 —— 当前这批班里还差几班正常 */
+    m1v = fmtInt(row.gapNow) + '<small>班</small>';
+    m1s = row.gapNow > 0 ? ('还差 ' + fmtInt(row.gapNow) + ' 班正常') : '当前已够目标';
+
+    /* 右边：剩余需正常 —— 剩余航班还要保证几班正常 */
+    if(row.verdict === 'nomon'){
+      m2v = '—'; m2s = '待填全月班数';
+      note = '填 ① 区的「全月预计班数」（或 ④ 区的天数让页面外推）后，就能算出剩余还要保证几班。';
+    } else if(row.verdict === 'ended'){
+      m2v = '0<small>班</small>'; m2s = '本月已结束';
+    } else if(row.verdict === 'fail'){
+      cls = 'fail';
+      m2v = '—'; m2s = '剩余全正常也不够';
+      var h = highestReachable(r.a);
+      note = '剩余 <b>' + fmtInt(row.Nr) + '</b> 班即使全部正常，月末正常率最高也只有 '
+           + '<b>' + fmtPct(r.a.best) + '</b>，够不到目标。'
+           + (h ? '最高只能追到 <b>' + h.name + ' 档</b>。' : '三档均达不到。');
+    } else if(row.verdict === 'done'){
+      cls = 'done';
+      m2v = '0<small>班</small>'; m2s = '剩余全延误也达标';
+    } else {                                  /* ok */
+      m2v = fmtInt(row.Gr) + '<small>班</small>';
+      m2s = fmtInt(row.Nr) + ' 班中占 ' + fmtPct(row.remRate);
+    }
+
+    return '<div class="goal-card ' + cls + '">'
+         +   '<div class="gc-head"><span class="gc-name">' + r.name + '</span>'
+         +     tierBadge(r.a.tier) + '</div>'
+         +   '<div class="gc-cur">当前 <b>' + fmtPct(r.a.p) + '</b> · 比机场 '
+         +     '<span class="' + deltaClass(r.a.delta) + '">' + fmtDelta(r.a.delta) + ' pt</span></div>'
+         +   '<div class="gc-metrics">'
+         +     '<div class="gc-metric"><div class="lab">当前缺口</div>'
+         +       '<div class="val">' + m1v + '</div><div class="sub">' + m1s + '</div></div>'
+         +     '<div class="gc-metric"><div class="lab">剩余需正常</div>'
+         +       '<div class="val">' + m2v + '</div><div class="sub">' + m2s + '</div></div>'
+         +   '</div>'
+         +   '<div class="gc-line">目标 ' + goalTxt + '</div>'
+         +   (note ? '<div class="gc-note">' + note + '</div>' : '')
+         + '</div>';
+  }).join('');
+}
+
+/* ---------------- 告警 ---------------- */
+function renderAlerts(results, gt, ready){
+  var box = document.getElementById('alertBox');
+  var fails = ready ? results.filter(function(r){
+    var row = r.a.rows.filter(function(x){ return x.tier.key === goalTier; })[0];
+    return row.verdict === 'fail';
+  }) : [];
+
+  if(fails.length){
+    var lines = fails.map(function(r){
+      var row = r.a.rows.filter(function(x){ return x.tier.key === goalTier; })[0];
+      var h = highestReachable(r.a);
+      return '<div class="row">⚠️ <b>' + r.name + '</b>：剩余 ' + fmtInt(row.Nr) + ' 班即使全部正常，'
+           + '月末正常率最高也只有 <b>' + fmtPct(r.a.best) + '</b>，'
+           + '追不上 <b>' + gt.name + ' 档</b>（目标 ' + fmtPct(row.pTarget) + '）。'
+           + (h ? '最高只能追到 <b>' + h.name + ' 档</b>。' : '三档均达不到。');
+    });
+    box.innerHTML = '<div class="row"><b>追赶可行性告警</b>（按 ' + gt.name + ' · ' + gt.desc + ' 测算）</div>'
+                  + lines.join('');
+    box.classList.add('show');
+  } else {
+    box.classList.remove('show');
+    box.innerHTML = '';
+  }
+}
+
+/* ---------------- 三档对照表 ---------------- */
+function renderTierTable(results, ready){
+  var tb = document.getElementById('tierBody');
+  if(!ready || !results.length){
+    tb.innerHTML = '<tr><td colspan="6" class="empty-tip">填好数据后自动测算</td></tr>';
+    return;
+  }
+  tb.innerHTML = results.map(function(r){
+    var cells = TIERS.map(function(t){
+      var row = r.a.rows.filter(function(x){ return x.tier.key === t.key; })[0];
+      var v;
+      if(row.verdict === 'nomon')      v = '<span class="res-idle">待填全月</span>';
+      else if(row.verdict === 'ended') v = '<span class="res-idle">本月已结束</span>';
+      else if(row.verdict === 'done')  v = '<span class="res-done">已达标</span>';
+      else if(row.verdict === 'ok')    v = '还要 <b>' + fmtInt(row.Gr) + '</b> 班';
+      else                             v = '<span class="res-bad">追不上</span>';
+      var hl = (t.key === goalTier) ? ' hl' : '';
+      return '<td class="mono' + hl + '">' + v + '</td>';
+    }).join('');
+    return '<tr>'
+         + '<td class="rowname">' + r.name + '</td>'
+         + '<td class="mono">' + fmtPct(r.a.p) + '</td>'
+         + '<td>' + tierBadge(r.a.tier) + '</td>'
+         + cells + '</tr>';
+  }).join('');
+}
+
+/* ---------------- 现状对比表 ---------------- */
+function renderCmp(results, apt, ready){
+  var tb = document.getElementById('cmpBody');
+  if(!ready){
+    tb.innerHTML = '<tr><td colspan="8" class="empty-tip">请先填写 ② 机场当月累计数据</td></tr>';
+  } else if(!results.length){
+    tb.innerHTML = '<tr><td colspan="8" class="empty-tip">请在 ① 我方表格里为任一主体填两格</td></tr>';
+  } else {
+    tb.innerHTML = results.map(function(r){
+      var d = r.a.delta;
+      return '<tr><td class="rowname">' + r.name + '</td>'
+           + '<td class="mono">' + fmtInt(r.sub.total) + '</td>'
+           + '<td class="mono">' + fmtInt(r.sub.ontime) + '</td>'
+           + '<td class="mono">' + fmtInt(r.sub.delay) + '</td>'
+           + '<td class="mono"><b>' + fmtPct(r.a.p) + '</b></td>'
+           + '<td class="mono">' + fmtPct(apt.rate) + '</td>'
+           + '<td class="mono ' + deltaClass(d) + '">' + fmtDelta(d) + '</td>'
+           + '<td>' + tierBadge(r.a.tier) + '</td></tr>';
+    }).join('');
+  }
+}
+
+/* ---------------- 绑定与草稿 ---------------- */
+var ALL_INPUTS = ['kn_total','kn_ontime','kn_delay','kn_month',
+                  'mu_total','mu_ontime','mu_delay','mu_month',
+                  'apt_total','apt_ontime','apt_delay','apt_rate',
+                  'apm_total','apm_ontime','apm_delay','apm_rate',
+                  'days_passed','days_total'];
+
+function saveDraft(){
+  try{
+    var o = {};
+    ALL_INPUTS.forEach(function(id){ o[id] = num(id); });
+    localStorage.setItem(STORE_KEY, JSON.stringify(o));
+  }catch(e){ /* 隐私模式下 localStorage 可能不可用，忽略 */ }
+}
+function loadDraft(){
+  try{
+    var raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      var o = JSON.parse(raw);
+      ALL_INPUTS.forEach(function(id){
+        var el = document.getElementById(id);
+        if(el && o[id] !== null && o[id] !== undefined) el.value = o[id];
+      });
+    }
+    var g = localStorage.getItem(GOAL_KEY);
+    if(g && TIERS.some(function(t){ return t.key === g; })) goalTier = g;
+  }catch(e){ /* 草稿坏了就忽略 */ }
+}
+
+loadDraft();
+ALL_INPUTS.forEach(function(id){
+  var el = document.getElementById(id);
+  if(el) el.addEventListener('input', function(){ render(); saveDraft(); });
+});
+render();
+</script>
+</body>
+</html>
