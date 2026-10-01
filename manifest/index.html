@@ -79,20 +79,51 @@
 #previewBody tbody tr:nth-child(even) td:first-child { background: #fafafa; }
 #previewBody tbody tr:hover td { background: var(--brand-light); }
 #previewBody tbody tr:hover td:first-child { background: var(--brand-light); }
-/* ============ Tags (warnings / skipped) ============ */
+/* ============ 异常 / 跳过清单（竖排小表格） ============ */
   .people-tags {
     background: var(--card); border-radius: var(--radius); padding: 20px 24px;
     margin-bottom: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--line);
   }
 .people-tags .label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
-.tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag {
-    display: inline-block; background: var(--brand-light); color: var(--brand-dark);
-    padding: 5px 13px; border-radius: 8px; font-size: 13px; font-weight: 500;
-    border: 1px solid var(--brand-soft); transition: transform 0.15s, background 0.15s;
+/* 竖排清单：外层圆角描边；.lt-head 是表头，.tag-list 里每条一行。
+   ⚠️ 约定：#warnTags / #skipTags 的**直接子元素个数 = 条目数**（encrypted-upload-check.py 依赖它），
+      所以表头必须放在 .tag-list **外面**，且每条只用一个 .lt-row 包裹。 */
+.ltable { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ltable .lt-head, .ltable .lt-row {
+    display: grid; align-items: center; gap: 0 14px; padding: 9px 16px;
   }
-.tag:hover { transform: translateY(-1px); background: var(--brand-soft); }
-.tag.warn { background: var(--amber-soft); border-color: #eed9b8; color: var(--amber); }
+/* ⚠️ 姓名列必须是**死宽**，不能用 fit-content / max-content / auto。
+   每一行 .lt-row 都是**各自独立的 grid 容器**，内容相关的轨道会让每行按自己的内容
+   算列宽 —— 结果就是列与列之间对不齐（长名那行的「异常代码」会往右跑），表头也对不上。
+   踩过一次：fit-content(260px) 让 12 行跳过的「缺失项」小标签横向参差不齐。
+   宽 210px 是按真实名单定的（最长 CORREACARMONA/SANTIAGO ≈ 200px 能单行放下）。 */
+.ltable-warn .lt-head, .ltable-warn .lt-row { grid-template-columns: 56px 210px minmax(0, 1fr); }
+.ltable-skip .lt-head, .ltable-skip .lt-row { grid-template-columns: 210px minmax(0, 1fr); }
+.ltable .lt-head {
+    background: var(--bg); color: var(--muted); font-size: 12.5px; font-weight: 600;
+    border-bottom: 1px solid var(--line); letter-spacing: .3px;
+  }
+.tag-list { display: block; }
+.ltable .lt-row { border-bottom: 1px solid var(--line); font-size: 13px; background: var(--card); }
+.ltable .lt-row:last-child { border-bottom: none; }
+.ltable .lt-row:nth-child(even) { background: #fafafa; }
+.ltable .lt-c { min-width: 0; overflow-wrap: anywhere; }
+/* 姓名尽量在空格处断行，别从单词中间劈开（长名超宽时才退化成任意断） */
+.ltable .lt-name { overflow-wrap: break-word; }
+.ltable .lt-no { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
+.ltable .lt-name { font-weight: 600; color: var(--ink); }
+.ltable .lt-code {
+    display: inline-block; padding: 2px 10px; border-radius: 7px;
+    background: var(--amber-soft); border: 1px solid #eed9b8; color: var(--amber);
+    font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .5px;
+  }
+.ltable .lt-miss { color: var(--ink-2); }
+.ltable .lt-chip {
+    display: inline-block; margin: 2px 6px 2px 0; padding: 2px 9px; border-radius: 6px;
+    background: var(--brand-light); border: 1px solid var(--brand-soft);
+    color: var(--brand-dark); font-size: 12px; font-weight: 600;
+  }
+.ltable .lt-row.lt-fallback { grid-template-columns: minmax(0, 1fr); color: var(--ink-2); }
 /* ============ Controls ============ */
   .controls { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 .controls .info { font-size: 13.5px; color: var(--muted); background: var(--card); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); }
@@ -129,6 +160,14 @@
     .summary-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .summary-card .value { font-size: 23px; }
     #previewBody table { font-size: 12px; }
+  }
+  /* 窄屏：固定列收窄。不收窄的话「异常代码」那一列会被 .ltable 的 overflow:hidden 裁掉
+     （整页不横滚，但内容被切 —— layout-check 那种只看整页宽度的检查抓不到）。 */
+  @media (max-width: 560px) {
+    .ltable .lt-head, .ltable .lt-row { padding: 8px 12px; gap: 0 10px; }
+    .ltable-warn .lt-head, .ltable-warn .lt-row { grid-template-columns: 38px 108px minmax(0, 1fr); }
+    .ltable-skip .lt-head, .ltable-skip .lt-row { grid-template-columns: 108px minmax(0, 1fr); }
+    .ltable .lt-code { padding: 2px 7px; letter-spacing: .2px; }
   }
 </style>
 </head>
@@ -243,13 +282,26 @@
   <!-- Warnings -->
   <div class="people-tags" id="warnBox" style="display:none">
     <div class="label" id="warnLabel">⚠️ 国籍代码异常</div>
-    <div class="tag-list" id="warnTags"></div>
+    <div class="ltable ltable-warn">
+      <div class="lt-head">
+        <span class="lt-c lt-no">行号</span>
+        <span class="lt-c">姓名</span>
+        <span class="lt-c">异常代码</span>
+      </div>
+      <div class="tag-list" id="warnTags"></div>
+    </div>
   </div>
 
   <!-- Skipped -->
   <div class="people-tags" id="skipBox" style="display:none">
     <div class="label" id="skipLabel">🗑️ 已跳过不完整记录</div>
-    <div class="tag-list" id="skipTags"></div>
+    <div class="ltable ltable-skip">
+      <div class="lt-head">
+        <span class="lt-c">姓名</span>
+        <span class="lt-c">缺失项</span>
+      </div>
+      <div class="tag-list" id="skipTags"></div>
+    </div>
   </div>
 
   <!-- Controls -->
@@ -376,15 +428,46 @@ function renderPreview(outRows) {
 }
 
 // ================ Render: Warnings / Skipped ================
+// 把 convert.js 产出的提示串拆成表格列；格式不认识时返回 null，退回整行显示（不丢信息）。
+//   警告：「第3行 张三: 国籍代码异常 [ESP]，请手动核查」
+//   跳过：「张三: 缺少 姓名、证件号」
+function parseWarnItem(s) {
+  const m = /^第\s*(\d+)\s*行\s*(.*?)\s*[:：]\s*国籍代码异常\s*[[［]([^\]］]*)[\]］]/.exec(String(s));
+  return m ? { no: m[1], name: m[2] || '（无姓名）', code: m[3] } : null;
+}
+function parseSkipItem(s) {
+  const m = /^(.*?)\s*[:：]\s*缺少\s*(.+)$/.exec(String(s));
+  return m ? { name: m[1] || '（无姓名）', miss: m[2] } : null;
+}
 function renderWarn(list, box, labelId, labelText, warnStyle) {
   const tags = document.getElementById(labelId === 'warnLabel' ? 'warnTags' : 'skipTags');
   if (list && list.length) {
     box.style.display = 'block';
     document.getElementById(labelId).textContent = labelText + '（' + list.length + ' 条）';
-    tags.innerHTML = list.map((w) =>
-      '<span class="tag' + (warnStyle ? ' warn' : '') + '">' + escapeHtml(w) + '</span>'
-    ).join('');
+    // ⚠️ 每条固定只产出一个 .lt-row（直接子元素个数 = 条目数，探针依赖这一点）
+    tags.innerHTML = list.map((w) => {
+      if (warnStyle) {
+        const p = parseWarnItem(w);
+        if (!p) return '<div class="lt-row lt-fallback">' + escapeHtml(w) + '</div>';
+        return '<div class="lt-row">'
+          + '<span class="lt-c lt-no">' + escapeHtml(p.no) + '</span>'
+          + '<span class="lt-c lt-name">' + escapeHtml(p.name) + '</span>'
+          + '<span class="lt-c"><span class="lt-code">' + escapeHtml(p.code) + '</span></span>'
+          + '</div>';
+      }
+      const p = parseSkipItem(w);
+      if (!p) return '<div class="lt-row lt-fallback">' + escapeHtml(w) + '</div>';
+      const chips = p.miss.split('、').map((x) =>
+        '<span class="lt-chip">' + escapeHtml(x) + '</span>').join('');
+      return '<div class="lt-row">'
+        + '<span class="lt-c lt-name">' + escapeHtml(p.name) + '</span>'
+        + '<span class="lt-c lt-miss">' + chips + '</span>'
+        + '</div>';
+    }).join('');
   } else {
+    // 连内容一起清掉：只隐藏的话，DOM 里会留着上一次的行（隐藏着看不见，
+    // 但属于残留状态，读 children 的探针/后续改动容易被它带偏）。
+    tags.innerHTML = '';
     box.style.display = 'none';
   }
 }
@@ -515,7 +598,7 @@ async function doConvert() {
 
     renderSummary(res.meta);
     renderPreview(res.outRows);
-    renderWarn(res.warnings, warnBox, 'warnLabel', '⚠️ 国籍代码异常（需手动核查）', true);
+    renderWarn(res.warnings, warnBox, 'warnLabel', '⚠️ 国籍代码异常 · 需手动核查', true);
     renderWarn(res.skipped, skipBox, 'skipLabel', '🗑️ 已跳过不完整记录', false);
 
     controls.style.display = 'flex';
