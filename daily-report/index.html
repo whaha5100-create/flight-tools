@@ -151,6 +151,15 @@
 
   /* ---------- 右侧预览 ---------- */
   .previewWrap { flex:1; background:#6e6e73; overflow-y:auto; height:calc(100vh - 58px); padding:24px 0; }
+
+  /* ---------- 页眉配图带（2026-10-02）----------
+     共享层给的高度是 clamp(140px,14vw,200px)。但本页是「编辑器 + 预览」双栏工作台，
+     竖向空间全被 100vh 的计算吃满了，200px 的图带会把编辑器底部的「导出」按钮推出屏幕。
+     ⇒ 压到 120px，并把下面三处 vh 计算同步减去「图带 120 + 间距 22 = 142px」。
+     ⚠️ 本块必须写在 .app / .editor / .previewWrap 三处**之后**，否则被它们覆盖。 */
+  .page-banner img { height: 120px; }
+  .app { min-height: calc(100vh - 200px); }
+  .editor, .previewWrap { height: calc(100vh - 200px); }
   .paper { box-sizing:border-box; width:210mm; min-height:297mm; background:#fff; margin:0 auto 18px;
     padding:1.8cm 1.5cm 2.3cm; box-shadow:0 6px 24px rgba(0,0,0,.3); color:#000; font-size:10.5pt;
     line-height:1.5; position:relative; font-family:"SimSun","Songti SC",serif; }
@@ -208,7 +217,16 @@
 </head>
 <body>
 <a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
+
+<!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02）
+     ⚠️ 必须放在 .app **外面**：.app 是 display:flex 的双栏容器，
+        放进去它会变成 flex 行的一个子项 —— 宽度塌成 180px、高度被拉伸到 678px。 -->
+<div class="page-banner">
+  <img src="../assets/tools/04-daily-report.webp" alt="" width="1400" height="933">
+</div>
+
 <div class="app">
+
   <!-- ============ 左侧编辑区 ============ -->
   <div class="editor">
     <div class="topbar">

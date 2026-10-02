@@ -172,6 +172,29 @@ body {
 }
 .header .plane { display: none; }
 
+/* ============ 工具页页眉图片带（2026-10-02）============
+   页眉本身保持「白底纯文字条」（上面的 .header）；图片带紧跟其后，
+   用的是**该工具在首页卡片上的同一张图** —— 让「卡片 → 点进去」的视觉是连续的。
+
+   ⚠️ 这里**故意不写 `!important`**：daily-report 是双栏工作台，需要把图带压到
+      120px 并同步改它自己的 vh 计算。共享层一加 `!important`，那一页就改不动了。
+
+   高度用 clamp：桌面约 200px，窄屏自动收到 140px，不会把首屏挤没。 */
+.page-banner {
+  margin: 0 0 22px;
+  border-radius: var(--radius);
+  overflow: hidden; background: #101114;
+  box-shadow: var(--shadow-sm);
+}
+.page-banner img {
+  display: block; width: 100%;
+  height: clamp(140px, 14vw, 200px);
+  object-fit: cover; object-position: center;
+}
+@media (max-width: 700px) {
+  .page-banner img { height: 120px; }
+}
+
 /* ============ Rules Panel（全站唯一版本）============
    原先 6 个工具页各自内联了一份，尺寸还不一致。已统一收敛到
    这里；页面里只需写结构，不必再写样式。同时兼容两种结构：

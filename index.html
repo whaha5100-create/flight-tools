@@ -18,14 +18,19 @@
      首页 · 苹果风改版（2026-10-02）
 
      改版前：页眉是一个「带描边的圆角盒子」、主色 8 色横条、8 张各带身份色的卡片。
-     改版后：通栏半透明白页眉（吸顶）→ 大字 hero → 一张大图 → 圆角卡片网格，
+     改版后：通栏吸顶页眉 → **满屏暗色主视觉**（图当背景、白色大字压在上面）
+             → 圆角卡片网格（每张卡片用该工具自己的暗色配图）。
              全站只用「一个蓝」做交互色。
 
      ⚠️ 旧注释曾写「.hero h1 / .lede / .factrow / .fact 是首页最初的版式，别再删」。
         这条约定已被本次改版**有意取代**：结构重写为苹果官网的
         「大字标题 → 大图 → 卡片」三段式，.stripe（8 色横条）整体删除。
+        第二轮（同日）又按用户选定的「方案 A」把「大字区 + 独立大图」合并成
+        **满屏暗色主视觉**：图从 <img> 变成 .hero 的 background，页眉浮在图上。
         还原点：.workbuddy-ai/backup/apple-redesign-20261002/index.html.orig
 
+     配图：assets/hero-aircraft.webp（首屏）+ assets/tools/NN-*.webp（卡片 & 工具页页眉），
+           全部原创生成，不含任何真实航司涂装或商标。
      配色：本页只从 assets/site.css 的 :root 取色，不新造色值。
            蓝色只用于「可点击的东西」（按钮 / 链接 / 焦点环），这是苹果的用色规则。
      ============================================================ */
@@ -35,16 +40,31 @@
   html { scroll-behavior: smooth; }
 
   /* ============ 1. 通栏吸顶页眉 ============
-     苹果的全局导航：白色半透明 + 毛玻璃，滚动前无描边、滚动后出现一条细线。 */
+     苹果的全局导航：压在暗色主视觉上方时是「透明 + 白字」，
+     滚动离开主视觉之后变成「白色半透明 + 毛玻璃 + 一条细线」。 */
   .nav {
     position: sticky; top: 0; z-index: 100;
-    background: rgba(255,255,255,.72);
+    background: transparent;
+    border-bottom: 1px solid transparent;
+    transition: background var(--dur) var(--ease-inout),
+                border-color var(--dur) var(--ease-inout);
+  }
+  .nav.scrolled {
+    background: rgba(255,255,255,.78);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 1px solid transparent;
-    transition: border-color var(--dur) var(--ease-inout), background var(--dur) var(--ease-inout);
+    border-bottom-color: rgba(0,0,0,.10);
   }
-  .nav.scrolled { border-bottom-color: rgba(0,0,0,.10); background: rgba(255,255,255,.86); }
+  /* 未滚动 ⇒ 浮在暗图上 ⇒ 全部转白。
+     ⚠️ 这些选择器特异性是 0-3-x，会压过下面的 .search input:focus（0-2-1），
+        所以焦点态必须在这里**再写一遍**，否则在暗图上方聚焦搜索框不会变白底。 */
+  .nav:not(.scrolled) .brandmark svg,
+  .nav:not(.scrolled) .brandmark .bm-t { color: #fff; }
+  .nav:not(.scrolled) .search input { background: rgba(255,255,255,.16); color: #fff; }
+  .nav:not(.scrolled) .search input::placeholder { color: rgba(255,255,255,.74); }
+  .nav:not(.scrolled) .search input:hover { background: rgba(255,255,255,.24); }
+  .nav:not(.scrolled) .search input:focus { background: #fff; color: var(--ink); }
+  .nav:not(.scrolled) .search .s-ic { color: rgba(255,255,255,.74); }
   .nav-inner {
     max-width: 1180px; margin: 0 auto; padding: 0 28px;
     height: 52px; display: flex; align-items: center; gap: 18px;
@@ -94,15 +114,46 @@
   .search.has-value .s-clear { display: flex; }
   .search .s-clear:hover { background: rgba(0,0,0,.28); }
 
-  /* ============ 2. Hero：大字 ============ */
-  .hero { padding: 62px 4px 0; text-align: center; }
+  /* ============ 2. Hero：满屏暗色主视觉 ============
+     苹果那套「深色满屏图 + 白色大字」：图直接当背景、文字压在上面，
+     页眉靠 margin-top:-52px 钻到图上面浮着。
+     图片是原创生成的暗色金属大飞机，无航司涂装 / 商标。
+     （改版前的「大字区 + 独立大图占位块」两段式已合并成这一段。） */
+  .hero {
+    position: relative; isolation: isolate;
+    min-height: clamp(470px, 70vh, 640px);
+    margin-top: -52px;                 /* 钻到吸顶页眉下面，让页眉浮在图上 */
+    padding: 92px 28px 66px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; overflow: hidden;
+    background: #101114 url("./assets/hero-aircraft.webp") center 46% / cover no-repeat;
+  }
+  /* 两层压暗：
+     ① 中间一团柔和的暗池 —— 标题/按钮/小字正好压在机身亮部上，不压这层读不清；
+     ② 上下暗角，把边缘压深、中间透气。
+     ⚠️ 实测：这团暗池要够宽够深（机身是高光金属，几乎接近纯白），
+        否则「使用须知 ›」这种浅蓝链接和底下的小字会糊在机身上。 */
+  .hero::after {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background:
+      radial-gradient(74% 68% at 50% 51%,
+        rgba(10,11,14,.62) 0%, rgba(10,11,14,.40) 56%, rgba(10,11,14,0) 100%),
+      linear-gradient(180deg,
+        rgba(10,11,14,.66) 0%, rgba(10,11,14,.18) 32%,
+        rgba(10,11,14,.44) 72%, rgba(10,11,14,.82) 100%);
+  }
+  .hero .eyebrow {
+    margin: 0 0 16px; font-size: 13px; font-weight: 600; letter-spacing: .04em;
+    color: rgba(255,255,255,.72);
+  }
   .hero h1 {
     font-size: clamp(38px, 5.4vw, 62px); font-weight: 700;
-    letter-spacing: -2.2px; line-height: 1.06; color: var(--ink);
+    letter-spacing: -2.2px; line-height: 1.06; color: #fff;
+    text-shadow: 0 2px 30px rgba(0,0,0,.34);
   }
   .hero .lede {
-    margin: 20px auto 0; font-size: 17px; color: var(--muted);
-    max-width: 560px; line-height: 1.62;
+    margin: 20px auto 0; font-size: 17px; color: rgba(255,255,255,.82);
+    max-width: 560px; line-height: 1.62; text-shadow: 0 1px 18px rgba(0,0,0,.42);
   }
   .hero .cta-row {
     margin-top: 28px; display: flex; align-items: center; justify-content: center;
@@ -119,45 +170,30 @@
   .link-more .chev { transition: transform var(--dur) var(--ease-out); }
   .link-more:hover { color: var(--brand-dark); }
   .link-more:hover .chev { transform: translateX(3px); }
+  /* 暗底上要把品牌蓝提亮一档，否则对比度不够；再补一层投影压住机身高光 */
+  .hero .link-more { color: #6fb3ff; text-shadow: 0 1px 14px rgba(0,0,0,.66); }
+  .hero .link-more:hover { color: #9dcaff; }
 
   .hero .factrow {
-    margin-top: 30px; display: flex; justify-content: center;
-    gap: 26px; flex-wrap: wrap;
+    margin-top: 34px; display: flex; justify-content: center;
+    gap: 30px; flex-wrap: wrap;
   }
   .hero .fact { display: inline-flex; align-items: baseline; gap: 7px; }
   .hero .fact .fv {
-    font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.2px;
+    font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px;
+    text-shadow: 0 1px 14px rgba(0,0,0,.66);
   }
-  .hero .fact .fl { font-size: 13px; color: var(--muted-2); }
-
-  /* ============ 3. 大图（占位）============
-     替换成真图：把 .ph 整块换成一个 img 标签（src 指向真图，样式 width:100%;display:block）。
-     ⚠️ 示例路径不要写成 src 加引号的字面量 —— validate-site.py 的正则是
-        (?:href|src)\s*=\s*"([^"]+)"，它会连**注释里的**示例一起当站内链接去查可达性，
-        于是凭空报两个断链。 */
-  .hero-media { margin: 46px 0 0; }
-  .ph {
-    position: relative; width: 100%; aspect-ratio: 2.2 / 1; min-height: 250px;
-    border-radius: 26px; overflow: hidden;
-    display: grid; place-items: center;
-    /* 占位纹理：极淡斜纹 + 冷白渐变，说明「这里是一张图」而不是「这里坏了」 */
-    background:
-      repeating-linear-gradient(135deg, rgba(29,29,31,.030) 0 1px, transparent 1px 13px),
-      radial-gradient(130% 105% at 50% -15%, #e9f2fd 0%, #f7f9fc 52%, #eef0f3 100%);
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,.045);
+  .hero .fact .fl {
+    font-size: 13px; color: rgba(255,255,255,.72);
+    text-shadow: 0 1px 12px rgba(0,0,0,.66);
   }
-  .ph .ph-in { text-align: center; color: var(--muted-2); }
-  .ph .ph-in .ph-t {
-    font-size: 14px; font-weight: 600; color: var(--muted);
-    letter-spacing: .2px;
-  }
-  .ph .ph-in .ph-s { margin-top: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 1px; }
 
   /* ============ 4. 工具卡片网格 ============ */
   /* 吸顶页眉高 52px —— 锚点跳转 / 搜索自动滚动要留出让开页眉的余量 */
   .tools { scroll-margin-top: 68px; }
   .tools-head {
-    margin: 74px 0 18px; display: flex; align-items: baseline;
+    /* 主视觉改成满屏通栏后，这里不再需要 74px 的大留白（.container 顶部已有 32px） */
+    margin: 24px 0 18px; display: flex; align-items: baseline;
     justify-content: space-between; gap: 16px; flex-wrap: wrap;
   }
   .tools-head h2 { font-size: 26px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
@@ -185,26 +221,32 @@
   .tile:nth-child(5) { animation-delay: .14s; } .tile:nth-child(6) { animation-delay: .17s; }
   .tile:nth-child(7) { animation-delay: .20s; } .tile:nth-child(8) { animation-delay: .23s; }
 
+  /* 卡片缩略图：该工具自己的暗色配图（16:10）。
+     图就是「这个工具长什么样」的第一印象，所以不再用图标占位。
+     同一张图在工具页里做页眉图片带 ⇒ 「卡片 → 点进去」视觉是连续的。 */
   .tile-thumb {
-    position: relative; aspect-ratio: 16 / 10;
-    display: grid; place-items: center; color: var(--brand);
-    background:
-      repeating-linear-gradient(135deg, rgba(29,29,31,.030) 0 1px, transparent 1px 13px),
-      radial-gradient(125% 100% at 50% -15%, #e9f2fd 0%, #f8fafd 55%, #eff0f3 100%);
+    position: relative; aspect-ratio: 16 / 10; overflow: hidden;
+    background: #101114;
   }
-  /* 图标做成「白底圆角方块 + 柔影」—— 让占位图看起来是设计过的，而不是空着。
-     48px 外框 - 12px 内边距 ×2 = 24px 内容区，正好 1:1 还原 24 的 viewBox。 */
-  .tile-thumb svg {
-    width: 48px; height: 48px; padding: 12px; display: block;
-    background: #fff; border-radius: 15px;
-    box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.07);
-    transition: transform var(--dur-slow) var(--ease-spring);
+  .tile-thumb img {
+    /* ⚠️ 必须用绝对定位撑满，不能写 height:100%：
+       .tile-thumb 的高度是 aspect-ratio 算出来的（height 属性仍是 auto），
+       百分比高度在这里解析不出来 → 图高 0 → 只剩容器底色，卡片显示成一块黑。
+       实测：`height:100%` 时 8 张图全部渲染成黑块（图其实已加载，naturalWidth=1400）。 */
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center;
+    transition: transform var(--dur-slow) var(--ease-out);
   }
-  .tile:hover .tile-thumb svg { transform: translateY(-3px) scale(1.04); }
+  .tile:hover .tile-thumb img { transform: scale(1.035); }
+  /* 编号角标：压在暗图上，用白字 + 半透明暗底胶囊，保证任何一张图上都读得清 */
   .tile-no {
-    position: absolute; left: 13px; top: 11px;
+    position: absolute; left: 12px; top: 11px; z-index: 1;
     font-family: var(--mono); font-size: 10.5px; font-weight: 700;
-    letter-spacing: 1.2px; color: var(--muted-2);
+    letter-spacing: 1.2px; color: #fff;
+    background: rgba(0,0,0,.36);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    border-radius: 6px; padding: 3px 7px;
   }
 
   .tile-body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1; }
@@ -279,11 +321,10 @@
     .search { flex: 1 1 auto; }
   }
   @media (max-width: 560px) {
-    .hero { padding: 40px 0 0; }
+    .hero { padding: 78px 18px 52px; min-height: 440px; }
     .hero h1 { letter-spacing: -1.6px; }
     .hero .cta-row { gap: 18px; }
-    .ph { aspect-ratio: 3 / 2; border-radius: 20px; }
-    .tools-head { margin-top: 52px; }
+    .tools-head { margin-top: 12px; }
     .grid { gap: 14px; }
   }
   /* 减弱动态效果：共享层已把动画时长压到 0.01ms，但位移要自己关掉 */
@@ -315,36 +356,27 @@
     </div>
   </header>
 
+  <!-- ============ 2. 满屏暗色主视觉 ============
+       图直接当 .hero 的 background、白色大字压在上面；页眉靠 margin-top:-52px 浮在图上。
+       配图 assets/hero-aircraft.webp 为原创生成，不含任何航司涂装 / 商标。 -->
+  <section class="hero">
+    <p class="eyebrow">航班地面服务 · 工作台</p>
+    <h1>八个工具，<br>装进出港的一天。</h1>
+    <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#tools" id="ctaBrowse">浏览全部工具</a>
+      <a class="link-more" href="#notice">使用须知<span class="chev">›</span></a>
+    </div>
+    <div class="factrow">
+      <div class="fact"><span class="fv">8 个</span><span class="fl">在线工具</span></div>
+      <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
+      <div class="fact"><span class="fv">⌘K</span><span class="fl">快速搜索</span></div>
+    </div>
+  </section>
+
   <div class="container">
 
-    <!-- ============ 2. 大字 ============ -->
-    <section class="hero">
-      <h1>八个工具，<br>装进出港的一天。</h1>
-      <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="#tools" id="ctaBrowse">浏览全部工具</a>
-        <a class="link-more" href="#notice">使用须知<span class="chev">›</span></a>
-      </div>
-      <div class="factrow">
-        <div class="fact"><span class="fv">8 个</span><span class="fl">在线工具</span></div>
-        <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
-        <div class="fact"><span class="fv">⌘K</span><span class="fl">快速搜索</span></div>
-      </div>
-    </section>
-
-    <!-- ============ 3. 大图（占位）============
-         换真图：把下面整个 div.ph 换成一个 img 标签，src 指向真实图片
-         （例如放在 assets/ 下），样式给 width:100%;display:block 即可。 -->
-    <section class="hero-media">
-      <div class="ph">
-        <div class="ph-in">
-          <div class="ph-t">主视觉占位图</div>
-          <div class="ph-s">16 : 8</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 4. 工具卡片 ============ -->
+    <!-- ============ 3. 工具卡片 ============ -->
     <section class="tools" id="tools">
       <div class="tools-head">
         <h2>全部工具</h2>
@@ -356,7 +388,7 @@
         <a class="tile" href="./manifest/index.html" data-keywords="01 国际名单转化 拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。 海关模板 出入境判定 Excel 预览 名单 加密">
           <div class="tile-thumb">
             <span class="tile-no">01</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+            <img src="./assets/tools/01-manifest.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>国际名单转化</h3>
@@ -369,7 +401,7 @@
         <a class="tile" href="./upgrade/index.html" data-keywords="02 升舱金额计算器 导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。 岗位比例 交叉汇总 下载 Excel 升舱 绩效">
           <div class="tile-thumb">
             <span class="tile-no">02</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>
+            <img src="./assets/tools/02-upgrade.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>升舱金额计算器</h3>
@@ -382,7 +414,7 @@
         <a class="tile" href="./schedule/index.html" data-keywords="03 出港排班表 导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。 登机口分配 负责人选择 下载 Excel 排班 特服 调时">
           <div class="tile-thumb">
             <span class="tile-no">03</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2M14 17h2"/></svg>
+            <img src="./assets/tools/03-schedule.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>出港排班表</h3>
@@ -395,7 +427,7 @@
         <a class="tile" href="./daily-report/index.html" data-keywords="04 航班日报生成器 在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，一键导出与官方版式一致的 Word 文档。 实时预览 值班安排 导出 Word 日报 接班 当班">
           <div class="tile-thumb">
             <span class="tile-no">04</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0V9"/><path d="M12 6h6M12 10h6M12 14h6M12 18h3"/></svg>
+            <img src="./assets/tools/04-daily-report.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>航班日报生成器</h3>
@@ -408,7 +440,7 @@
         <a class="tile" href="./kn-stats/index.html" data-keywords="05 KN航班出港统计 导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。 KN航班 截载时间 导出图片 中联航 订座">
           <div class="tile-thumb">
             <span class="tile-no">05</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l20-20-4 1-3 4-6 1-2 2 5 3 3 5 2-2 1-6z"/><path d="M2 22l6-6"/></svg>
+            <img src="./assets/tools/05-kn-stats.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>KN航班出港统计</h3>
@@ -421,7 +453,7 @@
         <a class="tile" href="./merge/index.html" data-keywords="06 东上联日数据汇总 整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。 东上联/总表 PDF自动填 导出 Excel 东航 上航 联航 周报">
           <div class="tile-thumb">
             <span class="tile-no">06</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/></svg>
+            <img src="./assets/tools/06-merge.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>东上联日数据汇总</h3>
@@ -434,7 +466,7 @@
         <a class="tile" href="./todo/index.html" data-keywords="07 每日待办 按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。 按日记录 历史回看 本地保存 待办 日历">
           <div class="tile-thumb">
             <span class="tile-no">07</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4a2 2 0 0 1 2 2v2H8V4a2 2 0 0 1 2-2z"/><rect x="4" y="6" width="16" height="16" rx="2"/><path d="M9 13l2 2 4-4"/></svg>
+            <img src="./assets/tools/07-todo.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>每日待办</h3>
@@ -447,7 +479,7 @@
         <a class="tile" href="./early-ontime/index.html" data-keywords="08 早始发正常率测算 录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。 机场对标 T1·T2·T3 档位 追不上告警 正常率 早始发">
           <div class="tile-thumb">
             <span class="tile-no">08</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 12h.01"/></svg>
+            <img src="./assets/tools/08-early-ontime.webp" alt="" width="1400" height="933" loading="lazy">
           </div>
           <div class="tile-body">
             <h3>早始发正常率测算</h3>
