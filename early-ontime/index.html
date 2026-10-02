@@ -10,11 +10,12 @@
 <meta property="og:title" content="早始发正常率测算 · 航班工作工具集">
 <meta property="og:description" content="录入我方与机场的当月早始发班数，按 T1/T2/T3 三档算出还要追回几班正常，并判断剩余航班追不追得上。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/early-ontime/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ early-ontime · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #7d5a8f; }
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
 /* ============ 输入表 ============ */
   table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -33,7 +34,7 @@ table.io-table td.ro { background: #fafafa !important; color: var(--muted); font
 
 /* 派生格：只读。**正常率是主角** —— 放大、加粗、用工具色；正常班数退成小字配角。
    两处（① 表内 td.ro / ② 区 .set-cell.ro）用同一套类名，改一处即可同步。 */
-.set-cell.ro { background: #f4f0f7; border-color: #e3dcec; }
+.set-cell.ro { background: var(--tool-soft); border-color: var(--tool-line); }
 .set-cell.ro .roval { text-align: center; padding: 2px 0; }
 .set-cell.ro .ro-rate { display: block; font-size: 21px; font-weight: 800; color: var(--tool);
                         font-variant-numeric: tabular-nums; letter-spacing: -.7px; line-height: 1.15; }
@@ -48,8 +49,12 @@ table.io-table td.ro { background: #fafafa !important; color: var(--muted); font
 /* 小按钮（读取今天） */
 .mini-btn { font: inherit; font-size: 12.5px; padding: 5px 14px; border-radius: 980px;
             border: 1px solid var(--line); background: #fff; color: var(--tool); cursor: pointer;
-            margin-right: 8px; }
-.mini-btn:hover { border-color: var(--tool); background: #f7f4f9; }
+            margin-right: 8px;
+            transition: border-color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout),
+                        color var(--dur-fast) var(--ease-inout), box-shadow var(--dur) var(--ease-out),
+                        transform var(--dur) var(--ease-spring); }
+.mini-btn:hover { border-color: var(--tool); background: var(--tool-light); box-shadow: 0 2px 6px rgba(0,0,0,.06); transform: translateY(-1px); }
+.mini-btn:active { transform: scale(.96); box-shadow: var(--shadow-press); transition-duration: .07s; }
 
 /* ① 区的表格滚动容器；没有副标题，故补足 h2 与表格之间的间距（共享层 h2 只有 4px 下边距） */
 .io-wrap { overflow-x: auto; }
@@ -67,8 +72,8 @@ table.io-table td.ro .ro-err { font-size: 11.5px; font-weight: 400; color: var(-
    注意 T1 用橙不用红 —— 红留给「低于 T1」，否则「三档都没达到」反而比「刚够 T1」看着更轻。 */
 .tier { display: inline-block; padding: 2px 11px; border-radius: 980px; font-size: 12.5px;
         font-weight: 700; border: 1px solid var(--line); background: #f5f5f7; color: var(--muted); white-space: nowrap; }
-.tier.t0 { background: var(--danger-soft);  color: var(--danger);  border-color: #eccfcb; }
-.tier.t1 { background: var(--amber-soft);   color: var(--amber);   border-color: #eed9b8; }
+.tier.t0 { background: var(--danger-soft);  color: var(--danger);  border-color: var(--danger-line); }
+.tier.t1 { background: var(--amber-soft);   color: var(--amber);   border-color: var(--amber-line); }
 .tier.t2 { background: var(--success-light);color: var(--success); border-color: #c6e3d4; }
 .tier.t3 { background: var(--success);      color: #fff;           border-color: var(--success); }
 
@@ -92,17 +97,29 @@ table.io-table td.ro .ro-err { font-size: 11.5px; font-weight: 400; color: var(-
 .goal-tabs button {
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
   padding: 7px 16px; border-radius: 980px; border: 1px solid var(--line);
-  background: #fff; color: var(--muted); transition: border-color .15s, color .15s, background .15s;
+  background: #fff; color: var(--muted);
+  transition: border-color var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout),
+              background var(--dur-fast) var(--ease-inout), box-shadow var(--dur) var(--ease-out),
+              transform var(--dur) var(--ease-spring);
 }
-.goal-tabs button:hover { border-color: var(--tool); color: var(--tool); }
+.goal-tabs button:hover { border-color: var(--tool); color: var(--tool);
+  background: var(--tool-light); background: color-mix(in srgb, var(--tool) 9%, #fff);
+  box-shadow: 0 2px 6px rgba(0,0,0,.06); transform: translateY(-1px); }
+.goal-tabs button:active { transform: scale(.97); transition-duration: .07s; }
 .goal-tabs button.on { background: var(--tool); border-color: var(--tool); color: #fff; }
+/* 🔥 原先 `.goal-tabs button:hover` 把字色改成 var(--tool)，而选中态 .on 的底色
+   正是 var(--tool) —— 于是「紫字压紫底」，选中的那一档文字**直接看不见**。
+   选中态悬停只加深底色，字保持白色。 */
+.goal-tabs button.on:hover { background: var(--tool); border-color: var(--tool); color: #fff;
+  background: color-mix(in srgb, var(--tool) 86%, #000);
+  box-shadow: 0 2px 6px rgba(0,0,0,.10); }
 .goal-hint { font-size: 12.5px; color: var(--muted-2); margin-left: auto; white-space: nowrap; }
 
 /* ============ 追赶目标卡（结果区主角）============ */
 .goal-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 14px; }
 .goal-card { border: 1px solid var(--line); border-radius: var(--radius-sm);
              padding: 16px 18px 17px; background: #fff; }
-.goal-card.fail { border-color: #eccfcb; background: var(--danger-soft); }
+.goal-card.fail { border-color: var(--danger-line); background: var(--danger-soft); }
 .goal-card.done { border-color: #c6e3d4; background: var(--success-light); }
 .gc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .gc-name { font-size: 15.5px; font-weight: 700; color: var(--ink); }
@@ -141,15 +158,15 @@ table.out-table td.rowname { background: #fafafa; color: var(--ink); font-weight
                              position: sticky; left: 0; z-index: 1; }
 table.out-table td.mono { font-variant-numeric: tabular-nums; }
 /* 三档对照表里，把当前选中的目标档位列标出来 */
-table.out-table td.hl { background: #f4f0f7; }
-table.out-table thead th.hl { background: #f4f0f7 !important; color: var(--tool) !important; }
+table.out-table td.hl { background: var(--tool-soft); }
+table.out-table thead th.hl { background: var(--tool-soft) !important; color: var(--tool) !important; }
 
 .empty-tip { text-align: center; color: var(--muted-2); font-size: 13.5px; padding: 26px 0; white-space: normal; }
 
 /* ============ 提示 / 告警条 ============ */
 .alert { display: none; margin-top: 18px; border-radius: var(--radius-sm); padding: 14px 18px;
          font-size: 13.5px; line-height: 1.8; background: var(--danger-soft);
-         border: 1px solid #eccfcb; border-left: 4px solid var(--danger); color: var(--danger); }
+         border: 1px solid var(--danger-line); border-left: 4px solid var(--danger); color: var(--danger); }
 .alert.show { display: block; }
 .alert b { color: var(--danger); }
 .alert .row { margin-top: 6px; }
@@ -158,7 +175,7 @@ table.out-table thead th.hl { background: #f4f0f7 !important; color: var(--tool)
             background: #fafafa; border: 1px solid var(--line); font-size: 13.5px; color: var(--muted); line-height: 1.75; }
 .ref-line b { color: var(--ink); }
 /* 三格都填但对不上时提示，复用 ref-line 版式换琥珀色 */
-.ref-line.warn-line { background: var(--amber-soft); border-color: #eed9b8; color: var(--amber); }
+.ref-line.warn-line { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 .ref-line.warn-line b { color: var(--amber); }
 
 .sec-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 24px 0 10px; }

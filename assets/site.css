@@ -50,15 +50,51 @@
   --amber:        #b4610d;
   --amber-soft:   #fdf3e3;
   --danger:       #b3362b;
+  --danger-dark:  #98281f;   /* 悬停档；原先硬编码在 .btn-danger:hover 里 */
   --danger-soft:  #fbeeed;
+  /* 语义色描边（原先在 5 个页面里各硬编码了一遍 #eccfcb / #eed9b8 / #c6e3d4） */
+  --success-line: #c6e3d4;
+  --amber-line:   #eed9b8;
+  --danger-line:  #eccfcb;
   /* 尺度 */
   --radius:       18px;
   --radius-sm:    11px;
+  --radius-xs:    8px;
+  --radius-pill:  980px;
   --shadow-sm:    0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.035);
   --shadow:       0 8px 28px rgba(0,0,0,.07);
   --shadow-lg:    0 18px 46px rgba(0,0,0,.12);
-  /* 工具识别色（各页 :root 覆盖 --tool） */
+  /* 悬停抬升用的「有颜色」阴影：比纯黑阴影更有质感 */
+  --shadow-lift:  0 2px 6px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.085);
+  --shadow-press: 0 1px 2px rgba(0,0,0,.10);
+  /* ---- 动效（Apple 风）------------------------------------------------
+     原先全站 57 处 transition 的缓动**清一色是 `ease`**，只有 rules-body
+     一处用了 cubic-bezier。`ease` 起步快、收尾软，看着「飘」；苹果的手感
+     来自「起步快、收尾极慢」的强减速曲线，以及按下时的轻微回弹。
+     时长也统一：交互反馈 160ms、元素变化 240ms、展开收起 380ms。 */
+  --ease-out:    cubic-bezier(.22, 1, .36, 1);     /* 强减速：抬升 / 进场 */
+  --ease-inout:  cubic-bezier(.4, 0, .2, 1);       /* 常规属性过渡 */
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);  /* 轻微过冲：按压回弹 */
+  --dur-fast:    .16s;
+  --dur:         .24s;
+  --dur-slow:    .38s;
+  /* 交互主色（--tool）。
+     🔥 2026-10-02 **全站统一为单一苹果蓝**：10 个工具页原先各自在 :root 里覆盖
+        --tool（砖红 / 紫 / 靛 / 粉 / 青…），首页也是 8 张彩色卡片。用户明确否决了
+        这个方向（「我不喜欢五颜六色，我希望像苹果一样视觉统一」），所以：
+          · 各页的 --tool 覆盖**已全部删除**，全部继承下面的 var(--brand)；
+          · 蓝色只用于「可点击的东西」（按钮 / 链接 / 焦点环）—— 这是苹果的用色规则；
+          · 首页改为「白色页眉 → 大字 → 大图 → 圆角卡片」，靠版式与图形区分工具，不靠颜色。
+        保留的彩色只有**数据含义色**：schedule 的 6 个负责人标签、todo 日历圆点、
+        merge 总表金色、全站 success/amber/danger 语义色，以及 daily-report 的
+        --docred/--docnavy（那是 Word 版式的文档色）。
+     四档阶梯的强度与 --brand-light/soft/dark 对齐（只换色相，不改设计）：
+         light 6% / soft 14% / line 30% / dark 80%+20% 黑。 */
   --tool:         var(--brand);
+  --tool-light:   #F0F6FD;   /* 6%  —— 对应 --brand-light #eff6ff */
+  --tool-soft:    #DBEBFB;   /* 14% —— 对应 --brand-soft  #dcecff */
+  --tool-line:    #B2D4F7;   /* 30% */
+  --tool-dark:    #005AB6;   /* 80% + 20% 黑 —— 对应 --brand-dark #005bb5 */
   --mono:         ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   /* 兼容别名：旧版变量名，todo / daily-report 仍在使用 */
   --ok:           var(--success);
@@ -146,8 +182,9 @@ body {
   background: var(--card); border: 1px solid rgba(210,210,215,.9) !important;
   border-radius: var(--radius) !important; margin-bottom: 22px;
   box-shadow: var(--shadow-sm) !important; overflow: hidden;
-  transition: box-shadow .2s;
+  transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur-fast) var(--ease-inout);
 }
+.rules-panel:hover { box-shadow: var(--shadow) !important; }
 .rules-panel > summary, .rules-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 17px 21px !important; margin: 0;
@@ -214,7 +251,7 @@ body {
 
 /* 细则提示条 */
 .rules-note {
-  background: var(--amber-soft); border: 1px solid #eed9b8; border-left: 4px solid var(--amber);
+  background: var(--amber-soft); border: 1px solid var(--amber-line); border-left: 4px solid var(--amber);
   padding: 14px 18px; border-radius: 10px;
   font-size: 13px; color: var(--ink-2); line-height: 1.9;
 }
@@ -252,12 +289,14 @@ body {
   background: #fff !important; border: 1.5px dashed #c7c7cc !important;
   border-radius: var(--radius) !important;
   padding: 40px 20px; text-align: center; cursor: pointer;
-  transition: border-color .18s, background .18s;
+  transition: border-color var(--dur-fast) var(--ease-inout),
+              background var(--dur-fast) var(--ease-inout),
+              box-shadow var(--dur) var(--ease-out);
   box-shadow: none;
 }
 .upload-zone:hover, .upload-zone.dragover, .upload-zone.drag {
   border-color: var(--brand) !important; background: #f7fbff !important;
-  box-shadow: none; transform: none;
+  box-shadow: 0 0 0 4px rgba(0,113,227,.07) !important; transform: none;
 }
 .upload-zone .icon, .upload-zone .uz-ic {
   width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 13px;
@@ -286,9 +325,11 @@ body {
   background: var(--card); padding: 20px !important;
   border-radius: var(--radius) !important; box-shadow: var(--shadow-sm) !important;
   border: 1px solid var(--line);
-  transition: box-shadow .18s, border-color .18s;
+  transition: box-shadow var(--dur) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-inout),
+              transform var(--dur) var(--ease-spring);
 }
-.summary-card:hover { box-shadow: var(--shadow); border-color: var(--brand-soft); transform: none; }
+.summary-card:hover { box-shadow: var(--shadow-lift); border-color: var(--brand-soft); transform: translateY(-2px); }
 .summary-card::before { content: none; }
 .summary-card .card-top { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 /* 注意：这条会压住下面 .accent-green 的绿色图标配色 —— 合并前的既有行为。 */
@@ -311,38 +352,85 @@ body {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   border: none; cursor: pointer; text-decoration: none;
   font-size: 13.5px; font-weight: 600 !important; padding: 10px 18px !important;
-  border-radius: 980px !important; background: var(--brand) !important;
-  color: #fff; box-shadow: none !important;
-  transition: background .15s, transform .12s, box-shadow .15s;
+  border-radius: var(--radius-pill) !important; background: var(--tool) !important;
+  color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.07);
+  transition: background var(--dur-fast) var(--ease-inout),
+              box-shadow var(--dur) var(--ease-out),
+              transform var(--dur) var(--ease-spring),
+              border-color var(--dur-fast) var(--ease-inout),
+              color var(--dur-fast) var(--ease-inout);
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
-/* 悬停一律回到品牌深蓝。注意 ghost / green / danger 也不例外 ——
-   这是原先覆盖层 !important 造成的实际结果，这里按实况写明。 */
-.btn:hover, .btn-primary:hover, .btn-success:hover,
-.btn.ghost:hover, .btn-ghost:hover,
-.btn.green:hover, .btn-danger:hover {
-  background: var(--brand-dark) !important;
-  box-shadow: none !important; transform: none !important;
+/* 悬停：抬升 1px + 一圈品牌色柔光。
+   🔥 原先是 `transform: none !important` + `box-shadow: none !important` ——
+      等于把上面声明的 transform / box-shadow 过渡变成了**死过渡**
+      （声明了却永不变化，实测 4 个按钮命中）。这正是「按钮没有手感」的根因。
+      现在换成真实的抬升，并把阴影做成品牌色柔光而不是纯黑。 */
+.btn:hover, .btn-primary:hover, .btn-success:hover {
+  background: var(--tool-dark) !important;
+  /* 柔光跟随工具色；color-mix 不支持时回退到上面的品牌蓝 */
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--tool) 20%, transparent),
+              0 10px 22px color-mix(in srgb, var(--tool) 18%, transparent) !important;
+  transform: translateY(-1px) !important;
 }
-.btn:active, .btn-primary:active { transform: translateY(0); }
-.btn.ghost, .btn-ghost { background: #f5f5f7 !important; color: var(--brand) !important; box-shadow: none; }
-.btn.green { background: var(--success); }
-.btn-danger { background: var(--danger); }
+/* 按下：缩到 97% 并贴回地面。苹果按钮的「物理感」就来自这一下。 */
+.btn:active, .btn-primary:active, .btn-success:active,
+.btn.ghost:active, .btn-ghost:active,
+.btn.green:active, .btn-danger:active {
+  transform: scale(.97) translateY(0) !important;
+  box-shadow: var(--shadow-press) !important;
+  transition-duration: .07s !important;
+}
+/* 🔥 幽灵按钮：原先是「悬停 → 深蓝底，但字色仍是 var(--brand) 蓝」——
+      蓝字压深蓝底，对比度直接崩掉（实测 hover 背景 rgb(0,91,181)、字色不变）。
+      现在悬停给白字 + 品牌浅蓝底，既保住对比度又更像苹果的次级按钮。 */
+.btn.ghost, .btn-ghost { background: #f5f5f7 !important; color: var(--tool) !important; box-shadow: none; }
+.btn.ghost:hover, .btn-ghost:hover {
+  background: var(--tool) !important; color: #fff !important;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--tool) 20%, transparent),
+              0 10px 22px color-mix(in srgb, var(--tool) 18%, transparent) !important;
+  transform: translateY(-1px) !important;
+}
+/* 🔥 绿 / 红按钮原先悬停也变成「品牌深蓝」—— 语义色被换掉，很跳。
+      改为各自的深色档，保持语义。 */
+.btn.green { background: var(--success) !important; }
+.btn.green:hover {
+  background: var(--success-dark) !important; color: #fff !important;
+  box-shadow: 0 2px 6px rgba(30,122,85,.20), 0 10px 22px rgba(30,122,85,.18) !important;
+  transform: translateY(-1px) !important;
+}
+.btn-danger { background: var(--danger) !important; }
+.btn-danger:hover {
+  background: var(--danger-dark) !important; color: #fff !important;
+  box-shadow: 0 2px 6px rgba(179,54,43,.20), 0 10px 22px rgba(179,54,43,.18) !important;
+  transform: translateY(-1px) !important;
+}
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
 .btn-sm {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 12px; font-weight: 600; padding: 5px 11px;
-  border: 1px solid #d2d2d7 !important; background: #fff !important; color: var(--ink-2) !important;
+  border: 1px solid var(--line) !important; background: #fff !important; color: var(--ink-2) !important;
   cursor: pointer;
 }
 /* row-btn / period-tab / addrow 只由 site.css 补胶囊圆角与过渡，
    其余样式仍由各页自己负责 —— 不要并进 .btn-sm 组，否则会给它们
    凭空加上 display / padding / border 等属性。 */
 .btn-sm, .row-btn, .period-tab, .addrow {
-  border-radius: 980px !important;
-  transition: background .15s, border-color .15s, color .15s;
+  border-radius: var(--radius-pill) !important;
+  transition: background var(--dur-fast) var(--ease-inout),
+              border-color var(--dur-fast) var(--ease-inout),
+              color var(--dur-fast) var(--ease-inout),
+              transform var(--dur) var(--ease-spring),
+              box-shadow var(--dur) var(--ease-out);
 }
-.btn-sm:hover, .row-btn:hover { border-color: var(--brand) !important; color: var(--brand) !important; background: var(--brand-light) !important; }
+.btn-sm:hover, .row-btn:hover {
+  border-color: var(--tool) !important; color: var(--tool) !important;
+  background: var(--tool-light) !important; transform: translateY(-1px) !important;
+}
+.btn-sm:active, .row-btn:active, .period-tab:active, .addrow:active {
+  transform: scale(.96) !important; transition-duration: .07s !important;
+}
 .btn-sm.danger:hover, .row-btn.danger:hover { border-color: var(--danger) !important; color: var(--danger) !important; background: var(--danger-soft) !important; }
 .btn-sm.draft:hover { border-color: var(--amber) !important; color: var(--amber) !important; background: var(--amber-soft) !important; }
 .actions { text-align: center; margin: 12px 0 8px; }
@@ -353,13 +441,13 @@ body {
 .hint { font-size: 12.5px; color: var(--muted-2); margin-top: 10px; }
 .hint-ok { color: var(--success-dark); font-size: 13px; font-weight: 600; margin-top: 12px; }
 .hint-err { color: var(--danger); font-size: 13px; font-weight: 600; margin-top: 12px; }
-.error-box { display: none; background: var(--danger-soft); border: 1px solid #eccfcb; color: var(--danger); border-left: 3px solid var(--danger);
+.error-box { display: none; background: var(--danger-soft); border: 1px solid var(--danger-line); color: var(--danger); border-left: 3px solid var(--danger);
              border-radius: var(--radius-sm); padding: 13px 16px; margin-bottom: 18px; font-size: 13.5px; line-height: 1.7; }
 .error-box.show { display: block; }
 .pdf-msg, .enc-hint { border-radius: var(--radius-sm); font-size: 13.5px; line-height: 1.6; }
-.pdf-msg.ok { background: var(--success-light); color: var(--success-dark); border: 1px solid #c6e3d4; }
-.pdf-msg.warn { background: var(--amber-soft); color: #8a4d0b; border: 1px solid #eed9b8; }
-.pdf-msg.err { background: var(--danger-soft); color: var(--danger); border: 1px solid #eccfcb; }
+.pdf-msg.ok { background: var(--success-light); color: var(--success-dark); border: 1px solid var(--success-line); }
+.pdf-msg.warn { background: var(--amber-soft); color: #8a4d0b; border: 1px solid var(--amber-line); }
+.pdf-msg.err { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-line); }
 
 /* ============ 表格基础 ============ */
 .table-scroll { overflow-x: auto; border: 1px solid #d2d2d7 !important; border-radius: var(--radius) !important; }
@@ -432,6 +520,31 @@ footer, .site-footer { text-align: center; color: var(--muted-2) !important; fon
 .topbar { background: rgba(255,255,255,.92) !important; backdrop-filter: blur(16px); }
 .grp { border-color: #d2d2d7 !important; border-radius: 14px !important; overflow: hidden; box-shadow: none !important; }
 .grp > h2 { background: #fafafa !important; }
+
+/* ============ 动效降级（无障碍）============
+   全站此前**一条 prefers-reduced-motion 都没有**。系统开了「减弱动态效果」
+   （前庭功能障碍、晕动症用户会开）的人，看到的仍是全部位移/缩放。
+   这里统一把位移与缩放归零，只保留颜色与阴影的淡入淡出 —— 信息不丢，
+   但不再有「动」。
+   ⚠️ 用 * 而不是逐个类：本项目有 11 个页面、各带内联样式，逐个列必漏。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:hover, .btn-primary:hover, .btn-success:hover,
+  .btn.ghost:hover, .btn-ghost:hover, .btn.green:hover, .btn-danger:hover,
+  .btn-sm:hover, .row-btn:hover, .summary-card:hover, .rules-panel:hover {
+    transform: none !important;
+  }
+  .btn:active, .btn-primary:active, .btn-success:active,
+  .btn.ghost:active, .btn-ghost:active, .btn.green:active, .btn-danger:active,
+  .btn-sm:active, .row-btn:active, .period-tab:active, .addrow:active {
+    transform: none !important;
+  }
+}
 
 /* ============ 响应式 ============ */
 @media (max-width: 640px) {

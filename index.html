@@ -10,89 +10,247 @@
 <meta property="og:title" content="航班工作工具集 · 导航">
 <meta property="og:description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、早始发正常率测算等 8 个工具，覆盖出港全流程。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/index.html">
-<meta name="theme-color" content="#0071e3">
+<!-- 首页页眉是白色通栏，移动端浏览器 chrome 也跟着白 -->
+<meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="./assets/site.css">
 <style>
-  /* ============ 导航页特有样式 ============ */
-  .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 22px 2px 18px; margin-bottom: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .topbar .brandmark { display: flex; align-items: center; gap: 11px; text-decoration: none; }
-  .topbar .brandmark svg { display: block; color: var(--brand); }
-  .topbar .brandmark .bm-t { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: .2px; }
-  .topbar .meta {
-    font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
-    color: var(--muted-2); text-transform: uppercase;
-  }
-  .topbar .meta b { color: var(--muted); font-weight: 500; }
+  /* ============================================================
+     首页 · 苹果风改版（2026-10-02）
 
-  .hero { padding: 52px 2px 40px; }
+     改版前：页眉是一个「带描边的圆角盒子」、主色 8 色横条、8 张各带身份色的卡片。
+     改版后：通栏半透明白页眉（吸顶）→ 大字 hero → 一张大图 → 圆角卡片网格，
+             全站只用「一个蓝」做交互色。
+
+     ⚠️ 旧注释曾写「.hero h1 / .lede / .factrow / .fact 是首页最初的版式，别再删」。
+        这条约定已被本次改版**有意取代**：结构重写为苹果官网的
+        「大字标题 → 大图 → 卡片」三段式，.stripe（8 色横条）整体删除。
+        还原点：.workbuddy-ai/backup/apple-redesign-20261002/index.html.orig
+
+     配色：本页只从 assets/site.css 的 :root 取色，不新造色值。
+           蓝色只用于「可点击的东西」（按钮 / 链接 / 焦点环），这是苹果的用色规则。
+     ============================================================ */
+
+  /* 首页是白底（site.css 里 body 是 #f5f5f7）。同特异性下页面 <style> 在后 → 覆盖成功。 */
+  body { background: #fff !important; }
+  html { scroll-behavior: smooth; }
+
+  /* ============ 1. 通栏吸顶页眉 ============
+     苹果的全局导航：白色半透明 + 毛玻璃，滚动前无描边、滚动后出现一条细线。 */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255,255,255,.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--dur) var(--ease-inout), background var(--dur) var(--ease-inout);
+  }
+  .nav.scrolled { border-bottom-color: rgba(0,0,0,.10); background: rgba(255,255,255,.86); }
+  .nav-inner {
+    max-width: 1180px; margin: 0 auto; padding: 0 28px;
+    height: 52px; display: flex; align-items: center; gap: 18px;
+  }
+  .brandmark {
+    display: inline-flex; align-items: center; gap: 9px;
+    text-decoration: none; flex-shrink: 0;
+  }
+  .brandmark svg { display: block; color: var(--ink); }
+  .brandmark .bm-t { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.2px; }
+
+  /* 搜索：胶囊输入框。input[type=search] 不在共享层的「输入框墙」选择器里，
+     所以描边/圆角/底色全部由这里自己定。 */
+  .search {
+    position: relative; margin-left: auto; flex: 0 1 320px;
+    display: flex; align-items: center;
+  }
+  .search .s-ic {
+    position: absolute; left: 11px; width: 15px; height: 15px;
+    color: var(--muted-2); pointer-events: none;
+  }
+  .search input {
+    width: 100%; height: 34px; padding: 0 32px 0 33px;
+    font-family: inherit; font-size: 13px; color: var(--ink);
+    background: rgba(0,0,0,.045); border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    -webkit-appearance: none; appearance: none;
+    transition: background var(--dur-fast) var(--ease-inout),
+                border-color var(--dur-fast) var(--ease-inout),
+                box-shadow var(--dur-fast) var(--ease-inout);
+  }
+  .search input::placeholder { color: var(--muted-2); }
+  .search input::-webkit-search-cancel-button { display: none; }
+  .search input:hover { background: rgba(0,0,0,.065); }
+  .search input:focus {
+    outline: none; background: #fff;
+    border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14);
+  }
+  .search .s-clear {
+    position: absolute; right: 7px; width: 20px; height: 20px;
+    display: none; align-items: center; justify-content: center;
+    border: none; background: rgba(0,0,0,.10); color: #fff;
+    border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1;
+    padding: 0; font-family: inherit;
+    transition: background var(--dur-fast) var(--ease-inout);
+  }
+  .search.has-value .s-clear { display: flex; }
+  .search .s-clear:hover { background: rgba(0,0,0,.28); }
+
+  /* ============ 2. Hero：大字 ============ */
+  .hero { padding: 62px 4px 0; text-align: center; }
   .hero h1 {
-    font-size: clamp(30px, 4.2vw, 42px); font-weight: 800;
-    letter-spacing: -1px; line-height: 1.15; color: var(--ink);
+    font-size: clamp(38px, 5.4vw, 62px); font-weight: 700;
+    letter-spacing: -2.2px; line-height: 1.06; color: var(--ink);
   }
   .hero .lede {
-    margin-top: 14px; font-size: 14.5px; color: var(--muted);
-    max-width: 560px; line-height: 1.75;
+    margin: 20px auto 0; font-size: 17px; color: var(--muted);
+    max-width: 560px; line-height: 1.62;
   }
-  .hero .factrow { display: flex; gap: 26px; margin-top: 22px; flex-wrap: wrap; }
-  .hero .fact { display: flex; align-items: baseline; gap: 8px; }
-  .hero .fact .fv { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--brand); }
-  .hero .fact .fl { font-size: 12px; color: var(--muted-2); }
-  .hero .stripe { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 34px; max-width: 420px; }
-  .hero .stripe i { flex: 1; }
+  .hero .cta-row {
+    margin-top: 28px; display: flex; align-items: center; justify-content: center;
+    gap: 26px; flex-wrap: wrap;
+  }
+  /* 主按钮：蓝色胶囊（共享层 .btn 已有底色/圆角/悬停，这里只调尺寸） */
+  .hero .btn-primary { padding: 12px 30px !important; font-size: 15px; }
+  /* 次级入口：蓝色文字 + ›（苹果的「进一步了解」） */
+  .link-more {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 15px; color: var(--brand); text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-inout);
+  }
+  .link-more .chev { transition: transform var(--dur) var(--ease-out); }
+  .link-more:hover { color: var(--brand-dark); }
+  .link-more:hover .chev { transform: translateX(3px); }
 
-  /* ============ 工具网格 ============ */
+  .hero .factrow {
+    margin-top: 30px; display: flex; justify-content: center;
+    gap: 26px; flex-wrap: wrap;
+  }
+  .hero .fact { display: inline-flex; align-items: baseline; gap: 7px; }
+  .hero .fact .fv {
+    font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.2px;
+  }
+  .hero .fact .fl { font-size: 13px; color: var(--muted-2); }
+
+  /* ============ 3. 大图（占位）============
+     替换成真图：把 .ph 整块换成一个 img 标签（src 指向真图，样式 width:100%;display:block）。
+     ⚠️ 示例路径不要写成 src 加引号的字面量 —— validate-site.py 的正则是
+        (?:href|src)\s*=\s*"([^"]+)"，它会连**注释里的**示例一起当站内链接去查可达性，
+        于是凭空报两个断链。 */
+  .hero-media { margin: 46px 0 0; }
+  .ph {
+    position: relative; width: 100%; aspect-ratio: 2.2 / 1; min-height: 250px;
+    border-radius: 26px; overflow: hidden;
+    display: grid; place-items: center;
+    /* 占位纹理：极淡斜纹 + 冷白渐变，说明「这里是一张图」而不是「这里坏了」 */
+    background:
+      repeating-linear-gradient(135deg, rgba(29,29,31,.030) 0 1px, transparent 1px 13px),
+      radial-gradient(130% 105% at 50% -15%, #e9f2fd 0%, #f7f9fc 52%, #eef0f3 100%);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.045);
+  }
+  .ph .ph-in { text-align: center; color: var(--muted-2); }
+  .ph .ph-in .ph-t {
+    font-size: 14px; font-weight: 600; color: var(--muted);
+    letter-spacing: .2px;
+  }
+  .ph .ph-in .ph-s { margin-top: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 1px; }
+
+  /* ============ 4. 工具卡片网格 ============ */
+  /* 吸顶页眉高 52px —— 锚点跳转 / 搜索自动滚动要留出让开页眉的余量 */
+  .tools { scroll-margin-top: 68px; }
+  .tools-head {
+    margin: 74px 0 18px; display: flex; align-items: baseline;
+    justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .tools-head h2 { font-size: 26px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
+  .tools-head .count { font-size: 13px; color: var(--muted-2); }
+
+  /* 1180px 容器下正好 3 列（4 列需要 4×296+54=1238px，放不下）→ 卡片约 381px 宽，
+     比 4 列（271px）宽裕得多，说明文字不再挤成 5 行。 */
   .grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 14px; margin-top: 26px;
+    display: grid; gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
   }
-  .card {
-    position: relative; display: flex; flex-direction: column;
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  .tile {
+    display: flex; flex-direction: column;
+    background: var(--card); border-radius: 22px; overflow: hidden;
     text-decoration: none; color: inherit;
-    padding: 20px 22px 18px;
-    opacity: 0; transform: translateY(8px); animation: fadeUp .3s ease-out forwards;
-    transition: border-color .15s, box-shadow .15s, transform .15s;
+    box-shadow: 0 2px 10px rgba(0,0,0,.055), 0 0 0 1px rgba(0,0,0,.035);
+    transition: transform var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out);
+    opacity: 0; animation: tileIn .5s var(--ease-out) forwards;
   }
-  .card:hover { border-color: var(--tool); box-shadow: var(--shadow); transform: translateY(-2px); }
-  .card .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .card .no {
-    font-family: var(--mono); font-size: 13px; font-weight: 700;
-    color: var(--tool); letter-spacing: 1px;
+  .tile:hover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(0,0,0,.11), 0 0 0 1px rgba(0,0,0,.035); }
+  .tile.is-hidden { display: none; }
+  @keyframes tileIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .tile:nth-child(1) { animation-delay: .02s; } .tile:nth-child(2) { animation-delay: .05s; }
+  .tile:nth-child(3) { animation-delay: .08s; } .tile:nth-child(4) { animation-delay: .11s; }
+  .tile:nth-child(5) { animation-delay: .14s; } .tile:nth-child(6) { animation-delay: .17s; }
+  .tile:nth-child(7) { animation-delay: .20s; } .tile:nth-child(8) { animation-delay: .23s; }
+
+  .tile-thumb {
+    position: relative; aspect-ratio: 16 / 10;
+    display: grid; place-items: center; color: var(--brand);
+    background:
+      repeating-linear-gradient(135deg, rgba(29,29,31,.030) 0 1px, transparent 1px 13px),
+      radial-gradient(125% 100% at 50% -15%, #e9f2fd 0%, #f8fafd 55%, #eff0f3 100%);
   }
-  .card .card-go {
-    font-size: 15px; color: var(--muted-2); line-height: 1;
-    transition: color .15s, transform .15s;
+  /* 图标做成「白底圆角方块 + 柔影」—— 让占位图看起来是设计过的，而不是空着。
+     48px 外框 - 12px 内边距 ×2 = 24px 内容区，正好 1:1 还原 24 的 viewBox。 */
+  .tile-thumb svg {
+    width: 48px; height: 48px; padding: 12px; display: block;
+    background: #fff; border-radius: 15px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.07);
+    transition: transform var(--dur-slow) var(--ease-spring);
   }
-  .card:hover .card-go { color: var(--tool); transform: translate(2px, -2px); }
-  .card .card-ic {
-    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: var(--brand-light); margin-bottom: 12px;
+  .tile:hover .tile-thumb svg { transform: translateY(-3px) scale(1.04); }
+  .tile-no {
+    position: absolute; left: 13px; top: 11px;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 1.2px; color: var(--muted-2);
   }
-  .card .card-ic svg { display: block; }
-  .card h3 { font-size: 16.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.2px; }
-  .card p { color: var(--muted); font-size: 13px; line-height: 1.65; margin-top: 7px; flex: 1; }
-  .card .tags { margin: 13px 0 0; display: flex; gap: 6px; flex-wrap: wrap; }
-  .card .tag {
-    font-size: 11.5px; padding: 2px 0; border-radius: 0; background: none;
-    color: var(--muted-2);
+
+  .tile-body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1; }
+  .tile-body h3 { font-size: 18px; font-weight: 700; color: var(--ink); letter-spacing: -.4px; }
+  .tile-body p { font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-top: 9px; flex: 1; }
+  .tile-body .tags { margin-top: 14px; display: flex; flex-wrap: wrap; }
+  .tile-body .tag { font-size: 11.5px; padding: 0; background: none; color: var(--muted-2); }
+  .tile-body .tag::before { content: "·"; margin: 0 6px 0 0; color: var(--muted-2); }
+  .tile-body .tag:first-child::before { content: none; }
+  .tile-body .tag.testing { color: var(--amber); font-weight: 600; }
+  /* 蓝色按钮（整张卡片就是链接，这里是视觉上的「进入」） */
+  .tile-cta {
+    margin-top: 16px; align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 600; color: #fff;
+    background: var(--brand); border-radius: var(--radius-pill);
+    padding: 8px 17px;
+    transition: background var(--dur-fast) var(--ease-inout), transform var(--dur) var(--ease-spring);
   }
-  .card .tag::before { content: "·"; margin-right: 6px; color: var(--muted-2); }
-  .card .tag:first-child::before { content: none; }
-  .card .tag.testing { color: var(--amber); font-weight: 600; }
+  .tile:hover .tile-cta { background: var(--brand-dark); }
+  .tile:active .tile-cta { transform: scale(.97); }
+  .tile-cta .chev { transition: transform var(--dur) var(--ease-out); }
+  .tile:hover .tile-cta .chev { transform: translateX(2px); }
+
+  /* 搜索无结果 */
+  .empty {
+    display: none; text-align: center; padding: 56px 20px;
+    border: 1px dashed var(--line); border-radius: 22px; background: #fafafa;
+  }
+  .empty.show { display: block; }
+  .empty .e-t { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .empty .e-s { font-size: 13px; color: var(--muted); margin-top: 7px; }
+  .empty button {
+    margin-top: 16px; font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--brand); background: none; border: none; cursor: pointer; padding: 4px 2px;
+  }
+  .empty button:hover { color: var(--brand-dark); text-decoration: underline; }
 
   /* ============ 使用须知 ============ */
   .notice {
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: none; overflow: hidden; margin-top: 34px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03); overflow: hidden; margin-top: 60px;
   }
   .notice > summary {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 15px 22px; cursor: pointer; user-select: none; list-style: none;
+    padding: 17px 21px; cursor: pointer; user-select: none; list-style: none;
     font-size: 14px; font-weight: 600; color: var(--ink);
   }
   .notice > summary::-webkit-details-marker { display: none; }
@@ -102,179 +260,213 @@
     background: var(--brand-light); color: var(--brand);
     display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
   }
-  .notice > summary .chev { transition: transform .25s ease; color: var(--muted); }
+  .notice > summary .chev { transition: transform var(--dur) var(--ease-out); color: var(--muted); }
   .notice[open] > summary .chev { transform: rotate(180deg); }
-  .notice .nbody { padding: 0 22px 18px; color: var(--ink-2); font-size: 13.5px; line-height: 1.75; }
+  .notice .nbody { padding: 0 21px 21px; color: var(--ink-2); font-size: 13.5px; line-height: 1.75; }
   .notice .nbody ul { padding-left: 20px; margin: 6px 0; }
   .notice .nbody li { margin: 6px 0; }
   .notice .nbody b { color: var(--ink); }
   .notice .nbody code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: var(--mono); }
 
-  .site-footer { margin-top: 44px; padding: 20px 0 0; border-top: 1px solid var(--line); }
+  .site-footer { margin-top: 52px; padding: 20px 0 0; border-top: 1px solid var(--line); }
 
-  @media (max-width: 560px) {
-    .hero { padding: 38px 0 30px; }
-    .topbar .meta { display: none; }
-  }
+  /* 键盘可达性：焦点环（共享层已给 a/button/input 统一焦点环，这里补搜索框） */
+  .search input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
-  /* Apple-inspired navigation refresh — presentation only */
-  .topbar {
-    margin: 0 -8px; padding: 16px 18px;
-    border: 1px solid rgba(210,210,215,.86); border-radius: 16px;
-    background: rgba(255,255,255,.78); box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  @media (max-width: 820px) {
+    .nav-inner { padding: 0 18px; gap: 12px; }
+    .brandmark .bm-t { display: none; }
+    .search { flex: 1 1 auto; }
   }
-  .topbar .brandmark { gap: 10px; }
-  .topbar .brandmark .bm-t { font-size: 15px; letter-spacing: -.15px; }
-  .topbar .meta { font-size: 10.5px; letter-spacing: 1.15px; }
-  .hero { padding: 76px 4px 46px; max-width: 720px; }
-  .hero h1 { font-size: clamp(40px,5.1vw,58px); letter-spacing: -2.5px; line-height: 1.05; }
-  .hero .lede { max-width: 590px; font-size: 16px; line-height: 1.7; margin-top: 19px; }
-  .hero .factrow { gap: 30px; margin-top: 29px; }
-  .hero .fact .fv { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; font-size: 23px; letter-spacing: -.7px; }
-  .hero .stripe { height: 3px; max-width: 126px; margin-top: 34px; border-radius: 99px; }
-  .grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-top: 20px; }
-  .card {
-    min-height: 260px; padding: 22px; border-radius: 20px;
-    border-color: rgba(210,210,215,.86); box-shadow: 0 1px 2px rgba(0,0,0,.035),0 7px 20px rgba(0,0,0,.03);
-    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-  }
-  .card:hover { border-color: rgba(0,113,227,.35); box-shadow: 0 15px 32px rgba(0,0,0,.09); transform: translateY(-4px); }
-  .card .card-top { margin-bottom: 16px; }
-  .card .no { color: var(--muted-2); font-size: 11px; letter-spacing: 1.2px; }
-  .card .card-go { color: var(--muted-2); font-size: 17px; }
-  .card:hover .card-go { color: var(--brand); }
-  .card .card-ic { width: 44px; height: 44px; border-radius: 13px; margin-bottom: 17px; }
-  .card h3 { font-size: 17px; letter-spacing: -.35px; }
-  .card p { font-size: 13px; line-height: 1.65; margin-top: 8px; }
-  .card .tags { margin-top: 16px; gap: 0; }
-  .card .tag { font-size: 11px; color: var(--muted-2); }
-  .notice { margin-top: 42px; border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-  .notice > summary { padding: 17px 21px; }
-  .notice .nbody { padding: 0 21px 21px; }
-  .site-footer { margin-top: 52px; }
-  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
   @media (max-width: 560px) {
-    .topbar { margin: 0; padding: 14px; }
-    .hero { padding: 52px 0 36px; }
-    .hero h1 { font-size: 40px; letter-spacing: -1.8px; }
-    .grid { grid-template-columns: 1fr; gap: 12px; }
-    .card { min-height: 0; }
+    .hero { padding: 40px 0 0; }
+    .hero h1 { letter-spacing: -1.6px; }
+    .hero .cta-row { gap: 18px; }
+    .ph { aspect-ratio: 3 / 2; border-radius: 20px; }
+    .tools-head { margin-top: 52px; }
+    .grid { gap: 14px; }
+  }
+  /* 减弱动态效果：共享层已把动画时长压到 0.01ms，但位移要自己关掉 */
+  @media (prefers-reduced-motion: reduce) {
+    .tile, .tile:hover { transform: none !important; }
+    .link-more:hover .chev, .tile:hover .tile-cta .chev { transform: none !important; }
   }
 </style>
 </head>
 <body>
-  <div class="container">
-    <!-- 顶栏 -->
-    <div class="topbar">
+
+  <!-- ============ 1. 通栏吸顶页眉 ============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
       <a class="brandmark" href="./index.html">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4.2 20.6 3.3c-.9-.9-2.7-.4-4.2 1.1L13 7.9 4.8 6.1c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-4 5H2.5l-.5 1 3.5 2 .9-.2 1.6-2.9 4.9 4.9c.4.4 1 .4 1.4.1l.5-.3c.4-.3.6-.7.5-1.2l-1.8-8.2"/>
         </svg>
         <span class="bm-t">航班工作工具集</span>
       </a>
-      <div class="meta"><b>8</b> TOOLS · DAILY OPS</div>
+      <div class="search" id="searchBox">
+        <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>
+        </svg>
+        <input id="toolSearch" type="search" placeholder="搜索工具" autocomplete="off" spellcheck="false"
+               aria-label="搜索工具" aria-describedby="toolsCount">
+        <button class="s-clear" id="toolSearchClear" type="button" aria-label="清除搜索" tabindex="-1">✕</button>
+      </div>
     </div>
+  </header>
 
-    <!-- Hero -->
+  <div class="container">
+
+    <!-- ============ 2. 大字 ============ -->
     <section class="hero">
       <h1>八个工具，<br>装进出港的一天。</h1>
       <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。</p>
-      <div class="factrow">
-        <div class="fact"><span class="fv">8</span><span class="fl">个在线工具</span></div>
-        <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#tools" id="ctaBrowse">浏览全部工具</a>
+        <a class="link-more" href="#notice">使用须知<span class="chev">›</span></a>
       </div>
-      <div class="stripe" aria-hidden="true">
-        <i style="background:#3d6b8f"></i><i style="background:#8f6b2e"></i><i style="background:#a05a2c"></i>
-        <i style="background:#8c3b45"></i><i style="background:#35708e"></i><i style="background:#1f6f8b"></i>
-        <i style="background:#4e7d4e"></i><i style="background:#7d5a8f"></i>
+      <div class="factrow">
+        <div class="fact"><span class="fv">8 个</span><span class="fl">在线工具</span></div>
+        <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
+        <div class="fact"><span class="fv">⌘K</span><span class="fl">快速搜索</span></div>
       </div>
     </section>
 
-    <!-- 工具网格 -->
-    <main class="grid">
+    <!-- ============ 3. 大图（占位）============
+         换真图：把下面整个 div.ph 换成一个 img 标签，src 指向真实图片
+         （例如放在 assets/ 下），样式给 width:100%;display:block 即可。 -->
+    <section class="hero-media">
+      <div class="ph">
+        <div class="ph-in">
+          <div class="ph-t">主视觉占位图</div>
+          <div class="ph-s">16 : 8</div>
+        </div>
+      </div>
+    </section>
 
-      <a class="card" style="--tool:#3d6b8f" href="./manifest/index.html">
-        <div class="card-top"><span class="no">01</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#eef3f7">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#3d6b8f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
-        </span>
-        <h3>国际名单转化</h3>
-        <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
-        <div class="tags"><span class="tag">海关模板</span><span class="tag">出入境判定</span><span class="tag">Excel 预览</span></div>
-      </a>
+    <!-- ============ 4. 工具卡片 ============ -->
+    <section class="tools" id="tools">
+      <div class="tools-head">
+        <h2>全部工具</h2>
+        <div class="count" id="toolsCount" role="status" aria-live="polite">8 个工具</div>
+      </div>
 
-      <a class="card" style="--tool:#8f6b2e" href="./upgrade/index.html">
-        <div class="card-top"><span class="no">02</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#f8f3ea">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8f6b2e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>
-        </span>
-        <h3>升舱金额计算器</h3>
-        <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
-        <div class="tags"><span class="tag">岗位比例</span><span class="tag">交叉汇总</span><span class="tag">下载 Excel</span></div>
-      </a>
+      <main class="grid" id="toolGrid">
 
-      <a class="card" style="--tool:#a05a2c" href="./schedule/index.html">
-        <div class="card-top"><span class="no">03</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#f9f1ea">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#a05a2c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2M14 17h2"/></svg>
-        </span>
-        <h3>出港排班表</h3>
-        <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
-        <div class="tags"><span class="tag">登机口分配</span><span class="tag">负责人选择</span><span class="tag">下载 Excel</span></div>
-      </a>
+        <a class="tile" href="./manifest/index.html" data-keywords="01 国际名单转化 拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。 海关模板 出入境判定 Excel 预览 名单 加密">
+          <div class="tile-thumb">
+            <span class="tile-no">01</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>国际名单转化</h3>
+            <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
+            <div class="tags"><span class="tag">海关模板</span><span class="tag">出入境判定</span><span class="tag">Excel 预览</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-      <a class="card" style="--tool:#8c3b45" href="./daily-report/index.html">
-        <div class="card-top"><span class="no">04</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#f8eff0">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8c3b45" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0V9"/><path d="M12 6h6M12 10h6M12 14h6M12 18h3"/></svg>
-        </span>
-        <h3>航班日报生成器</h3>
-        <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，可导出 PDF 或直接打印。</p>
-        <div class="tags"><span class="tag testing">🚧 功能测试中</span><span class="tag">日报生成</span><span class="tag">导出 PDF</span></div>
-      </a>
+        <a class="tile" href="./upgrade/index.html" data-keywords="02 升舱金额计算器 导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。 岗位比例 交叉汇总 下载 Excel 升舱 绩效">
+          <div class="tile-thumb">
+            <span class="tile-no">02</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>升舱金额计算器</h3>
+            <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
+            <div class="tags"><span class="tag">岗位比例</span><span class="tag">交叉汇总</span><span class="tag">下载 Excel</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-      <a class="card" style="--tool:#35708e" href="./kn-stats/index.html">
-        <div class="card-top"><span class="no">05</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#edf3f7">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#35708e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l20-20-4 1-3 4-6 1-2 2 5 3 3 5 2-2 1-6z"/><path d="M2 22l6-6"/></svg>
-        </span>
-        <h3>KN航班出港统计</h3>
-        <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
-        <div class="tags"><span class="tag">KN航班</span><span class="tag">截载时间</span><span class="tag">导出图片</span></div>
-      </a>
+        <a class="tile" href="./schedule/index.html" data-keywords="03 出港排班表 导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。 登机口分配 负责人选择 下载 Excel 排班 特服 调时">
+          <div class="tile-thumb">
+            <span class="tile-no">03</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2M14 17h2"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>出港排班表</h3>
+            <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
+            <div class="tags"><span class="tag">登机口分配</span><span class="tag">负责人选择</span><span class="tag">下载 Excel</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-      <a class="card" style="--tool:#1f6f8b" href="./merge/index.html">
-        <div class="card-top"><span class="no">06</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#eaf3f7">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#1f6f8b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/></svg>
-        </span>
-        <h3>东上联日数据汇总</h3>
-        <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
-        <div class="tags"><span class="tag">东上联/总表</span><span class="tag">PDF自动填</span><span class="tag">导出 Excel</span></div>
-      </a>
+        <a class="tile" href="./daily-report/index.html" data-keywords="04 航班日报生成器 在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，一键导出与官方版式一致的 Word 文档。 实时预览 值班安排 导出 Word 日报 接班 当班">
+          <div class="tile-thumb">
+            <span class="tile-no">04</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0V9"/><path d="M12 6h6M12 10h6M12 14h6M12 18h3"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>航班日报生成器</h3>
+            <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，一键导出与官方版式一致的 Word 文档。</p>
+            <div class="tags"><span class="tag">实时预览</span><span class="tag">值班安排</span><span class="tag">导出 Word</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-      <a class="card" style="--tool:#4e7d4e" href="./todo/index.html">
-        <div class="card-top"><span class="no">07</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#eff5ef">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#4e7d4e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4a2 2 0 0 1 2 2v2H8V4a2 2 0 0 1 2-2z"/><rect x="4" y="6" width="16" height="16" rx="2"/><path d="M9 13l2 2 4-4"/></svg>
-        </span>
-        <h3>每日待办</h3>
-        <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
-        <div class="tags"><span class="tag">按日记录</span><span class="tag">历史回看</span><span class="tag">本地保存</span></div>
-      </a>
+        <a class="tile" href="./kn-stats/index.html" data-keywords="05 KN航班出港统计 导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。 KN航班 截载时间 导出图片 中联航 订座">
+          <div class="tile-thumb">
+            <span class="tile-no">05</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l20-20-4 1-3 4-6 1-2 2 5 3 3 5 2-2 1-6z"/><path d="M2 22l6-6"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>KN航班出港统计</h3>
+            <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
+            <div class="tags"><span class="tag">KN航班</span><span class="tag">截载时间</span><span class="tag">导出图片</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-      <a class="card" style="--tool:#7d5a8f" href="./early-ontime/index.html">
-        <div class="card-top"><span class="no">08</span><span class="card-go">↗</span></div>
-        <span class="card-ic" style="background:#f4f0f7">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7d5a8f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 12h.01"/></svg>
-        </span>
-        <h3>早始发正常率测算</h3>
-        <p>录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。</p>
-        <div class="tags"><span class="tag">机场对标</span><span class="tag">T1·T2·T3 档位</span><span class="tag">追不上告警</span></div>
-      </a>
-    </main>
+        <a class="tile" href="./merge/index.html" data-keywords="06 东上联日数据汇总 整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。 东上联/总表 PDF自动填 导出 Excel 东航 上航 联航 周报">
+          <div class="tile-thumb">
+            <span class="tile-no">06</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>东上联日数据汇总</h3>
+            <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
+            <div class="tags"><span class="tag">东上联/总表</span><span class="tag">PDF自动填</span><span class="tag">导出 Excel</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
 
-    <details class="notice">
+        <a class="tile" href="./todo/index.html" data-keywords="07 每日待办 按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。 按日记录 历史回看 本地保存 待办 日历">
+          <div class="tile-thumb">
+            <span class="tile-no">07</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4a2 2 0 0 1 2 2v2H8V4a2 2 0 0 1 2-2z"/><rect x="4" y="6" width="16" height="16" rx="2"/><path d="M9 13l2 2 4-4"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>每日待办</h3>
+            <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
+            <div class="tags"><span class="tag">按日记录</span><span class="tag">历史回看</span><span class="tag">本地保存</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
+
+        <a class="tile" href="./early-ontime/index.html" data-keywords="08 早始发正常率测算 录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。 机场对标 T1·T2·T3 档位 追不上告警 正常率 早始发">
+          <div class="tile-thumb">
+            <span class="tile-no">08</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 12h.01"/></svg>
+          </div>
+          <div class="tile-body">
+            <h3>早始发正常率测算</h3>
+            <p>录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。</p>
+            <div class="tags"><span class="tag">机场对标</span><span class="tag">T1·T2·T3 档位</span><span class="tag">追不上告警</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
+
+      </main>
+
+      <div class="empty" id="toolsEmpty">
+        <div class="e-t">没有找到匹配的工具</div>
+        <div class="e-s">换个关键词试试，比如「名单」「排班」「日报」「正常率」。</div>
+        <button type="button" id="toolsEmptyReset">清除搜索条件</button>
+      </div>
+    </section>
+
+    <details class="notice" id="notice">
       <summary>
         <span class="title"><span class="ic">📌</span> 使用须知</span>
         <span class="chev">▾</span>
@@ -291,5 +483,104 @@
 
     <footer class="site-footer">航班工作工具集</footer>
   </div>
+
+<script>
+/* 首页交互：① 页眉滚动描边 ② 工具搜索筛选
+   —— 纯增强：脚本不执行时 8 张卡片仍全部可见、可点。 */
+(function () {
+  'use strict';
+
+  /* ---------- ① 滚动后页眉加描边 ---------- */
+  var nav = document.getElementById('nav');
+  if (nav) {
+    var onScroll = function () {
+      nav.classList.toggle('scrolled', window.scrollY > 8);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  /* ---------- ② 搜索筛选 ---------- */
+  var input   = document.getElementById('toolSearch');
+  var clearBt = document.getElementById('toolSearchClear');
+  var box     = document.getElementById('searchBox');
+  var grid    = document.getElementById('toolGrid');
+  var empty   = document.getElementById('toolsEmpty');
+  var resetBt = document.getElementById('toolsEmptyReset');
+  var countEl = document.getElementById('toolsCount');
+  if (!input || !grid) return;
+
+  var tiles = Array.prototype.slice.call(grid.querySelectorAll('.tile'));
+  var total = tiles.length;
+
+  // 去掉空白，这样「国际 名单」也能命中「国际名单转化」
+  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+
+  // 关键词预先算好，避免每次输入都重新拼字符串
+  var index = tiles.map(function (t) {
+    return norm(t.getAttribute('data-keywords') || t.textContent);
+  });
+
+  /* 工具区在「大图」下面，用户在最上面打字时看不到任何反馈。
+     所以第一次输入（从空 → 非空）时把工具区滚进视野；已经在看结果就不动。
+     注：headless 里 scrollTo 是空操作，截图不会体现这一步，但真实浏览器会。 */
+  var toolsSec = document.getElementById('tools');
+  function ensureResultsVisible() {
+    if (!toolsSec || !toolsSec.getBoundingClientRect) return;
+    var r = toolsSec.getBoundingClientRect();
+    if (r.top < 60 || r.top > window.innerHeight * 0.55) {
+      toolsSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function apply() {
+    var k = norm(input.value);
+    var hit = 0;
+    for (var i = 0; i < tiles.length; i++) {
+      var ok = !k || index[i].indexOf(k) !== -1;
+      tiles[i].classList.toggle('is-hidden', !ok);
+      if (ok) hit++;
+    }
+    if (empty) empty.classList.toggle('show', hit === 0);
+    if (box) box.classList.toggle('has-value', input.value.length > 0);
+    if (countEl) {
+      countEl.textContent = k ? ('匹配 ' + hit + ' / ' + total + ' 个工具') : (total + ' 个工具');
+    }
+  }
+
+  function clearSearch(focus) {
+    input.value = '';
+    wasEmpty = true;          // 清空后下一次输入要重新触发「滚到结果」
+    apply();
+    if (focus) input.focus();
+  }
+
+  var wasEmpty = true;
+  input.addEventListener('input', function () {
+    var nowEmpty = input.value.length === 0;
+    apply();
+    if (wasEmpty && !nowEmpty) ensureResultsVisible();
+    wasEmpty = nowEmpty;
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); clearSearch(true); }
+  });
+  if (clearBt) clearBt.addEventListener('click', function () { clearSearch(true); });
+  if (resetBt) resetBt.addEventListener('click', function () { clearSearch(true); });
+
+  // ⌘K / Ctrl+K 聚焦搜索；单独按 / 也聚焦（但不在输入框里时）
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target && e.target.tagName) || '';
+    var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault(); input.focus(); input.select();
+    } else if (e.key === '/' && !typing) {
+      e.preventDefault(); input.focus(); input.select();
+    }
+  });
+
+  apply();
+})();
+</script>
 </body>
 </html>

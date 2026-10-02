@@ -10,7 +10,7 @@
 <meta property="og:title" content="升舱金额计算器 · 航班工作工具集">
 <meta property="og:description" content="导入 C2 升舱统计表，按 6 个岗位固定比例自动分配金额，生成人员×日期交叉汇总表。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/upgrade/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
 <script>
@@ -21,7 +21,8 @@
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ upgrade · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #8f6b2e; }
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,12 +33,12 @@
   }
 .people-tags .label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
 .tag {
-    display: inline-block; background: var(--brand-light); color: var(--brand-dark);
+    display: inline-block; background: var(--tool-light); color: var(--tool-dark);
     padding: 5px 13px; border-radius: 8px; font-size: 13px; font-weight: 500;
-    margin: 4px 5px 4px 0; border: 1px solid var(--brand-soft);
+    margin: 4px 5px 4px 0; border: 1px solid var(--tool-soft);
     transition: transform 0.15s, background 0.15s;
   }
-.tag:hover { transform: translateY(-1px); background: var(--brand-soft); }
+.tag:hover { transform: translateY(-1px); background: var(--tool-soft); }
 /* ============ Controls ============ */
   .controls {
     display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
@@ -79,16 +80,16 @@ tbody td:first-child {
   }
 tbody tr:nth-child(even) td { background: #fafafa; }
 tbody tr:nth-child(even) td:first-child { background: #fafafa; }
-tbody tr:hover td { background: var(--brand-light); }
-tbody tr:hover td:first-child { background: var(--brand-light); }
+tbody tr:hover td { background: var(--tool-light); }
+tbody tr:hover td:first-child { background: var(--tool-light); }
 tbody td.total-col { font-weight: 700; background: var(--success-light) !important; color: var(--success-dark); }
 td.empty { color: var(--line); text-align: center !important; }
 /* ============ Loading ============ */
   .loading { display: none; text-align: center; padding: 56px; }
 .loading.active { display: block; }
 .spinner {
-    width: 46px; height: 46px; border: 4px solid var(--brand-soft);
-    border-top-color: var(--brand); border-radius: 50%;
+    width: 46px; height: 46px; border: 4px solid var(--tool-soft);
+    border-top-color: var(--tool); border-radius: 50%;
     animation: spin 0.8s linear infinite; margin: 0 auto 16px;
   }
 .loading div:last-child { color: var(--muted); font-size: 14px; }
@@ -97,7 +98,7 @@ td.empty { color: var(--line); text-align: center !important; }
   .error-msg {
     background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft)); color: var(--danger);
     padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
-    display: none; border: 1px solid #eccfcb; border-left: 4px solid var(--danger); font-size: 14px;
+    display: none; border: 1px solid var(--danger-line); border-left: 4px solid var(--danger); font-size: 14px;
   }
 .error-msg.active { display: block; }
 /* ============ Footer ============ */

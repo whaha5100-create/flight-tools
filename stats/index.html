@@ -10,7 +10,7 @@
 <meta property="og:title" content="航班数据统计 · 航班工作工具集">
 <meta property="og:description" content="导入当日航班 Excel，自动区分东上航/中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/stats/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
 <script>
@@ -21,7 +21,8 @@
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ stats · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #2e7d74; }
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -66,8 +67,8 @@ tbody td:first-child {
   }
 tbody tr:nth-child(even) td { background: #fafafa; }
 tbody tr:nth-child(even) td:first-child { background: #fafafa; }
-tbody tr:hover td { background: var(--brand-light); }
-tbody tr:hover td:first-child { background: var(--brand-light); }
+tbody tr:hover td { background: var(--tool-light); }
+tbody tr:hover td:first-child { background: var(--tool-light); }
 tbody td.total-col { font-weight: 700; background: var(--success-light) !important; color: var(--success-dark); }
 tbody tr.total-row td { background: #f5f5f7 !important; font-weight: 700; color: var(--ink); }
 tbody tr.total-row td:first-child { background: #f5f5f7 !important; }
@@ -77,8 +78,8 @@ td.empty { color: var(--line); }
   .loading { display: none; text-align: center; padding: 56px; }
 .loading.active { display: block; }
 .spinner {
-    width: 46px; height: 46px; border: 4px solid var(--brand-soft);
-    border-top-color: var(--brand); border-radius: 50%;
+    width: 46px; height: 46px; border: 4px solid var(--tool-soft);
+    border-top-color: var(--tool); border-radius: 50%;
     animation: spin 0.8s linear infinite; margin: 0 auto 16px;
   }
 .loading div:last-child { color: var(--muted); font-size: 14px; }
@@ -87,7 +88,7 @@ td.empty { color: var(--line); }
   .error-msg {
     background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft)); color: var(--danger);
     padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
-    display: none; border: 1px solid #eccfcb; border-left: 4px solid var(--danger); font-size: 14px;
+    display: none; border: 1px solid var(--danger-line); border-left: 4px solid var(--danger); font-size: 14px;
   }
 .error-msg.active { display: block; }
 /* ============ Footer ============ */

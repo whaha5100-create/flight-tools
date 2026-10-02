@@ -10,16 +10,17 @@
 <meta property="og:title" content="KN航班出港统计 · 航班工作工具集">
 <meta property="og:description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/kn-stats/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ kn-stats · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #35708e; }
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
 * { box-sizing:border-box; }
 .upload { margin-top:24px; border:2px dashed var(--line); border-radius:var(--radius); background:#fff;
     transition:border-color .2s, background .2s; }
-.upload.drag { border-color:var(--brand); background:var(--brand-light); }
+.upload.drag { border-color:var(--tool); background:var(--tool-light); }
 .upload-inner { padding:42px 24px; text-align:center; }
 .up-ic { font-size:42px; }
 .upload-inner p { color:var(--muted); margin:12px 0 18px; font-size:15px; }
@@ -28,8 +29,8 @@
 .stats-bar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 .stat-pill { background:#fff; border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:13.5px;
     color:var(--muted); box-shadow:var(--shadow-sm); }
-.stat-pill b { color:var(--brand-dark); font-size:15px; }
-.stat-pill.warn b { color:#ea580c; }
+.stat-pill b { color:var(--tool-dark); font-size:15px; }
+.stat-pill.warn b { color:var(--amber); }
 .table-wrap { background:#fff; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
 table { width:100%; border-collapse:collapse; font-size:16px; }
 thead th { background:#f5f5f7; color:var(--muted); font-weight:700; padding:12px 14px;
@@ -38,7 +39,7 @@ tbody td { padding:9px 14px; text-align:center; border-top:1px solid #e5e5ea; }
 tbody td:first-child { text-align:center; font-weight:700; color:var(--ink); }
 tbody tr:nth-child(even) { background:#fafafa; }
 .note-tag { display:inline-block; background:var(--amber-soft); color:var(--amber); font-weight:700; font-size:12.5px;
-    padding:3px 10px; border-radius:999px; border:1px solid #eed9b8; }
+    padding:3px 10px; border-radius:999px; border:1px solid var(--amber-line); }
 /* 早始发汇总行：紧跟早始发航班之后（表格内分组小计），背景必须整行撑满 */
 .early-summary-row td { background: #e8e8ed !important; color: var(--ink) !important; text-align: center !important;
   font-weight: 700; font-size: 14.5px; padding: 14px 20px; letter-spacing: 0.3px; white-space: nowrap; }
@@ -309,7 +310,7 @@ tbody tr:nth-child(even) { background:#fafafa; }
         if(k===0){ctx.fillStyle='#1d1d1f';ctx.font='700 14px '+MF;}
         else if(k===4){ctx.fillStyle='#1d1d1f';ctx.font='700 15px '+MF;}
         else {ctx.fillStyle='#424245';ctx.font='400 14px '+F;}
-        if(k===5 && value){ var cw=76,ch=22; roundRect(ctx,xPos+(c.w-cw)/2,y+(rowH-ch)/2,cw,ch,11);ctx.fillStyle='#fff2e7';ctx.fill();ctx.fillStyle='#c45b16';ctx.font='600 11px '+F;ctx.textAlign='center';ctx.fillText('高客座',xPos+c.w/2,y+rowH/2+1); }
+        if(k===5 && value){ var cw=76,ch=22; roundRect(ctx,xPos+(c.w-cw)/2,y+(rowH-ch)/2,cw,ch,11);ctx.fillStyle='#fdf3e3';ctx.fill();ctx.fillStyle='#b4610d';ctx.font='600 11px '+F;ctx.textAlign='center';ctx.fillText('高客座',xPos+c.w/2,y+rowH/2+1); }
         else if(k!==5 || value){ctx.fillText(value,tx,y+rowH/2+1);} xPos+=c.w;
       });
       y+=rowH; idx++;

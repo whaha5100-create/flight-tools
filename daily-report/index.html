@@ -10,11 +10,15 @@
 <meta property="og:title" content="生产情况汇总 · 日报生成器 · 航班工作工具集">
 <meta property="og:description" content="按项填写当日生产情况与正常性数据，右侧实时预览生产情况汇总日报，一键导出与官方版式 1:1 的 Word 文档。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/daily-report/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ daily-report · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #8c3b45; --docred: #c8102e; --docnavy: #1d2b57; }
+  :root {
+  /* 2026-10-02 全站统一配色：本页不再自持 --tool 砖红四档，继承 site.css 的品牌蓝。
+     ⚠️ --docred / --docnavy 是**日报 Word 版式**用的文档色（不是界面色），保留不动。 */
+  --accent: var(--tool);
+--docred: #c8102e; --docnavy: #1d2b57; }
 
   .app { display:flex; min-height:calc(100vh - 58px); }
 
@@ -25,17 +29,28 @@
   .topbar h1 .dot { width:10px; height:10px; border-radius:50%; background:var(--tool); }
   .btns { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .saveTip { font-size:12px; color:var(--muted); margin-left:auto; align-self:center; }
+  /* 按钮统一走共享层的苹果动效曲线（--dur-* / --ease-*），
+     并补上「悬停抬升 + 按下回缩」的物理反馈 —— 原先只有一句 .15s 背景变化，
+     既没有缓动语言，也没有任何按压反馈。 */
   button { font-family:inherit; font-size:13px; border:1px solid var(--line); background:#fff; color:var(--text);
-    padding:7px 13px; border-radius:7px; cursor:pointer; transition:.15s; font-weight:500; }
-  button:hover { border-color:var(--accent); color:var(--accent); }
+    padding:7px 13px; border-radius:var(--radius-xs); cursor:pointer; font-weight:500;
+    transition: background var(--dur-fast) var(--ease-inout),
+                border-color var(--dur-fast) var(--ease-inout),
+                color var(--dur-fast) var(--ease-inout),
+                box-shadow var(--dur) var(--ease-out),
+                transform var(--dur) var(--ease-spring);
+    -webkit-tap-highlight-color: transparent; }
+  button:hover { border-color:var(--accent); color:var(--accent);
+    box-shadow:0 2px 6px rgba(0,0,0,.07); transform:translateY(-1px); }
+  button:active { transform:scale(.97); box-shadow:var(--shadow-press); transition-duration:.07s; }
   button.primary { background:var(--tool); border-color:var(--tool); color:#fff; }
-  button.primary:hover { background:#6f2f37; color:#fff; }
+  button.primary:hover { background:var(--tool-dark); color:#fff; }
   button.blue { background:var(--brand2); border-color:var(--brand2); color:#fff; }
-  button.blue:hover { background:var(--brand-dark); color:#fff; }
-  button.mini { font-size:12px; padding:4px 9px; border-radius:6px; }
-  .use-note { width:100%; font-size:12.5px; color:var(--brand-dark); background:var(--brand-light);
-    border:1px solid var(--brand-soft); border-radius:8px; padding:10px 14px; margin:10px 0 2px; line-height:1.75; }
-  .use-note b { color:var(--brand-dark); }
+  button.blue:hover { background:var(--tool-dark); color:#fff; }
+  button.mini { font-size:12px; padding:4px 9px; border-radius:var(--radius-xs); }
+  .use-note { width:100%; font-size:12.5px; color:var(--tool-dark); background:var(--tool-light);
+    border:1px solid var(--tool-soft); border-radius:8px; padding:10px 14px; margin:10px 0 2px; line-height:1.75; }
+  .use-note b { color:var(--tool-dark); }
   .use-note ul { margin:4px 0 0 18px; }
   .use-note li { margin:3px 0; }
 
@@ -69,7 +84,7 @@
   table.norm td.sec { background:#e5e5ea; font-weight:700; text-align:left; }
   table.norm td input { border:none; background:transparent; width:100%; text-align:center; padding:4px 2px; font-size:12px; }
   table.norm td input:focus { outline:1px solid var(--accent); background:#fff; border-radius:4px; }
-  table.norm td.calc { background:var(--brand-light)!important; color:var(--brand2); font-weight:600; font-variant-numeric:tabular-nums; }
+  table.norm td.calc { background:var(--tool-light)!important; color:var(--brand2); font-weight:600; font-variant-numeric:tabular-nums; }
   table.norm td.redcalc { background:#fdeef0!important; color:var(--docred); font-weight:700; font-variant-numeric:tabular-nums; }
 
   /* ---------- 可粘贴的明细表 ---------- */
@@ -84,11 +99,13 @@
   table.dyn td { border:1px solid var(--line); padding:0; }
   table.dyn td input { border:none; background:transparent; width:100%; padding:5px 4px; font-size:11.5px; text-align:center; }
   table.dyn td input:focus { outline:1px solid var(--accent); background:#fff; }
-  table.dyn td.calc input { background:var(--brand-light)!important; color:var(--brand2); font-weight:600; }
+  table.dyn td.calc input { background:var(--tool-light)!important; color:var(--brand2); font-weight:600; }
   table.dyn td.rn { background:#fafafa; text-align:center; color:var(--muted); font-size:11px; width:28px; }
   table.dyn td.del { text-align:center; width:26px; }
-  table.dyn td.del span { color:var(--docred); cursor:pointer; font-weight:700; }
-  table.dyn td.del span:hover { color:#8f0b20; }
+  /* ⚠️ 这是**编辑区**的删除控件，不是文档预览的一部分 —— 它借用 --docred（Word 官方红）
+     属于用错色：界面语义色用 --danger，--docred 只留给预览/导出。 */
+  table.dyn td.del span { color:var(--danger); cursor:pointer; font-weight:700; }
+  table.dyn td.del span:hover { color:var(--danger-dark); }
 
   /* ---------- 人员 token 选择 ---------- */
   .tk { position:relative; min-height:32px; border:1px solid var(--line); border-radius:6px; background:#fff;
@@ -96,9 +113,14 @@
   .tk:hover { border-color:var(--accent); }
   .tk-box { display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1; }
   .tk-in { border:none; background:transparent; flex:1; min-width:70px; font-size:12px; outline:none; cursor:pointer; color:var(--muted); }
-  .chip { display:inline-flex; align-items:center; gap:3px; background:var(--brand-light); color:var(--brand2);
-    border:1px solid var(--brand-soft); border-radius:12px; padding:1px 8px; font-size:12px; white-space:nowrap; }
-  .chip .x { cursor:pointer; font-style:normal; color:var(--muted-2); font-weight:700; }
+  .chip { display:inline-flex; align-items:center; gap:3px; background:var(--tool-light); color:var(--brand2);
+    border:1px solid var(--tool-soft); border-radius:12px; padding:1px 8px; font-size:12px; white-space:nowrap;
+    /* 标签是「半交互」元素：只给描边/柔光回应，不做抬升，免得看起来像个按钮 */
+    transition: background var(--dur-fast) var(--ease-inout), border-color var(--dur-fast) var(--ease-inout),
+                color var(--dur-fast) var(--ease-inout), box-shadow var(--dur) var(--ease-out); }
+  .chip:hover { border-color:var(--brand2); box-shadow:0 1px 4px rgba(0,113,227,.14); }
+  .chip .x { cursor:pointer; font-style:normal; color:var(--muted-2); font-weight:700;
+    transition: color var(--dur-fast) var(--ease-inout); }
   .chip .x:hover { color:var(--docred); }
   .tk-pop { position:fixed; z-index:9999; background:#fff; border:1px solid var(--line); border-radius:9px;
     box-shadow:0 10px 30px rgba(0,0,0,.16); padding:8px; display:none; }
@@ -108,13 +130,16 @@
   .tk-list { max-height:220px; overflow-y:auto; }
   .tk-opt { padding:5px 8px; border-radius:5px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; }
   .tk-opt:hover { background:#f5f5f7; }
-  .tk-opt.sel { background:var(--brand-light); color:var(--brand2); font-weight:600; }
+  .tk-opt.sel { background:var(--tool-light); color:var(--brand2); font-weight:600; }
   .tk-opt .mk { color:var(--brand2); font-weight:700; width:12px; }
   .tk-empty { padding:8px; color:var(--muted); font-size:12px; text-align:center; }
   .tk-foot { margin-top:6px; border-top:1px solid var(--border); padding-top:6px; }
   .tk-custom { width:100%; font-size:12px; padding:6px; background:#fafafa; border:1px dashed var(--line);
-    border-radius:6px; cursor:pointer; color:var(--brand2); }
-  .tk-custom:hover { border-color:var(--accent); }
+    border-radius:var(--radius-xs); cursor:pointer; color:var(--brand2);
+    transition: border-color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout),
+                box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-spring); }
+  .tk-custom:hover { border-color:var(--accent); box-shadow:0 2px 6px rgba(0,0,0,.06); transform:translateY(-1px); }
+  .tk-custom:active { transform:scale(.98); transition-duration:.07s; }
 
   /* 值班表 */
   table.duty { width:100%; border-collapse:collapse; font-size:12px; }

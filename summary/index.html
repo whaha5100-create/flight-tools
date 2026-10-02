@@ -10,7 +10,7 @@
 <meta property="og:title" content="航班运量汇总 · 航班工作工具集">
 <meta property="og:description" content="录入东航/上航/中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算表达式。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/summary/index.html">
-<meta name="theme-color" content="#0071e3">
+<meta name="theme-color" content="#ffffff">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
 <script>
@@ -21,40 +21,41 @@
 <link rel="stylesheet" href="../assets/site.css">
 <style>
   /* ============ summary · 页面特有样式（通用样式见 ../assets/site.css）============ */
-  :root { --tool: #4e6393; }
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
 /* ============ Reset & Base ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 /* ============ IO Table ============ */
   table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 table.io-table th, table.io-table td { border: 1px solid var(--line); padding: 9px 10px; text-align: center; }
-table.io-table thead th { background: var(--brand-light); color: var(--ink-2); font-weight: 600; }
-table.io-table td.al { background: var(--brand-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
+table.io-table thead th { background: var(--tool-light); color: var(--ink-2); font-weight: 600; }
+table.io-table td.al { background: var(--tool-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
 table.io-table input { width: 100%; min-width: 90px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
                         font-size: 14px; text-align: center; outline: none; transition: border .15s; }
 table.io-table input::placeholder { color: var(--line); }
-table.io-table input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
+table.io-table input:focus { border-color: var(--tool); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
 table.io-table input:focus::placeholder { color: transparent; }
 .seat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-.seat-cell { background: var(--brand-light); border: 1px solid var(--brand-soft); border-radius: 10px; padding: 14px; text-align: center; }
+.seat-cell { background: var(--tool-light); border: 1px solid var(--tool-soft); border-radius: 10px; padding: 14px; text-align: center; }
 .seat-cell .lab { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; font-weight: 600; }
 .seat-cell input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; font-size: 15px;
                     text-align: center; outline: none; transition: border .15s; }
 .seat-cell input::placeholder { color: var(--line); }
-.seat-cell input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
+.seat-cell input:focus { border-color: var(--tool); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
 .seat-cell input:focus::placeholder { color: transparent; }
 /* ============ Output Table ============ */
   .out-wrap { overflow-x: auto; margin-top: 6px; border-radius: 10px; border: 1px solid var(--line); }
 table.out-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 920px; }
 table.out-table th, table.out-table td { border: 1px solid var(--line); padding: 10px 12px; text-align: center; white-space: nowrap; }
 table.out-table thead th { background: #f5f5f7; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
-table.out-table td.rowname { background: var(--brand-light); font-weight: 700; color: var(--ink); position: sticky; left: 0; }
+table.out-table td.rowname { background: var(--tool-light); font-weight: 700; color: var(--ink); position: sticky; left: 0; }
 table.out-table tr.total td { background: #f5f5f7; font-weight: 700; }
-table.out-table tr.eastsup td.rowname { color: var(--brand-dark); }
+table.out-table tr.eastsup td.rowname { color: var(--tool-dark); }
 .out-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.btn-sm { background: #fff; color: var(--brand); border: 1px solid var(--brand); cursor: pointer; font-size: 14px;
-           font-weight: 600; padding: 10px 20px; border-radius: 10px; transition: background .15s; }
-.btn-sm:hover { background: var(--brand-light); }
+.btn-sm { background: #fff; color: var(--tool); border: 1px solid var(--tool); cursor: pointer; font-size: 14px;
+           font-weight: 600; padding: 10px 20px; border-radius: 10px; }
+.btn-sm:hover { background: var(--tool-light); }
 .out-card { display: none; }
 .out-card.show { display: block; animation: fadeUp .4s ease both; }
 @media (max-width:620px) { .seat-row{ grid-template-columns:1fr; } .header{ padding:32px 24px; } }
