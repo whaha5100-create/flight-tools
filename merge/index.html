@@ -65,12 +65,14 @@
                 transform var(--dur) var(--ease-spring); }
   table.out thead th .row-act button:hover { background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.16); }
   table.out thead th .row-act button:active { transform: scale(.94); transition-duration: .07s; }
-  /* 区块色：东上联=近黑，总表=品牌蓝（2026-10-02 全站统一配色，原「总表=金」已改为蓝）
-     🔥 这条 `!important` 是**必须**的：site.css 里
-        `table.out thead th { background: #f5f5f7 !important; }`
-        与这里的特异性同为 0-1-2，靠后的页面样式**压不住** `!important` ——
-        实测加 `!important` 之前，表头实际渲染是 rgb(245,245,247) 灰，这条规则从来没生效过。 */
-  table.out.tbl-total thead th { background: var(--brand) !important; }
+  /* 区块色：东上联=近黑，总表=品牌蓝（2026-10-02 全站统一配色，原「总表=金」已改为蓝）。
+     ⚠️ 这一行**故意不加** `!important`，也就是**有意让它继续失效**：
+        site.css 的 `table.out thead th { background:#f5f5f7 !important; }` 与它特异性相同
+        （都是 0-1-2）且带 `!important`，靠后的页面样式压不住 —— 所以总表表头实际渲染是灰的。
+        实测加 `!important` 后，总表表头会变成**一条整行饱和蓝的色带**，比东上联表的灰表头重得多，
+        既不统一也不像苹果。总表与东上联表靠标题旁那个蓝色 badge 区分就够了
+        （`.out-title .badge.total` 不带 `!important`，本来就是生效的）。 */
+  table.out.tbl-total thead th { background: var(--brand); }
   table.out.tbl-total thead th .row-act button { color: var(--brand-dark); }
   table.out.tbl-total thead th .row-act button:hover { background: var(--tool-line); }
   .out-title .badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 9px; border-radius: 999px; vertical-align: 2px; margin-left: 8px; }
