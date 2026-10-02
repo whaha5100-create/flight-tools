@@ -308,16 +308,38 @@ body {
    这里；页面里只需写结构，不必再写样式。同时兼容两种结构：
      A) div.rules-header + div.rules-body（用 .open 切换）
      B) details > summary + div.r-body（原生展开）
+
+   ------------------------------------------------------------
+   2026-10-02 三改：把「尺寸与间距」彻底对齐
+   （用户反馈「最下面的规则说明有的大有的小，和上方的间距也不统一」）
+   实测出的三类不一致 + 处置：
+     ① 宽度 —— kn-stats 的面板与页脚被排在 .container **外面** → 通栏 1440，
+        其余 7 页 1124。已在 kn-stats/index.html 里挪回容器内。
+     ② 文字 —— .rules-body 原来**没写 font-size**，直接写在里面的段落继承
+        body 的 16px，而 li 是 13.5px；intro 行高 1.75 而 li 行高 1.7；
+        merge 走 <details> 分支又是另一套（li 间距 5px、ul 缩进 20px、
+        正文底内边距 18px）。→ 正文统一 13.5px / 1.75，列表缩进与条目间距一套。
+     ③ 间距 —— 面板与上方内容的间距实测 0 / 8 / 22 三种
+        → .rules-panel 统一 margin: 22px 0（与站内卡片间距同口径）。
+   ⚠️ 表头那条 min-height 是为了让 <details> 版与 div 版等高：
+      原生 <summary> 实测 62px，div 版 64px，差 2px。
    ==================================================== */
 .rules-panel {
   background: var(--card); border: 1px solid rgba(210,210,215,.9) !important;
-  border-radius: var(--radius) !important; margin-bottom: 22px;
+  border-radius: var(--radius) !important;
+  /* 上 22px：让「面板 ↔ 上方内容」的间距跨页一致。
+     相邻兄弟的 margin 会折叠取较大值，所以只要上一个元素的 margin-bottom
+     ≤ 22，实际间距就恒为 22（原先只写了 margin-bottom，上方间距随前一个
+     元素的 margin-bottom 变成 0 / 8 / 22）。 */
+  margin: 22px 0;
   box-shadow: var(--shadow-sm) !important; overflow: hidden;
   transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur-fast) var(--ease-inout);
 }
 .rules-panel:hover { box-shadow: var(--shadow) !important; }
 .rules-panel > summary, .rules-header {
   display: flex; align-items: center; justify-content: space-between;
+  /* 两种结构的表头必须等高：原生 <summary> 实测 62px、div 版 64px，差 2px */
+  min-height: 64px; box-sizing: border-box;
   padding: 17px 21px !important; margin: 0;
   cursor: pointer; user-select: none; list-style: none;
   font-size: 14.5px; font-weight: 700; color: var(--ink);
@@ -344,21 +366,34 @@ body {
 .rules-panel[open] > summary .chev,
 .rules-panel[open] .r-chev { transform: rotate(180deg); }
 
-/* 内容区 */
+/* 内容区 —— 两个分支（.rules-body / .r-body）的文字规格必须完全一样，
+   否则 merge 那一页（走 <details>）会明显与别页不同。 */
 .rules-body {
   max-height: 0; overflow: hidden; padding: 0 21px;
   transition: max-height .4s cubic-bezier(.22,1,.36,1), padding .4s ease;
 }
 .rules-panel.open .rules-body { max-height: 2400px; padding: 4px 21px 21px; }
-.rules-panel .r-body { padding: 0 21px 18px; font-size: 13.5px; line-height: 1.75; color: var(--ink-2); }
-.rules-panel .r-body ul { padding-left: 20px; margin: 6px 0; }
-.rules-panel .r-body li { margin: 5px 0; }
-.rules-panel .r-body b, .rules-panel .r-body strong { color: var(--ink); }
+/* 🔥 正文规格只在这里定义一次。原先 .rules-body 没写 font-size，
+   直接写在里面的段落会继承 body 的 16px，而 li 是 13.5px —— 同一块面板里
+   大小不一（实测：正文区 16px/25.6px vs 列表项 13.5px/22.95px）。 */
+.rules-body, .rules-panel .r-body {
+  font-size: 13.5px; line-height: 1.75; color: var(--ink-2);
+}
+/* <details> 分支没有 max-height 过渡，直接写展开态的最终内边距
+   （原来是 0 21px 18px，比 div 分支少 4px 上、3px 下） */
+.rules-panel .r-body { padding: 4px 21px 21px; }
+/* 列表缩进与条目间距：两个分支一套值（原来 .r-body 用 padding-left:20px，
+   .rules-inner 用 margin-left:18px，文字起点差 2px；li 间距 5px vs 6px） */
+.rules-body ul, .rules-panel .r-body ul { margin: 0 0 0 18px; padding-left: 0; }
+.rules-body li, .rules-panel .r-body li { margin: 6px 0; }
+.rules-body b, .rules-panel .r-body b,
+.rules-body strong, .rules-panel .r-body strong { color: var(--ink); }
 
 .rules-intro { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; line-height: 1.75; }
 .rules-intro b { color: var(--ink-2); }
 .rules-inner ul { margin: 0 0 0 18px; }
-.rules-inner li { font-size: 13.5px; color: var(--ink-2); margin: 6px 0; line-height: 1.7; }
+/* 行高与正文统一为 1.75（原为 1.7，比上面的 intro 紧一点，同一块面板里两种行距） */
+.rules-inner li { font-size: 13.5px; color: var(--ink-2); margin: 6px 0; line-height: 1.75; }
 
 /* 规则卡网格（stats / upgrade 用） */
 .rules-grid {
@@ -371,20 +406,22 @@ body {
   background: #fafafa; border: 1px solid var(--line); border-radius: 12px;
   padding: 14px 18px;
 }
-.rule-item .role { font-size: 13px; font-weight: 600; color: var(--muted); }
+.rule-item .role { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+/* 卡片的「数值」两个页面必须同号：stats 用 .val（航司代码）、upgrade 用 .ratio（岗位比例），
+   原先是 17px 与 22px 两档 —— 同一套卡片、同一个位置，字号却不一样。
+   统一到 17px（原本就有的那一档）；相对大小由下面的 .bar 长度表达。 */
 .rule-item .val, .rule-item .ratio {
   font-size: 17px; font-weight: 800; letter-spacing: -.3px;
   color: var(--brand); background: none;
 }
-.rule-item .ratio { font-size: 22px; letter-spacing: -.5px; }
 .rule-item .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--brand); border-radius: 3px; }
-.rules-total { text-align: right; font-size: 13px; color: var(--muted-2); margin-bottom: 16px; font-weight: 500; }
+.rules-total { text-align: right; font-size: 13.5px; color: var(--muted-2); margin-bottom: 16px; font-weight: 500; }
 
-/* 细则提示条 */
+/* 细则提示条 —— 字号/行高与正文同一档（原为 13px / 1.9，比正文小半号、行距更松） */
 .rules-note {
   background: var(--amber-soft); border: 1px solid var(--amber-line); border-left: 4px solid var(--amber);
   padding: 14px 18px; border-radius: 10px;
-  font-size: 13px; color: var(--ink-2); line-height: 1.9;
+  font-size: 13.5px; color: var(--ink-2); line-height: 1.75;
 }
 .rules-note b { color: var(--ink); }
 

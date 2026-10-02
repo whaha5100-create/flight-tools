@@ -49,11 +49,15 @@
   button.blue { background:var(--brand2); border-color:var(--brand2); color:#fff; }
   button.blue:hover { background:var(--tool-dark); color:#fff; }
   button.mini { font-size:12px; padding:4px 9px; border-radius:var(--radius-xs); }
-  .use-note { width:100%; font-size:12.5px; color:var(--tool-dark); background:var(--tool-light);
-    border:1px solid var(--tool-soft); border-radius:8px; padding:10px 14px; margin:10px 0 2px; line-height:1.75; }
+  /* ⚠️ 这块「使用说明」是左栏里的蓝色提示条，与其它页的白色 .rules-panel 不是同一个组件
+     （它必须留在 .editor 里 —— .app 是满屏双栏，挪到外面会直接被挤出可视区）。
+     但**文字规格与间距要和规则面板一套**：原先 12.5px / li 间距 3px，比别页小一号。
+     2026-10-02：字号 12.5→13.5、li 间距 3→6、上下外边距 10/2 → 22/22。 */
+  .use-note { width:100%; font-size:13.5px; color:var(--tool-dark); background:var(--tool-light);
+    border:1px solid var(--tool-soft); border-radius:8px; padding:10px 14px; margin:22px 0; line-height:1.75; }
   .use-note b { color:var(--tool-dark); }
-  .use-note ul { margin:4px 0 0 18px; }
-  .use-note li { margin:3px 0; }
+  .use-note ul { margin:14px 0 0 18px; }
+  .use-note li { margin:6px 0; }
 
   section.grp { background:var(--panel); border:1px solid var(--border); border-radius:10px; margin:12px 0; box-shadow:var(--shadow-sm); overflow:hidden; }
   .grp > h2 { font-size:14px; margin:0; padding:11px 14px; background:#fafafa; border-bottom:1px solid var(--border);

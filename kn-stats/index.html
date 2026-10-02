@@ -98,37 +98,37 @@ tbody tr:nth-child(even) { background:#fafafa; }
       </div>
       <div class="hint">截载时间 = 计飞 − 35 分钟；订座 = 出港订座三舱位数相加；订座 &gt; 160 标注「高客座航班」。</div>
     </div>
-  </div>
 
     <!-- 规则说明面板 -->
-  <div class="rules-panel" id="rulesPanel">
-    <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
-      <div class="title">
-        <span class="ic">📋</span>
-        KN出港统计规则说明
-        <span class="hint">点击展开查看</span>
+    <div class="rules-panel" id="rulesPanel">
+      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+        <div class="title">
+          <span class="ic">📋</span>
+          KN出港统计规则说明
+          <span class="hint">点击展开查看</span>
+        </div>
+        <div class="arrow">▼</div>
       </div>
-      <div class="arrow">▼</div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          系统读取 FIOS 导出的出港航班 Excel，按下列规则筛选与计算 KN 航班：
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>筛选 KN 出港：</b>仅保留航班号以 <code>KN</code> 开头的出港航班，并自动去除航班号中的 <code>#</code> 与 <code>&amp;</code> 符号。</li>
+            <li><b>排除取消：</b>机号 / 状态为 <code>CNL / DEL</code> 的航班不计入统计。</li>
+            <li><b>截载时间：</b>截载 = 计飞 − 35 分钟，便于安排值机截止时刻。</li>
+            <li><b>订座人数：</b>出港订座各舱位数相加，得到该航班总订座人数。</li>
+            <li><b>早始发汇总：</b>计飞在 <b>10:30（含）之前</b> 的航班，单独汇总其订座人数，便于早班保障排班。</li>
+            <li><b>高客座标注：</b>订座人数 <b>&gt; 160</b> 的航班标注「高客座航班」，提示重点保障。</li>
+            <li><b>排序与导出：</b>结果按计飞时间从早到晚排序；可一键导出图片，用于值机保障群发布。</li>
+          </ul>
+        </div>
+      </div>
     </div>
-    <div class="rules-body">
-      <div class="rules-intro">
-        系统读取 FIOS 导出的出港航班 Excel，按下列规则筛选与计算 KN 航班：
-      </div>
-      <div class="rules-inner">
-        <ul>
-          <li><b>筛选 KN 出港：</b>仅保留航班号以 <code>KN</code> 开头的出港航班，并自动去除航班号中的 <code>#</code> 与 <code>&amp;</code> 符号。</li>
-          <li><b>排除取消：</b>机号 / 状态为 <code>CNL / DEL</code> 的航班不计入统计。</li>
-          <li><b>截载时间：</b>截载 = 计飞 − 35 分钟，便于安排值机截止时刻。</li>
-          <li><b>订座人数：</b>出港订座各舱位数相加，得到该航班总订座人数。</li>
-          <li><b>早始发汇总：</b>计飞在 <b>10:30（含）之前</b> 的航班，单独汇总其订座人数，便于早班保障排班。</li>
-          <li><b>高客座标注：</b>订座人数 <b>&gt; 160</b> 的航班标注「高客座航班」，提示重点保障。</li>
-          <li><b>排序与导出：</b>结果按计飞时间从早到晚排序；可一键导出图片，用于值机保障群发布。</li>
-        </ul>
-      </div>
-    </div>
-  </div>
 
-  <footer class="site-footer">航班工作工具集</footer>
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
 
   <script src="libs/xlsx.full.min.js"></script>
   <script>
