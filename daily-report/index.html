@@ -153,6 +153,11 @@
   .pv-tbl { border-collapse:collapse; margin:3px 0 5px; table-layout:fixed; width:100%; }
   .pv-tbl td { border:0.5pt solid #7f7f7f; padding:2px 3px; text-align:center; vertical-align:middle;
     word-break:break-all; line-height:1.25; }
+  /* ⚠️ 无边框格（如「当日正常性 / 当月正常性」两表之间的分隔列）：
+     cellHTML 会打上 data-nb="1"，**必须**有这条规则去消费它，否则分隔格照样吃到
+     `.pv-tbl td` 的描边 → 两张表看起来被一条线连成一张。
+     用 !important 是照抄本项目共享层的习惯，压住可能存在的 table td 通用规则。 */
+  .pv-tbl td[data-nb="1"] { border:0 !important; padding:0; background:transparent; }
   .pv-red { color:var(--docred); font-weight:700; }
 
   @media (max-width:1180px) { .editor { width:52%; min-width:410px; } }
@@ -423,12 +428,17 @@
 
   var ALL = { top: { sz: 4, color: C.line }, left: { sz: 4, color: C.line }, bottom: { sz: 4, color: C.line },
               right: { sz: 4, color: C.line }, insideH: { sz: 4, color: C.line }, insideV: { sz: 4, color: C.line } };
-  var NONE_B = { top: { val: 'none' }, left: { val: 'none' }, bottom: { val: 'none' }, right: { val: 'none' },
-                 insideH: { val: 'none' }, insideV: { val: 'none' } };
-  var ONLY_BOTTOM = function (sz, color) { return { top: { val: 'none' }, left: { val: 'none' },
-    bottom: { sz: sz, color: color }, right: { val: 'none' }, insideH: { val: 'none' }, insideV: { val: 'none' } }; };
-  var ONLY_TOP = function (sz, color) { return { top: { sz: sz, color: color }, left: { val: 'none' },
-    bottom: { val: 'none' }, right: { val: 'none' }, insideH: { val: 'none' }, insideV: { val: 'none' } }; };
+  // 🔥 取消边框必须用 w:val="nil"，**不能用 "none"**：
+  //    在 OOXML 里 "none" 会被 Word 当成「没指定」→ 回落到表级 tblBorders，
+  //    于是「当日正常性 / 当月正常性」之间的空隙照样被表级 insideH 画上横线，
+  //    两张表看起来就连成一张。"nil" 才是硬性「无边框」。
+  var NO_B = function () { return { top: { val: 'nil' }, left: { val: 'nil' }, bottom: { val: 'nil' },
+    right: { val: 'nil' }, insideH: { val: 'nil' }, insideV: { val: 'nil' } }; };
+  var NONE_B = NO_B();
+  var ONLY_BOTTOM = function (sz, color) { return { top: { val: 'nil' }, left: { val: 'nil' },
+    bottom: { sz: sz, color: color }, right: { val: 'nil' }, insideH: { val: 'nil' }, insideV: { val: 'nil' } }; };
+  var ONLY_TOP = function (sz, color) { return { top: { sz: sz, color: color }, left: { val: 'nil' },
+    bottom: { val: 'nil' }, right: { val: 'nil' }, insideH: { val: 'nil' }, insideV: { val: 'nil' } }; };
 
   /* ───────────── 岗位与名册（从 30 天真实日报里抽出来的） ───────────── */
   var DUTY_POS = ['分公司值班', '值班经理', '生产指挥长', '综合柜台', '值机柜台', '登机口管控', '国际航班备份'];
@@ -622,10 +632,13 @@
     };
     var L = half('当日正常性', d), R = half('当月正常性', m);
     var rows = L.map(function (r, i) { return r.concat([gap], R[i]); });
+    // 列宽按官方 PDF 逐像素量出来的比例（以「标签列 = 1」为基准）：
+    // 标签 1.000 / 数据列 0.725·0.728·0.721 / 中间空隙 0.199。
+    // ⚠️ 空隙不能省 —— 它是「当日正常性」和「当月正常性」看起来是**两张表**的关键。
     return {
       t: 'tbl', borders: ALL, cellMar: { top: 10, bottom: 10, left: 40, right: 40 },
-      cols: [{ weight: 1.75 }, { weight: 0.85 }, { weight: 0.95 }, { weight: 0.85 }, { weight: 0.22 },
-             { weight: 1.75 }, { weight: 0.85 }, { weight: 0.95 }, { weight: 0.85 }],
+      cols: [{ weight: 1.000 }, { weight: 0.725 }, { weight: 0.728 }, { weight: 0.721 }, { weight: 0.199 },
+             { weight: 1.000 }, { weight: 0.725 }, { weight: 0.728 }, { weight: 0.721 }],
       rows: rows
     };
   }
