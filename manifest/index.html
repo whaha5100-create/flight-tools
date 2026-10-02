@@ -19,6 +19,7 @@
   }
 </script>
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
 <style>
   /* ============ manifest · 页面特有样式（通用样式见 ../assets/site.css）============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
@@ -170,57 +171,32 @@
     .ltable-skip .lt-head, .ltable-skip .lt-row { grid-template-columns: 108px minmax(0, 1fr); }
     .ltable .lt-code { padding: 2px 7px; letter-spacing: .2px; }
   }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/01-manifest.webp"); }
 </style>
 </head>
 <body>
-<a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
-<div class="container">
 
-  <!-- Header -->
-<header class="header">
-    <div class="header-main">
-      <p class="eyebrow"><span class="no">01</span>航班工作工具集 · FLIGHT TOOLS</p>
-      <h1>航班名单转换工具</h1>
-      <p>上传系统导出的航班名单 Excel，自动转换为海关上传模板，并生成可预览、可下载的结果表。</p>
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <span class="nav-tool"><b>01</b>国际名单转化</span>
     </div>
   </header>
 
-  <!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02） -->
-  <div class="page-banner">
-    <img src="../assets/tools/01-manifest.webp" alt="" width="1400" height="933">
-  </div>
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">01</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>航班名单转换工具</h1>
+    <p class="lede">上传系统导出的航班名单 Excel，自动转换为海关上传模板，并生成可预览、可下载的结果表。</p>
+  </section>
+<div class="container">
 
-
-  <!-- Rules Panel -->
-  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
-    <div class="rules-header" id="rulesHeader">
-      <div class="title">
-        <span class="ic">📋</span>
-        转换规则说明
-        <span class="hint">点击展开查看</span>
-      </div>
-      <div class="arrow">▼</div>
-    </div>
-    <div class="rules-body">
-      <div class="rules-intro">
-        系统按表头名称自动识别各列，将原始名单清洗、映射为标准「海关旅客订票数据上传模板」。下方为关键处理规则：
-      </div>
-      <div class="rules-inner">
-        <ul>
-          <li><b>自动识别列：</b>按表头名称匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等字段，列序不同也能正确解析。</li>
-          <li><b>国籍代码：</b>二字码自动转三字码（<code>CN→CHN</code>、<code>US→USA</code>），并修正常见错别字；无法识别的国籍标黄提示你手动核查。</li>
-          <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
-          <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
-          <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
-          <li><b>出入境判定：</b>依据航班号——<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>。</li>
-          <li><b>往来机场：</b><code>MU261 / MU262</code> 为<b>马德里</b>，<code>MU751 / MU752</code> 为<b>罗马</b>；其它航班取非温州那一端的城市。</li>
-          <li><b>上报口岸：</b>固定写入 <code>050-温州机场</code>。</li>
-          <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失的旅客行将被跳过，并在结果中单独列出，方便你补录。</li>
-          <li><b>输出文件：</b>生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载上传。</li>
-        </ul>
-      </div>
-    </div>
-  </div>
 
   <!-- Upload Zone -->
   <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
@@ -318,6 +294,37 @@
   </div>
 
   <!-- Footer -->
+  <!-- Rules Panel -->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        转换规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        系统按表头名称自动识别各列，将原始名单清洗、映射为标准「海关旅客订票数据上传模板」。下方为关键处理规则：
+      </div>
+      <div class="rules-inner">
+        <ul>
+          <li><b>自动识别列：</b>按表头名称匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等字段，列序不同也能正确解析。</li>
+          <li><b>国籍代码：</b>二字码自动转三字码（<code>CN→CHN</code>、<code>US→USA</code>），并修正常见错别字；无法识别的国籍标黄提示你手动核查。</li>
+          <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
+          <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
+          <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
+          <li><b>出入境判定：</b>依据航班号——<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>。</li>
+          <li><b>往来机场：</b><code>MU261 / MU262</code> 为<b>马德里</b>，<code>MU751 / MU752</code> 为<b>罗马</b>；其它航班取非温州那一端的城市。</li>
+          <li><b>上报口岸：</b>固定写入 <code>050-温州机场</code>。</li>
+          <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失的旅客行将被跳过，并在结果中单独列出，方便你补录。</li>
+          <li><b>输出文件：</b>生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载上传。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">航班工作工具集</footer>
 
 </div>

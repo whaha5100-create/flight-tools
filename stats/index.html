@@ -117,31 +117,6 @@ td.empty { color: var(--line); }
     </div>
   </header>
 
-  <!-- Rules Panel（可点开查看统计规则）-->
-  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
-    <div class="rules-header" id="rulesHeader">
-      <div class="title">
-        <span class="ic">📋</span>
-        统计规则说明
-        <span class="hint">点击展开查看</span>
-      </div>
-      <div class="arrow">▼</div>
-    </div>
-    <div class="rules-body">
-      <div class="rules-intro">
-        系统读取 Excel 中的 <b>机号 / 进港航班 / 出港航班 / 前站 / 到站 / 特服 / 备注</b> 等列，按下面规则自动统计与分类。
-      </div>
-      <div class="rules-grid" id="rulesGrid"></div>
-      <div class="rules-note">
-        <b>💡 统计细则</b><br>
-        • <b>航司分类：</b>航班号以 <code>MU / FM / CES</code> 开头计为<b>东上航司</b>，以 <code>KN</code> 开头计为<b>中联航</b>；其余航司归入「其他」，不计入东上航 / 联航统计。<br>
-        • <b>国内 / 国际：</b>进港的「前站」或出港的「到站」为 <code>马德里 / 罗马</code> 时记为<b>国际航班</b>，否则为国内航班。<br>
-        • <b>特服统计（仅出港）：</b>读取特服列中分隔符 <code>|</code> 之后的内容，<code>轮N</code>=轮椅数量、<code>童N</code>=无陪儿童数量。<br>
-        • <b>出港调时：</b>备注列含「调时」字样时，记录对应的出港航班号，便于跟踪延误调整。<br>
-        • <b>计划性取消：</b>机号列为 <code>CNL / DEL</code> 时判定为取消航班，不计入正常架次统计。
-      </div>
-    </div>
-  </div>
 
   <!-- Upload Zone -->
   <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
@@ -176,6 +151,32 @@ td.empty { color: var(--line); }
   </div>
 
   <!-- Footer -->
+  <!-- Rules Panel（可点开查看统计规则）-->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        统计规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        系统读取 Excel 中的 <b>机号 / 进港航班 / 出港航班 / 前站 / 到站 / 特服 / 备注</b> 等列，按下面规则自动统计与分类。
+      </div>
+      <div class="rules-grid" id="rulesGrid"></div>
+      <div class="rules-note">
+        <b>💡 统计细则</b><br>
+        • <b>航司分类：</b>航班号以 <code>MU / FM / CES</code> 开头计为<b>东上航司</b>，以 <code>KN</code> 开头计为<b>中联航</b>；其余航司归入「其他」，不计入东上航 / 联航统计。<br>
+        • <b>国内 / 国际：</b>进港的「前站」或出港的「到站」为 <code>马德里 / 罗马</code> 时记为<b>国际航班</b>，否则为国内航班。<br>
+        • <b>特服统计（仅出港）：</b>读取特服列中分隔符 <code>|</code> 之后的内容，<code>轮N</code>=轮椅数量、<code>童N</code>=无陪儿童数量。<br>
+        • <b>出港调时：</b>备注列含「调时」字样时，记录对应的出港航班号，便于跟踪延误调整。<br>
+        • <b>计划性取消：</b>机号列为 <code>CNL / DEL</code> 时判定为取消航班，不计入正常架次统计。
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">航班工作工具集</footer>
 
 </div>

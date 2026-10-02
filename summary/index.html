@@ -73,24 +73,6 @@ table.out-table tr.eastsup td.rowname { color: var(--tool-dark); }
 
   <div class="container">
     <div class="anim">
-      <!-- 折叠：计算规则说明 -->
-      <div class="rules-panel" id="rulesPanel">
-        <div class="rules-header" id="rulesHeader">
-          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
-          <span class="arrow">▾</span>
-        </div>
-        <div class="rules-body">
-          <div class="rules-inner">
-            <ul>
-              <li><b>东上航</b> = 东航 + 上航，按旅客、行李等字段逐列相加。</li>
-              <li><b>联航</b> = 中联航（直接取中联航录入的数据）。</li>
-              <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
-              <li><b>出港客座率</b>：东上航 =（东航客座率 + 上航客座率）÷ 2；联航 = 中联航客座率；总计 =（东上航客座率 + 联航客座率）÷ 2。结果均带 <b>%</b> 单位。</li>
-              <li><b>输入框表达式</b>：每格支持 <code>+ - * /</code> 四则运算（先乘除后加减），例如 <code>11+65+231</code> 得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       <!-- 区块A：出港 & 托运 -->
       <div class="panel">
@@ -139,6 +121,25 @@ table.out-table tr.eastsup td.rowname { color: var(--tool-dark); }
         </div>
         <div class="out-actions">
           <button class="btn-sm" id="downloadBtn">⬇ 下载 Excel</button>
+        </div>
+      </div>
+
+      <!-- 折叠：计算规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>东上航</b> = 东航 + 上航，按旅客、行李等字段逐列相加。</li>
+              <li><b>联航</b> = 中联航（直接取中联航录入的数据）。</li>
+              <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
+              <li><b>出港客座率</b>：东上航 =（东航客座率 + 上航客座率）÷ 2；联航 = 中联航客座率；总计 =（东上航客座率 + 联航客座率）÷ 2。结果均带 <b>%</b> 单位。</li>
+              <li><b>输入框表达式</b>：每格支持 <code>+ - * /</code> 四则运算（先乘除后加减），例如 <code>11+65+231</code> 得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
+            </ul>
+          </div>
         </div>
       </div>
 

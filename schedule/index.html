@@ -19,6 +19,7 @@
   }
 </script>
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
 <style>
   /* ============ schedule · 页面特有样式（通用样式见 ../assets/site.css）============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
@@ -147,51 +148,31 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
   .stats-bar { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
 .stat-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px;
               font-size:13px; font-weight:600; background:var(--tool-light); color:var(--tool-dark); border:1px solid var(--tool-soft); }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/03-schedule.webp"); }
 </style>
 </head>
 <body>
-  <a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
-<header class="header">
-    <div class="header-main">
-      <p class="eyebrow"><span class="no">03</span>航班工作工具集 · FLIGHT TOOLS</p>
-      <h1>航班排班表</h1>
-      <p>上传当日航班 Excel，自动提取出港航班信息，生成可编辑的排班表——分配登机口、指定负责人、查看备注与特服。</p>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <span class="nav-tool"><b>03</b>出港排班表</span>
     </div>
   </header>
 
-  <!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02） -->
-  <div class="page-banner">
-    <img src="../assets/tools/03-schedule.webp" alt="" width="1400" height="933">
-  </div>
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">03</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>航班排班表</h1>
+    <p class="lede">上传当日航班 Excel，自动提取出港航班信息，生成可编辑的排班表——分配登机口、指定负责人、查看备注与特服。</p>
+  </section>
 
-
-  <!-- 规则说明面板 -->
-  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
-    <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
-      <div class="title">
-        <span class="ic">📋</span>
-        排班表规则说明
-        <span class="hint">点击展开查看</span>
-      </div>
-      <div class="arrow">▼</div>
-    </div>
-    <div class="rules-body">
-      <div class="rules-intro">
-        导入当日出港航班 Excel 后，系统按下列规则自动生成可编辑排班表：
-      </div>
-      <div class="rules-inner">
-        <ul>
-          <li><b>只取出港航班：</b>仅读取出港方向航班，自动跳过进港及取消记录（机号为 <code>CNL / DEL</code>）。</li>
-          <li><b>按计离排序分段：</b>全部航班先按「计离」时间从早到晚排序，再按早（0830–1400）/ 午（1400–1830）/ 晚（1830 后）三段分组，可分页查看、按页导出。</li>
-          <li><b>登机口预填：</b>登机口统一以 <code>2</code> 开头预填，你只需补全后两位数字。</li>
-          <li><b>负责人选择：</b>点格子内「＋ / 添加」展开选择器，勾选预设人员或输入自定义姓名；可多人协作，不同负责人用不同颜色标签区分。</li>
-          <li><b>备注列顺序：</b>备注自动按「预推时间 → 特服 → 航班调时」三段拼接展示，便于快速读取保障要点。</li>
-          <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续。</li>
-          <li><b>导出：</b>支持导出当前页 / 全部为 Excel，以及导出排班图为图片，便于发群或打印。</li>
-        </ul>
-      </div>
-    </div>
-  </div>
 
   <div class="container anim" id="mainArea">
     <!-- 上传区 -->
@@ -235,6 +216,34 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
         <button class="btn-sm" onclick="clearDraft()">🗑 清空草稿</button>
         <button class="btn-sm danger" onclick="clearAll()">🗑 一键清空</button>
         <span class="info-hint">每行可「插入 / 删除」；插入的空行可直接编辑航班、到站、计离、订座与备注，导出时一并保留。</span>
+      </div>
+    </div>
+
+  <!-- 规则说明面板 -->
+    <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+        <div class="title">
+          <span class="ic">📋</span>
+          排班表规则说明
+          <span class="hint">点击展开查看</span>
+        </div>
+        <div class="arrow">▼</div>
+      </div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          导入当日出港航班 Excel 后，系统按下列规则自动生成可编辑排班表：
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>只取出港航班：</b>仅读取出港方向航班，自动跳过进港及取消记录（机号为 <code>CNL / DEL</code>）。</li>
+            <li><b>按计离排序分段：</b>全部航班先按「计离」时间从早到晚排序，再按早（0830–1400）/ 午（1400–1830）/ 晚（1830 后）三段分组，可分页查看、按页导出。</li>
+            <li><b>登机口预填：</b>登机口统一以 <code>2</code> 开头预填，你只需补全后两位数字。</li>
+            <li><b>负责人选择：</b>点格子内「＋ / 添加」展开选择器，勾选预设人员或输入自定义姓名；可多人协作，不同负责人用不同颜色标签区分。</li>
+            <li><b>备注列顺序：</b>备注自动按「预推时间 → 特服 → 航班调时」三段拼接展示，便于快速读取保障要点。</li>
+            <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续。</li>
+            <li><b>导出：</b>支持导出当前页 / 全部为 Excel，以及导出排班图为图片，便于发群或打印。</li>
+          </ul>
+        </div>
       </div>
     </div>
 

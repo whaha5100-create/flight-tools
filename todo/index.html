@@ -12,6 +12,7 @@
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/todo/index.html">
 <meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
 <style>
   /* ============ todo · 页面特有样式（通用样式见 ../assets/site.css）============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
@@ -131,25 +132,33 @@ a.back:hover { text-decoration: underline; }
 .tpl-add input[type=text]:focus { outline:none; border-color:var(--tool); box-shadow:0 0 0 3px var(--tool-soft); }
 .tpl-tip { font-size:12.5px; color:var(--muted); margin-bottom:4px; }
 .hidden { display:none !important; }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/07-todo.webp"); }
 </style>
 </head>
 <body>
-<header class="header">
-    <div class="header-main">
-      <p class="eyebrow"><span class="no">07</span>航班工作工具集 · FLIGHT TOOLS</p>
-      <h1>每日待办</h1>
-      <p>按日期记录每天要做的事，一个一个勾掉，自动保存；可回看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <span class="nav-tool"><b>07</b>每日待办</span>
     </div>
   </header>
 
-  <!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02） -->
-  <div class="page-banner">
-    <img src="../assets/tools/07-todo.webp" alt="" width="1400" height="933">
-  </div>
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">07</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>每日待办</h1>
+    <p class="lede">按日期记录每天要做的事，一个一个勾掉，自动保存；可回看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
+  </section>
 
 
   <div class="container">
-    <a class="back" href="../index.html">← 返回工具集首页</a>
 
     <!-- 工具条 -->
     <div class="toolbar">

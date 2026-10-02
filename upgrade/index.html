@@ -19,6 +19,7 @@
   }
 </script>
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
 <style>
   /* ============ upgrade · 页面特有样式（通用样式见 ../assets/site.css）============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
@@ -112,54 +113,32 @@ td.empty { color: var(--line); text-align: center !important; }
     .summary-card .value { font-size: 23px; }
     table { font-size: 12px; }
   }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/02-upgrade.webp"); }
 </style>
 </head>
 <body>
-<a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
-<div class="container">
 
-  <!-- Header -->
-<header class="header">
-    <div class="header-main">
-      <p class="eyebrow"><span class="no">02</span>航班工作工具集 · FLIGHT TOOLS</p>
-      <h1>升舱金额计算器</h1>
-      <p>上传 C2 升舱统计 Excel，系统自动按岗位比例分配金额并生成「人员 × 日期」汇总表。</p>
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <span class="nav-tool"><b>02</b>升舱金额计算器</span>
     </div>
   </header>
 
-  <!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02） -->
-  <div class="page-banner">
-    <img src="../assets/tools/02-upgrade.webp" alt="" width="1400" height="933">
-  </div>
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">02</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>升舱金额计算器</h1>
+    <p class="lede">上传 C2 升舱统计 Excel，系统自动按岗位比例分配金额并生成「人员 × 日期」汇总表。</p>
+  </section>
+<div class="container">
 
-
-  <!-- Rules Panel（可点开查看分配规则）-->
-  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
-    <div class="rules-header" id="rulesHeader">
-      <div class="title">
-        <span class="ic">📋</span>
-        分配规则说明
-        <span class="hint">点击展开查看</span>
-      </div>
-      <div class="arrow">▼</div>
-    </div>
-    <div class="rules-body">
-      <div class="rules-intro">
-        每一笔升舱金额，都会按下面 <b>6 个岗位</b> 的固定比例拆分。系统读取 Excel 中每条记录各岗位的人员名单，
-        把该岗位对应的金额<b>平均分配</b>给名单中的每个人，最终汇总成「人员 × 日期」交叉表。
-      </div>
-      <div class="rules-grid" id="rulesGrid"></div>
-      <div class="rules-total" id="rulesTotal"></div>
-      <div class="rules-note">
-        <b>💡 分配与计算细则</b><br>
-        • <b>比例固定：</b>主班 30% / 副班 20% / 运行协助人员 20% / 指挥长 10% / 当日班组其他人员 10% / 票台 10%，合计 100%。<br>
-        • <b>同岗位多人平分：</b>若某岗位在当条记录里填了多个人（用 <code>/</code>、<code>、</code>、<code>，</code> 分隔），该岗位金额在几人之间平均分配。<br>
-        • <b>岗位为空则跳过：</b>某岗位无人填写时，其对应比例的金额在这条记录中不分配，也不会摊给其它岗位。<br>
-        • <b>按日期归集：</b>同一人在同一天的多笔金额自动累加，最终按日期成列展示。<br>
-        • <b>金额精度：</b>每次分摊保留 4 位小数计算，最终汇总四舍五入到 2 位小数（元）。
-      </div>
-    </div>
-  </div>
 
   <!-- Upload Zone -->
   <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
@@ -200,6 +179,34 @@ td.empty { color: var(--line); text-align: center !important; }
   </div>
 
   <!-- Footer -->
+  <!-- Rules Panel（可点开查看分配规则）-->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        分配规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        每一笔升舱金额，都会按下面 <b>6 个岗位</b> 的固定比例拆分。系统读取 Excel 中每条记录各岗位的人员名单，
+        把该岗位对应的金额<b>平均分配</b>给名单中的每个人，最终汇总成「人员 × 日期」交叉表。
+      </div>
+      <div class="rules-grid" id="rulesGrid"></div>
+      <div class="rules-total" id="rulesTotal"></div>
+      <div class="rules-note">
+        <b>💡 分配与计算细则</b><br>
+        • <b>比例固定：</b>主班 30% / 副班 20% / 运行协助人员 20% / 指挥长 10% / 当日班组其他人员 10% / 票台 10%，合计 100%。<br>
+        • <b>同岗位多人平分：</b>若某岗位在当条记录里填了多个人（用 <code>/</code>、<code>、</code>、<code>，</code> 分隔），该岗位金额在几人之间平均分配。<br>
+        • <b>岗位为空则跳过：</b>某岗位无人填写时，其对应比例的金额在这条记录中不分配，也不会摊给其它岗位。<br>
+        • <b>按日期归集：</b>同一人在同一天的多笔金额自动累加，最终按日期成列展示。<br>
+        • <b>金额精度：</b>每次分摊保留 4 位小数计算，最终汇总四舍五入到 2 位小数（元）。
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">航班工作工具集</footer>
 
 </div>

@@ -12,6 +12,7 @@
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/early-ontime/index.html">
 <meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
 <style>
   /* ============ early-ontime · 页面特有样式（通用样式见 ../assets/site.css）============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
@@ -180,56 +181,34 @@ table.out-table thead th.hl { background: var(--tool-soft) !important; color: va
 
 .sec-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 24px 0 10px; }
 .sec-title .sub2 { font-size: 12.5px; font-weight: 500; color: var(--muted-2); margin-left: 8px; }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/08-early-ontime.webp"); }
 </style>
 </head>
 <body>
-  <a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
-<header class="header">
-    <div class="header-main">
-      <p class="eyebrow"><span class="no">08</span>航班工作工具集 · FLIGHT TOOLS</p>
-      <h1>早始发正常率测算</h1>
-      <p>录入我方与机场的当月早始发班数，按 T1 / T2 / T3 三档算出还要追回几班正常。</p>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <span class="nav-tool"><b>08</b>早始发正常率测算</span>
     </div>
   </header>
 
-  <!-- 页眉配图带：与本工具在首页卡片上是同一张图（2026-10-02） -->
-  <div class="page-banner">
-    <img src="../assets/tools/08-early-ontime.webp" alt="" width="1400" height="933">
-  </div>
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">08</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>早始发正常率测算</h1>
+    <p class="lede">录入我方与机场的当月早始发班数，按 T1 / T2 / T3 三档算出还要追回几班正常。</p>
+  </section>
 
 
   <div class="container">
     <div class="anim">
-      <!-- 折叠：计算规则说明 -->
-      <div class="rules-panel" id="rulesPanel">
-        <div class="rules-header" id="rulesHeader">
-          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
-          <span class="arrow">▾</span>
-        </div>
-        <div class="rules-body">
-          <div class="rules-inner">
-            <ul>
-              <li><b>早始发航班</b>：计飞时间 <b>10:30（含）之前</b> 的航班，与「KN 航班出港统计」口径一致。</li>
-              <li><b>对比主体</b>：中联航、东上航、东上联三个，各自与<b>同一个机场</b>比。
-                  <b>东上航 = 东航 + 上航</b>；<b>东上联 = 中联航 + 东上航</b>（班数自动相加，不用单独填）。</li>
-              <li><b>正常率</b> = 正常班数 ÷ 早始发总班数。<b>差距</b> = 我方正常率 − 机场正常率，单位<b>百分点</b>，正为领先、负为落后。</li>
-              <li><b>考核档位</b>：<b>T1</b> = 比机场低 1 个百分点，<b>T2</b> = 与机场持平，<b>T3</b> = 比机场高 1 个百分点。
-                  结果区可以<b>切换目标档位</b>，页面按选中的档位给出「还要追回几班」。
-                  档位徽标颜色按高低走 —— 低于 T1 红、T1 橙、T2 浅绿、T3 实心绿，<b>越绿档位越高</b>。</li>
-              <li><b>两个「追几班」</b>：
-                  <b>当前缺口</b> = 在当前这批班里，还差几班正常才够目标档（看现状）；
-                  <b>剩余需正常</b> = 全月预计班数下，剩余航班还要保证几班正常（指导行动）。</li>
-              <li><b>录入口径</b>：正常班数 = 总班数 − 延误班数，正常率 = 正常班数 ÷ 总班数，都由页面自动算。</li>
-              <li><b>机场分两行</b>：② 区上面一行是<b>当月累计</b>，下面一行是<b>全月预测</b>。
-                  全月预测留空时按当月累计的正常率当月末假设，填了就以它为准。</li>
-              <li><b>本月进度</b>：③ 区的「读取今天」按钮按今天日期填入天数（点了才填）；
-                  ① 区的全月预计班数留空时，按「已过天数 ÷ 本月总天数」线性外推。</li>
-              <li><b>追不上告警</b>：若「剩余需正常」大于「剩余总班数」，说明剩下的班全部正常也追不上，
-                  页面会明确告警，并告诉你最高只能追到哪一档。</li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       <!-- 区块①：我方 -->
       <div class="panel">
@@ -333,6 +312,37 @@ table.out-table thead th.hl { background: var(--tool-soft) !important; color: va
 
         <div class="ref-line warn-line" id="warnLine" style="display:none;"></div>
         <div class="ref-line" id="refLine" style="display:none;"></div>
+      </div>
+
+      <!-- 折叠：计算规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>早始发航班</b>：计飞时间 <b>10:30（含）之前</b> 的航班，与「KN 航班出港统计」口径一致。</li>
+              <li><b>对比主体</b>：中联航、东上航、东上联三个，各自与<b>同一个机场</b>比。
+                  <b>东上航 = 东航 + 上航</b>；<b>东上联 = 中联航 + 东上航</b>（班数自动相加，不用单独填）。</li>
+              <li><b>正常率</b> = 正常班数 ÷ 早始发总班数。<b>差距</b> = 我方正常率 − 机场正常率，单位<b>百分点</b>，正为领先、负为落后。</li>
+              <li><b>考核档位</b>：<b>T1</b> = 比机场低 1 个百分点，<b>T2</b> = 与机场持平，<b>T3</b> = 比机场高 1 个百分点。
+                  结果区可以<b>切换目标档位</b>，页面按选中的档位给出「还要追回几班」。
+                  档位徽标颜色按高低走 —— 低于 T1 红、T1 橙、T2 浅绿、T3 实心绿，<b>越绿档位越高</b>。</li>
+              <li><b>两个「追几班」</b>：
+                  <b>当前缺口</b> = 在当前这批班里，还差几班正常才够目标档（看现状）；
+                  <b>剩余需正常</b> = 全月预计班数下，剩余航班还要保证几班正常（指导行动）。</li>
+              <li><b>录入口径</b>：正常班数 = 总班数 − 延误班数，正常率 = 正常班数 ÷ 总班数，都由页面自动算。</li>
+              <li><b>机场分两行</b>：② 区上面一行是<b>当月累计</b>，下面一行是<b>全月预测</b>。
+                  全月预测留空时按当月累计的正常率当月末假设，填了就以它为准。</li>
+              <li><b>本月进度</b>：③ 区的「读取今天」按钮按今天日期填入天数（点了才填）；
+                  ① 区的全月预计班数留空时，按「已过天数 ÷ 本月总天数」线性外推。</li>
+              <li><b>追不上告警</b>：若「剩余需正常」大于「剩余总班数」，说明剩下的班全部正常也追不上，
+                  页面会明确告警，并告诉你最高只能追到哪一档。</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <footer class="site-footer">航班工作工具集</footer>
