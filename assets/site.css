@@ -43,6 +43,7 @@
   --line:         #d2d2d7;
   --bg:           #f5f5f7;
   --card:         #ffffff;
+  --chip:         #f0f0f2;   /* 导航「胶囊」控件的常态底色（比 --bg 略深，白底页眉上才有边界） */
   /* 语义色（低饱和） */
   --success:      #1e7a55;
   --success-dark: #17603f;
@@ -147,7 +148,7 @@ body {
 }
 .nav-inner {
   max-width: 1180px; margin: 0 auto; padding: 0 28px;
-  height: 52px; display: flex; align-items: center; gap: 18px;
+  height: 56px; display: flex; align-items: center; gap: 18px;
 }
 .brandmark {
   display: inline-flex; align-items: center; gap: 9px;
@@ -156,41 +157,82 @@ body {
 .brandmark svg { display: block; color: var(--ink); }
 .brandmark .bm-t { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.2px; }
 
-/* 工具页页眉：左「返回」右「工具名」 */
+/* 工具页页眉：左「返回」右「工具名」
+   ------------------------------------------------------------
+   2026-10-05 改版（用户反馈「返回导航页太小太不清晰，要更明显直观」）
+   原样：13.5px 纯文字、无底无框，命中区 88×22 —— 浮在暗图上几乎看不见。
+   现在：**胶囊按钮** —— 15px/600 加粗、高 36px、带底色与细描边、
+        悬停变色 + 轻微回弹，命中区约 124×36（面积约为原来的 2.3 倍）。
+   · 未滚动（浮在暗色主视觉上）：半透明白胶囊 + 白色细描边 + 毛玻璃
+   · 已滚动（白底毛玻璃上）：浅灰胶囊 + 深色字，悬停转品牌蓝
+   参考做法：苹果的导航把「返回」做成有实体感的控件而不是裸文字；
+   现代文档站（Vercel / Linear 等）也普遍用「带底的胶囊」承载导航动作。 */
 .nav-back {
   display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
-  font-size: 13.5px; font-weight: 500; color: var(--ink-2);
-  text-decoration: none;
-  transition: color var(--dur-fast) var(--ease-inout);
+  height: 36px; padding: 0 15px 0 12px;
+  border: 1px solid rgba(0,0,0,.07); border-radius: var(--radius-pill);
+  background: var(--chip); color: var(--ink);
+  font-size: 15px; font-weight: 600; letter-spacing: -.1px;
+  text-decoration: none; white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  transition: background var(--dur-fast) var(--ease-inout),
+              border-color var(--dur-fast) var(--ease-inout),
+              color var(--dur-fast) var(--ease-inout),
+              box-shadow var(--dur-fast) var(--ease-inout),
+              transform var(--dur-fast) var(--ease-spring);
 }
-.nav-back:hover { color: var(--brand); }
-.nav-back .ic { font-size: 15px; line-height: 1; }
+.nav-back:hover {
+  background: var(--brand-light); border-color: rgba(0,113,227,.30);
+  color: var(--brand-dark); box-shadow: 0 2px 6px rgba(0,113,227,.16);
+}
+.nav-back:active { transform: scale(.97); }
+.nav-back:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* 箭头单独放大加粗：原来 15px 的细箭头在 13.5px 的文字旁边几乎没有存在感 */
+.nav-back .ic { font-size: 17px; font-weight: 700; line-height: 1; margin-top: -1px; }
+
 .nav-tool {
   margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
-  font-size: 12.5px; color: var(--muted-2);
+  font-size: 13px; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .nav-tool b {
-  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  font-family: var(--mono); font-size: 11.5px; font-weight: 700;
   letter-spacing: 1.2px; color: var(--brand);
 }
-/* 未滚动 ⇒ 浮在暗图上 ⇒ 全部转白。
-   ⚠️ 特异性是 0-3-x，会压过页面里同名的浅色规则，所以焦点态要在页面里再写一遍。 */
+/* 未滚动 ⇒ 浮在暗图上 ⇒ 转白。
+   ⚠️ 特异性是 0-3-x，会压过页面里同名的浅色规则，所以焦点态要在页面里再写一遍。
+   ⚠️ 悬停态必须写成 `.nav:not(.scrolled) .nav-back:hover`（0-4-0）——
+      否则被上面那条 0-3-0 的基础规则压住，悬停看不出变化。 */
 .nav:not(.scrolled) .brandmark svg,
-.nav:not(.scrolled) .brandmark .bm-t,
-.nav:not(.scrolled) .nav-back { color: #fff; }
-.nav:not(.scrolled) .nav-tool { color: rgba(255,255,255,.66); }
+.nav:not(.scrolled) .brandmark .bm-t { color: #fff; }
+.nav:not(.scrolled) .nav-back {
+  color: #fff;
+  /* 底色不透明度调到 .20/.40：实测在配图的**亮部**（日报那张仪表盘）上，
+     .16/.32 的胶囊会糊掉，看不出边界。 */
+  background: rgba(255,255,255,.20);
+  border-color: rgba(255,255,255,.40);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0,0,0,.20);
+}
+.nav:not(.scrolled) .nav-back:hover {
+  color: #fff;
+  background: rgba(255,255,255,.34);
+  border-color: rgba(255,255,255,.66);
+  box-shadow: 0 2px 10px rgba(0,0,0,.26);
+}
+.nav:not(.scrolled) .nav-tool { color: rgba(255,255,255,.74); }
 .nav:not(.scrolled) .nav-tool b { color: #7fb9ff; }
 
 /* ============ 满屏暗色主视觉（首页 + 8 个工具页共用）============
-   图当背景、白色文字压在上面，页眉靠 margin-top:-52px 浮在图上。
+   图当背景、白色文字压在上面，页眉靠 margin-top:-56px 浮在图上。
+   ⚠️ 这个负边距**必须等于 .nav-inner 的高度**，否则页眉不会正好压在图上。
    ⚠️ 这里**故意不写 background-image** —— CSS 里的 url() 是相对**样式表**解析的，
       site.css 在 assets/ 下，写相对路径会指到 assets/assets/… 去。
       图由各页自己给：首页 ./assets/hero-aircraft.webp，工具页 ../assets/tools/NN-*.webp。 */
 .hero {
   position: relative; isolation: isolate;
   min-height: clamp(470px, 70vh, 640px);
-  margin-top: -52px;                 /* 钻到吸顶页眉下面，让页眉浮在图上 */
+  margin-top: -56px;                 /* 钻到吸顶页眉下面，让页眉浮在图上（= .nav-inner 高度） */
   padding: 92px 28px 66px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; overflow: hidden;
