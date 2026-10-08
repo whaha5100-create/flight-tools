@@ -183,7 +183,7 @@
   <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
   <header class="nav" id="nav">
     <div class="nav-inner">
-      <a class="nav-back" href="../index.html"><span class="ic">←</span>返回导航页</a>
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
       <span class="nav-tool"><b>01</b>国际名单转化</span>
     </div>
   </header>
@@ -315,8 +315,8 @@
           <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
           <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
           <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
-          <li><b>出入境判定：</b>依据航班号——<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>。</li>
-          <li><b>往来机场：</b><code>MU261 / MU262</code> 为<b>马德里</b>，<code>MU751 / MU752</code> 为<b>罗马</b>；其它航班取非温州那一端的城市。</li>
+          <li><b>出入境判定：</b>依据航班号——<b>单号出境、双号入境</b>：<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>；<code>FM883</code> 记为<b>出境</b>，<code>FM884</code> 记为<b>入境</b>。</li>
+          <li><b>往来机场代码：</b>输出<b>英文 IATA 三字码</b>——<code>MU261 / MU262</code> 为 <code>MAD</code>（马德里），<code>MU751 / MU752</code> 为 <code>FCO</code>（罗马），<code>FM883 / FM884</code> 为 <code>BKK</code>（曼谷）；其它航班取非温州那一端的机场代码。</li>
           <li><b>上报口岸：</b>固定写入 <code>050-温州机场</code>。</li>
           <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失的旅客行将被跳过，并在结果中单独列出，方便你补录。</li>
           <li><b>输出文件：</b>生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载上传。</li>

@@ -43,7 +43,6 @@
   --line:         #d2d2d7;
   --bg:           #f5f5f7;
   --card:         #ffffff;
-  --chip:         #f0f0f2;   /* 导航「胶囊」控件的常态底色（比 --bg 略深，白底页眉上才有边界） */
   /* 语义色（低饱和） */
   --success:      #1e7a55;
   --success-dark: #17603f;
@@ -159,36 +158,35 @@ body {
 
 /* 工具页页眉：左「返回」右「工具名」
    ------------------------------------------------------------
-   2026-10-05 改版（用户反馈「返回导航页太小太不清晰，要更明显直观」）
-   原样：13.5px 纯文字、无底无框，命中区 88×22 —— 浮在暗图上几乎看不见。
-   现在：**胶囊按钮** —— 15px/600 加粗、高 36px、带底色与细描边、
-        悬停变色 + 轻微回弹，命中区约 124×36（面积约为原来的 2.3 倍）。
-   · 未滚动（浮在暗色主视觉上）：半透明白胶囊 + 白色细描边 + 毛玻璃
-   · 已滚动（白底毛玻璃上）：浅灰胶囊 + 深色字，悬停转品牌蓝
-   参考做法：苹果的导航把「返回」做成有实体感的控件而不是裸文字；
-   现代文档站（Vercel / Linear 等）也普遍用「带底的胶囊」承载导航动作。 */
+   2026-10-05 二次改版 —— 用户看过 4 个方案后选定 **D「精致文字」**。
+   一改（已废弃）做的是「实心灰胶囊 + 文字箭头 ←」，用户评价「并不好看，不高级」。
+   判定「不高级」的三条成因（**以后做控件先自查这三条**）：
+     ① Unicode 符号 ← 当图标 —— 大小/粗细/基线由字体决定，跨设备不一致，一眼「网页感」
+     ② 实心灰底 #f0f0f2 —— 读起来像 Bootstrap 的标签/徽章，是「组件库感」
+     ③ 底色 + 描边 + 阴影三样同时上 —— 互相打架（高级控件最多留一到两样）
+   现方案 = **无容器**，只靠字号/字重/真 SVG 箭头 + 悬停微交互：
+     · 箭头 = 内联 SVG（stroke 2px、圆头），替代 Unicode ←
+     · 15px / 590（600 在 15px 下偏「黑」，590 更细腻）
+     · **命中区靠透明内边距撑到约 36px 高，再用负外边距抵消** ⇒ 看着仍是纯文字，
+       但点击/触摸目标足够大（苹果也是这么处理文字链接的）。
+     · 悬停：文字转品牌蓝 + 箭头左移 2px（苹果的经典微交互）
+   ⚠️ 箭头类名用 `ic`，**别改成 `chev`** —— 首页有 10 个 `class="chev"`（「进入 ›」），
+      site.css 里 `.rules-panel > summary .chev` 也在用；`.nav-back .ic` 是现成的选择器。 */
 .nav-back {
-  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
-  height: 36px; padding: 0 15px 0 12px;
-  border: 1px solid rgba(0,0,0,.07); border-radius: var(--radius-pill);
-  background: var(--chip); color: var(--ink);
-  font-size: 15px; font-weight: 600; letter-spacing: -.1px;
-  text-decoration: none; white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0,0,0,.05);
-  transition: background var(--dur-fast) var(--ease-inout),
-              border-color var(--dur-fast) var(--ease-inout),
-              color var(--dur-fast) var(--ease-inout),
-              box-shadow var(--dur-fast) var(--ease-inout),
-              transform var(--dur-fast) var(--ease-spring);
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 9px 8px; margin: -9px -8px;   /* 撑命中区 + 抵消，文字位置不变 */
+  font-size: 15px; font-weight: 590; letter-spacing: -.1px;
+  color: var(--ink); text-decoration: none; white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-inout);
 }
-.nav-back:hover {
-  background: var(--brand-light); border-color: rgba(0,113,227,.30);
-  color: var(--brand-dark); box-shadow: 0 2px 6px rgba(0,113,227,.16);
+.nav-back .ic {
+  display: block; width: 17px; height: 17px; flex-shrink: 0;
+  transition: transform var(--dur) var(--ease-out);
 }
-.nav-back:active { transform: scale(.97); }
-.nav-back:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-/* 箭头单独放大加粗：原来 15px 的细箭头在 13.5px 的文字旁边几乎没有存在感 */
-.nav-back .ic { font-size: 17px; font-weight: 700; line-height: 1; margin-top: -1px; }
+.nav-back:hover { color: var(--brand); }
+.nav-back:hover .ic { transform: translateX(-2px); }
+.nav-back:active .ic { transform: translateX(-3px) scale(.94); }
+.nav-back:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px; }
 
 .nav-tool {
   margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
@@ -199,27 +197,11 @@ body {
   font-family: var(--mono); font-size: 11.5px; font-weight: 700;
   letter-spacing: 1.2px; color: var(--brand);
 }
-/* 未滚动 ⇒ 浮在暗图上 ⇒ 转白。
-   ⚠️ 特异性是 0-3-x，会压过页面里同名的浅色规则，所以焦点态要在页面里再写一遍。
-   ⚠️ 悬停态必须写成 `.nav:not(.scrolled) .nav-back:hover`（0-4-0）——
-      否则被上面那条 0-3-0 的基础规则压住，悬停看不出变化。 */
+/* 未滚动 ⇒ 浮在暗图上 ⇒ 转白。纯文字，不再有底色/描边/毛玻璃。 */
 .nav:not(.scrolled) .brandmark svg,
 .nav:not(.scrolled) .brandmark .bm-t { color: #fff; }
-.nav:not(.scrolled) .nav-back {
-  color: #fff;
-  /* 底色不透明度调到 .20/.40：实测在配图的**亮部**（日报那张仪表盘）上，
-     .16/.32 的胶囊会糊掉，看不出边界。 */
-  background: rgba(255,255,255,.20);
-  border-color: rgba(255,255,255,.40);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0,0,0,.20);
-}
-.nav:not(.scrolled) .nav-back:hover {
-  color: #fff;
-  background: rgba(255,255,255,.34);
-  border-color: rgba(255,255,255,.66);
-  box-shadow: 0 2px 10px rgba(0,0,0,.26);
-}
+.nav:not(.scrolled) .nav-back { color: rgba(255,255,255,.95); }
+.nav:not(.scrolled) .nav-back:hover { color: #fff; }
 .nav:not(.scrolled) .nav-tool { color: rgba(255,255,255,.74); }
 .nav:not(.scrolled) .nav-tool b { color: #7fb9ff; }
 

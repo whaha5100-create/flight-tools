@@ -4,7 +4,9 @@
  *   - 国籍二字码 -> 三字码（含常见错别字修正）
  *   - 性别 1/2 -> M/F
  *   - 证件号 / 日期清洗
- *   - 依据航班号判定 入境/出境（MU261/MU751 出境，MU262/MU752 入境），未命中航班回退温州判定
+ *   - 依据航班号查「航线表 ROUTES」同时得出 入境/出境 与 往来机场 **IATA 三字码**
+ *     （MU261/262→MAD、MU751/752→FCO、FM883/884→BKK；单号出境、双号入境），
+ *     未命中航班回退温州判定
  *   - 生成海关上传模板 15 列表
  * 该函数为纯函数，浏览器与 Node 共用，保证校验与线上逻辑一致。
  */
@@ -156,22 +158,48 @@
     return dest;                   // 出境，对方是目的地
   }
 
-  // 依据航班号判定出入境（用户规则）：MU261 / MU751 出境；MU262 / MU752 入境
-  function getDirectionByFlight(carrier, flightNum) {
+  // ── 航线表（用户规则）──────────────────────────────────────────────
+  // 一个航班号同时决定「出入境方向」和「往来机场代码」，所以合成一张表，新增航线只加一行。
+  // 🔥 往来机场必须输出 **IATA 三字码（英文）**，不能是中文城市名 ——
+  //    海关模板第 11 列叫「*往来机场代码」。2026-10-08 用户报错：
+  //    「往来机场要的是英文，MAD 或者 FCO、BKK」（原实现输出「马德里 / 罗马」）。
+  // 🔥 新增航线时**方向也要一起给**：源文件没有「起飞地/目的地」列（见下），
+  //    回退判定拿不到东西 → 回程航班会被一律判成「出境」。
+  // 约定：单号 = 出境（温州→外站），双号 = 入境（外站→温州）。
+  var ROUTES = [
+    { carrier: 'MU', out: '261', inb: '262', code: 'MAD' },  // 温州 ⇄ 马德里
+    { carrier: 'MU', out: '751', inb: '752', code: 'FCO' },  // 温州 ⇄ 罗马
+    { carrier: 'FM', out: '883', inb: '884', code: 'BKK' }   // 温州 ⇄ 曼谷
+  ];
+
+  // 命中返回 { code, direction }，未命中返回 null（交给调用方回退温州判定）
+  function matchRoute(carrier, flightNum) {
     var full = (carrier + ' ' + flightNum).toUpperCase().replace(/\s+/g, '');
     var num = (full.match(/(\d+)/) || [])[1] || '';
-    if (full.indexOf('MU261') >= 0 || full.indexOf('MU751') >= 0 || num === '261' || num === '751') return '出境';
-    if (full.indexOf('MU262') >= 0 || full.indexOf('MU752') >= 0 || num === '262' || num === '752') return '入境';
-    return null; // 未命中，交给调用方回退温州判定
+    var car = String(carrier === null || carrier === undefined ? '' : carrier)
+      .toUpperCase().replace(/[^A-Z]/g, '');
+    for (var i = 0; i < ROUTES.length; i++) {
+      var r = ROUTES[i];
+      // 源文件给了承运人就必须对得上（避免别的航司的同号航班被误判）；
+      // 承运人缺失/是中文时退回「只按航班号」—— 与老行为一致。
+      if (car && car.indexOf(r.carrier) < 0) continue;
+      var isOut = (num === r.out) || full.indexOf(r.carrier + r.out) >= 0;
+      var isIn = (num === r.inb) || full.indexOf(r.carrier + r.inb) >= 0;
+      if (isOut || isIn) {
+        return { code: r.code, direction: isOut ? '出境' : '入境' };
+      }
+    }
+    return null;
   }
 
-  // 依据航班号判定往来机场（用户规则）：MU261/MU262 马德里，MU751/MU752 罗马
+  function getDirectionByFlight(carrier, flightNum) {
+    var hit = matchRoute(carrier, flightNum);
+    return hit ? hit.direction : null;
+  }
+
   function getCounterpartByFlight(carrier, flightNum) {
-    var full = (carrier + ' ' + flightNum).toUpperCase().replace(/\s+/g, '');
-    var num = (full.match(/(\d+)/) || [])[1] || '';
-    if (full.indexOf('MU261') >= 0 || full.indexOf('MU262') >= 0 || num === '261' || num === '262') return '马德里';
-    if (full.indexOf('MU751') >= 0 || full.indexOf('MU752') >= 0 || num === '751' || num === '752') return '罗马';
-    return null; // 未命中，交给调用方回退温州判定
+    var hit = matchRoute(carrier, flightNum);
+    return hit ? hit.code : null;
   }
 
   // 海关模板 15 列表头（与 convert_manifest.py 完全一致）
