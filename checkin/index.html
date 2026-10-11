@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>值机数据制作 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入 FIOS 出港 Excel，自动按东航 / 上航 / 中联航分组生成「东上联自助值机数据表」，填入 WEB / CUSS / 人数后自助率自动计算，一键导出带公式的 Excel。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="值机数据制作 · 航班工作工具集">
+<meta property="og:description" content="导入 FIOS 出港 Excel，自动按东航 / 上航 / 中联航分组生成「东上联自助值机数据表」，填入 WEB / CUSS / 人数后自助率自动计算，一键导出带公式的 Excel。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/checkin/index.html">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ checkin · 页面特有样式（通用样式见 ../assets/site.css）============ */
+
+* { box-sizing:border-box; }
+.upload { margin-top:24px; border:2px dashed var(--line); border-radius:var(--radius); background:#fff;
+    transition:border-color .2s, background .2s; }
+.upload.drag { border-color:var(--tool); background:var(--tool-light); }
+.upload-inner { padding:42px 24px; text-align:center; }
+.up-ic { font-size:42px; }
+.upload-inner p { color:var(--muted); margin:12px 0 18px; font-size:15px; }
+
+#resultArea { margin-top:24px; }
+.stats-bar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.stat-pill { background:#fff; border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:13.5px;
+    color:var(--muted); box-shadow:var(--shadow-sm); }
+.stat-pill b { color:var(--tool-dark); font-size:15px; }
+.stat-pill.mute b { color:var(--muted-2); }
+.table-scroll { overflow-x:auto; }
+
+/* ---------- 数据表 ----------
+   版式对齐用户给的《东上联自助值机数据表》：标题行跨 6 列、表头灰底、
+   合计行浅灰底加粗、网格线清晰（这是一张要打印 / 贴群的工作表，不是展示型卡片）。 */
+.ck-table { width:100%; min-width:620px; border-collapse:collapse; table-layout:fixed;
+    background:#fff; border:1px solid #c6c6cd; font-size:14.5px; }
+.ck-table th, .ck-table td { border:1px solid #c6c6cd; padding:7px 8px; text-align:center; }
+.ck-table .t-title { font-size:16px; font-weight:700; color:var(--ink); letter-spacing:.2px; padding:11px 10px; }
+.ck-table .t-head th { background:#f5f5f7; color:var(--muted); font-weight:700; font-size:13.5px; }
+.ck-table td.c-flight { font-weight:700; color:var(--ink); font-family:var(--mono); font-size:13.5px; }
+.ck-table td.c-dest { color:var(--ink-2); }
+.ck-table td.c-rate { color:var(--tool-dark); font-weight:700; font-variant-numeric:tabular-nums; }
+.ck-table tr.sum-row td { background:#f0f0f2; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+.ck-table tr.sum-row td.c-rate { color:var(--tool-dark); }
+.ck-table tbody tr:hover td.c-flight,
+.ck-table tbody tr:hover td.c-dest { background:#fafbfd; }
+
+/* ---------- 表格里的可填格 ----------
+   🔥 目标版式里这些格子**看不到输入框**（就是三个数字），所以常态去边框去底色，
+   只在悬停 / 聚焦时给反馈。site.css 对 input[type=number] 的 border-color /
+   border-radius / background 都带 !important，这里必须同样加 !important；
+   选择器用 input.cell-in（0-1-1）与它打平，靠「页面 <style> 在 site.css 之后」取胜。 */
+input.cell-in {
+  width:100% !important; height:32px; padding:0 6px !important;
+  border:none !important; background:transparent !important; border-radius:8px !important;
+  box-shadow:none !important; text-align:center; font:inherit; font-weight:700;
+  color:var(--ink); font-variant-numeric:tabular-nums;
+  appearance:textfield; -moz-appearance:textfield;
+}
+input.cell-in::-webkit-outer-spin-button,
+input.cell-in::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+
+/* 空格子的提示 = 「—」占位符（2026-10-11 试过「格子里画个小细框」，用户看后不要了，
+   已回退；不要再改回去）。框画在输入框上会铺满整格像套了个表格，
+   画在 td::after 上又要依赖 :has() —— 都不如一个字符干净。 */
+input.cell-in::placeholder { color:#c7c7cc; font-weight:400; }
+input.cell-in:hover { background:var(--brand-light) !important; }
+input.cell-in:focus { background:#fff !important; box-shadow:0 0 0 2px var(--brand) !important; }
+input.cell-in:focus-visible { outline:2px solid var(--brand) !important; outline-offset:-2px !important; }
+
+/* ---------- 标题里的日期（可改）----------
+   目标版式的标题是「东上联自助值机数据表-10月9日」。日期 FIOS 导出里没有，
+   做成标题内的可编辑片段：虚线底提示可点，聚焦转实线 + 品牌色。 */
+input.date-in {
+  width:6em !important; padding:0 2px !important; margin-left:1px;
+  border:none !important; border-bottom:1px dashed #b9b9c0 !important;
+  border-radius:0 !important; background:transparent !important; box-shadow:none !important;
+  font:inherit; font-weight:700; color:var(--brand) !important; text-align:center;
+}
+input.date-in:hover { border-bottom-color:var(--brand) !important; }
+input.date-in:focus {
+  border-bottom-style:solid !important; border-bottom-color:var(--brand) !important;
+  background:var(--brand-light) !important; outline:none !important;
+}
+
+/* ---------- 按钮排 ---------- */
+.actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:18px 0 8px; }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/09-checkin.webp"); }
+</style>
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>09</b>值机数据制作</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">09</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>值机数据制作</h1>
+    <p class="lede">上传 FIOS 系统导出的出港 Excel，自动按东航 / 上航 / 中联航分组排出《东上联自助值机数据表》，填入 WEB / CUSS / 人数后自助率自动计算，一键导出带公式的 Excel。</p>
+  </section>
+
+
+  <div class="container">
+
+    <div class="upload" id="uploadArea">
+      <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
+      <div class="upload-inner">
+        <div class="up-ic">📥</div>
+        <p>点击或拖拽上传 FIOS 导出的出港航班 Excel（.xls / .xlsx）</p>
+        <button class="btn btn-primary" type="button" onclick="document.getElementById('fileInput').click()">选择文件</button>
+        <div class="hint">支持 .xls / .xlsx · 自动剔除取消（CNL / DEL）与国际航班，按东航 / 上航 / 中联航分组</div>
+      </div>
+    </div>
+
+    <div id="resultArea" style="display:none">
+      <div class="stats-bar" id="statsBar"></div>
+
+      <div class="table-scroll">
+        <table class="ck-table" id="tbl">
+          <colgroup>
+            <col style="width:21%"><col style="width:21%">
+            <col style="width:14.5%"><col style="width:14.5%"><col style="width:14.5%"><col style="width:14.5%">
+          </colgroup>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="exportBtn">导出 Excel</button>
+        <button class="btn ghost" type="button" id="clearBtn">清空填写</button>
+        <button class="btn ghost" type="button" id="resetBtn">换一个文件</button>
+      </div>
+      <div class="hint" style="text-align:center">
+        WEB / CUSS / 人数 三列可以直接点格子填写（不用填的留空即可），自助率会自动算；
+        导出的 Excel 里自助率与合计行都是活公式，改数会自动重算。
+      </div>
+    </div>
+
+    <!-- 规则说明面板 -->
+    <div class="rules-panel" id="rulesPanel">
+      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+        <div class="title">
+          <span class="ic">📋</span>
+          值机数据制作规则说明
+          <span class="hint">点击展开查看</span>
+        </div>
+        <div class="arrow">▼</div>
+      </div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          系统读取 FIOS 导出的出港航班 Excel，按下列规则排出《东上联自助值机数据表》：
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>取数范围：</b>只取「<code>出港航班</code>」列非空的行；<b>进港航班不进表</b>（进港不涉及值机）。</li>
+            <li><b>剔除取消：</b>机号为 <code>CNL / DEL</code> 的航班整行剔除，不计入表格。</li>
+            <li><b>剔除国际：</b>到站为 <code>马德里 / 罗马 / 曼谷</code> 的国际航班整行剔除，本表只统计国内航班。</li>
+            <li><b>航司分组：</b><code>MU / CES</code> 开头归<b>东航</b>，<code>FM</code> 开头归<b>上航</b>，<code>KN</code> 开头归<b>中联航</b>；其余航司不进表。</li>
+            <li><b>排序：</b>每个分组内按<b>计离时间从早到晚</b>排列；分组顺序为 东航 → 上航 → 中联航。</li>
+            <li><b>小计行：</b>依次给出 <b>MU 合计</b>、<b>FM 合计</b>、<b>东上航合计</b>（= 东航 + 上航）、<b>KN 合计</b>；各列均为该组求和。</li>
+            <li><b>自助率：</b>自助率 =（<code>WEB</code> + <code>CUSS</code>）÷ <code>人数</code>；<b>人数为空或为 0 时留空不显示</b>。</li>
+            <li><b>航班号符号：</b>FIOS 在航班号后带的 <code>#</code> / <code>&amp;</code> 是系统标记，出表时自动去掉。</li>
+            <li><b>数据填写：</b>WEB / CUSS / 人数 由你直接填（FIOS 导出里没有这三列）；不填就导出空白。</li>
+            <li><b>导出：</b>一键导出 Excel —— 标题行与合计行文字跨列合并，<b>自助率与合计行均为活公式</b>，在 Excel 里改数会自动重算。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+  <script src="libs/xlsx.full.min.js"></script>
+  <script>
+  /* ============================================================================
+     值机数据制作 —— FIOS 出港航班表 → 《东上联自助值机数据表》
+
+     取数口径（与页面底部「规则说明」一致，改这里记得同步改那里）：
+       · 只取「出港航班」列非空的行（进港航班不进表）
+       · 机号 CNL / DEL → 取消，整行剔除
+       · 到站 马德里 / 罗马 / 曼谷 → 国际，整行剔除
+       · MU / CES → 东航，FM → 上航，KN → 中联航；其余不进表
+       · 组内按计离升序
+     自助率 =（WEB + CUSS）÷ 人数；人数空或 0 → 留空。
+
+     🔥 **一份 buildModel() 同时喂预览和导出**（沿用日报生成器的做法）：
+        model 是「行」的有序数组，下标 + 1 就是 Excel 行号，
+        所以合计行的求和区间可以直接由下标算出来，预览与导出的行列不可能对不上。
+     ========================================================================== */
+  var INTL_DESTS = ['马德里', '罗马', '曼谷'];   // 国际到站：新增航点只加这一行
+  var GROUPS = [
+    { key: 'MU', label: 'MU 合计', name: '东航' },
+    { key: 'FM', label: 'FM 合计', name: '上航' },
+    { key: 'KN', label: 'KN 合计', name: '中联航' }
+  ];
+
+  var state = { groups: { MU: [], FM: [], KN: [] }, meta: { total: 0, cancel: 0, intl: 0, other: 0 }, date: '' };
+
+  /* ---------- 工具函数 ---------- */
+  function esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function attr(s){
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+      .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function parseTime(t){
+    t = String(t || '').trim();
+    if(!/^\d{3,4}$/.test(t)) return null;
+    if(t.length === 3) t = '0' + t;
+    return parseInt(t.slice(0,2),10) * 60 + parseInt(t.slice(2),10);
+  }
+  function numOrNull(v){
+    var s = String(v == null ? '' : v).trim();
+    if(s === '') return null;
+    var n = Number(s);
+    return isFinite(n) ? n : null;
+  }
+  function todayLabel(){
+    var d = new Date();
+    return (d.getMonth()+1) + '月' + d.getDate() + '日';
+  }
+  /* 从文件名里认日期：优先括号里的（FIOS 常把航班日期写在小括号里），
+     其次认 2026-10-09 / 20261009 / 2026.10.9 这类连写。认不出就返回 null。 */
+  function detectDate(name){
+    var s = String(name || '');
+    var pats = [
+      /[（(]\s*(20\d{2})\D{1,2}(\d{1,2})\D{1,2}(\d{1,2})/,
+      /(20\d{2})\D{0,2}(\d{1,2})\D{0,2}(\d{1,2})/
+    ];
+    for(var i=0;i<pats.length;i++){
+      var m = s.match(pats[i]);
+      if(!m) continue;
+      var mo = parseInt(m[2],10), da = parseInt(m[3],10);
+      if(mo >= 1 && mo <= 12 && da >= 1 && da <= 31) return mo + '月' + da + '日';
+    }
+    return null;
+  }
+
+  /* ---------- 列定位（按表头文字，适配 FIOS 不同日期列序差异）---------- */
+  function findCol(headers, names){
+    for(var n=0;n<names.length;n++){
+      for(var c=0;c<headers.length;c++){
+        if(String(headers[c] || '').trim().indexOf(names[n]) >= 0) return c;
+      }
+    }
+    return -1;
+  }
+  function classify(flight){
+    var f = String(flight || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if(/^(MU|CES)/.test(f)) return 'MU';
+    if(/^FM/.test(f)) return 'FM';
+    if(/^KN/.test(f)) return 'KN';
+    return null;
+  }
+
+  /* ---------- 文件读取 ---------- */
+  var fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', function(e){ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+  var uploadArea = document.getElementById('uploadArea');
+  ['dragenter','dragover'].forEach(function(ev){ uploadArea.addEventListener(ev, function(e){ e.preventDefault(); uploadArea.classList.add('drag'); }); });
+  ['dragleave','drop'].forEach(function(ev){ uploadArea.addEventListener(ev, function(e){ e.preventDefault(); uploadArea.classList.remove('drag'); }); });
+  uploadArea.addEventListener('drop', function(e){ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+  function handleFile(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        // codepage 936：老式 .xls 的中文表头靠它才认得出来
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', codepage:936 });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        process(rows);
+        // 日期优先从文件名里认（FIOS 常把航班日期写进文件名），认不出就用今天
+        state.date = detectDate(file.name) || todayLabel();
+        renderAll();
+        uploadArea.style.display = 'none';
+        document.getElementById('resultArea').style.display = 'block';
+      }catch(err){
+        alert('解析失败：' + err.message + '\n请确认是 FIOS 导出的出港航班 Excel 文件。');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ---------- 解析 ---------- */
+  function process(rows){
+    state.groups = { MU: [], FM: [], KN: [] };
+    state.meta = { total: 0, cancel: 0, intl: 0, other: 0 };
+    if(!rows || !rows.length) return;
+
+    // 表头行：前 8 行里找含「出港航班」的那一行
+    var hRow = 0;
+    for(var i=0;i<Math.min(rows.length,8);i++){
+      if((rows[i] || []).some(function(c){ return String(c || '').indexOf('出港航班') >= 0; })){ hRow = i; break; }
+    }
+    var header = rows[hRow] || [];
+    var cFlight = findCol(header, ['出港航班']);
+    var cDest   = findCol(header, ['到站']);
+    var cDep    = findCol(header, ['计离']);
+    var cAc     = findCol(header, ['机号']);
+    if(cFlight < 0) throw new Error('没找到「出港航班」列，请确认上传的是 FIOS 出港航班表。');
+
+    for(var j=hRow+1;j<rows.length;j++){
+      var r = rows[j] || [];
+      var raw = String(r[cFlight] == null ? '' : r[cFlight]).trim();
+      if(!raw) continue;                                             // 进港行 / 空行
+      var ac = (cAc >= 0) ? String(r[cAc] == null ? '' : r[cAc]).trim().toUpperCase() : '';
+      if(ac === 'CNL' || ac === 'DEL'){ state.meta.cancel++; continue; }
+
+      var flight = raw.replace(/[#&]/g, '').replace(/\s+/g, '').trim();
+      var dest   = (cDest >= 0) ? String(r[cDest] == null ? '' : r[cDest]).trim() : '';
+      if(INTL_DESTS.indexOf(dest) >= 0){ state.meta.intl++; continue; }
+
+      var g = classify(flight);
+      if(!g){ state.meta.other++; continue; }
+
+      state.groups[g].push({
+        flight: flight,
+        dest: dest,
+        dep: (cDep >= 0) ? String(r[cDep] == null ? '' : r[cDep]).trim() : '',
+        web: '', cuss: '', pax: ''
+      });
+    }
+
+    GROUPS.forEach(function(G){
+      state.groups[G.key].sort(function(a,b){
+        var x = parseTime(a.dep), y = parseTime(b.dep);
+        return (x == null ? 99999 : x) - (y == null ? 99999 : y);
+      });
+      state.meta.total += state.groups[G.key].length;
+    });
+  }
+
+  /* ---------- 模型：一份同时喂预览与导出 ----------
+     下标 + 1 = Excel 行号。合计行用 from/to 记住本组航班的区间，求和公式由它算。 */
+  function buildModel(){
+    var m = [{ kind: 'title' }, { kind: 'head' }];
+    function pushGroup(key, label){
+      var rows = state.groups[key];
+      if(!rows.length) return -1;
+      var start = m.length;
+      rows.forEach(function(r, i){ m.push({ kind: 'flight', g: key, i: i }); });
+      var idx = m.length;
+      m.push({ kind: 'sum', g: key, label: label, from: start, to: idx - 1 });
+      return idx;
+    }
+    var muIdx = pushGroup('MU', 'MU 合计');
+    var fmIdx = pushGroup('FM', 'FM 合计');
+    if(muIdx >= 0 || fmIdx >= 0){
+      m.push({ kind: 'sum', g: 'DF', label: '东上航合计',
+               refs: [muIdx, fmIdx].filter(function(x){ return x >= 0; }) });
+    }
+    pushGroup('KN', 'KN 合计');
+    return m;
+  }
+
+  /* ---------- 求和与自助率 ---------- */
+  function groupSums(key){
+    var s = { web: 0, cuss: 0, pax: 0 };
+    state.groups[key].forEach(function(r){
+      s.web += numOrNull(r.web) || 0;
+      s.cuss += numOrNull(r.cuss) || 0;
+      s.pax += numOrNull(r.pax) || 0;
+    });
+    return s;
+  }
+  /* 自助率 =（WEB + CUSS）÷ 人数；人数空或 ≤0 → 留空（网页与导出同一口径） */
+  function fmtRate(web, cuss, pax){
+    var p = Number(pax);
+    if(!isFinite(p) || p <= 0) return '';
+    var w = Number(web) || 0, c = Number(cuss) || 0;
+    return (Math.round((w + c) / p * 1000) / 10).toFixed(1) + '%';
+  }
+  function rateText(web, cuss, pax){
+    var t = fmtRate(web, cuss, pax);
+    return t ? t : '';
+  }
+
+  /* ---------- 渲染 ---------- */
+  function renderAll(){
+    var model = buildModel();
+    /* ⚠️ 日期输入框是**本次渲染**才建出来的（在 thead 里），所以这里绝不能先读
+       document.getElementById('dateInput') —— 首屏那一跑它还是 null。
+       真值存在 state.date 上，输入框只是它的一个视图。 */
+    var dateTxt = (state.date || '').trim() || todayLabel();
+    state.date = dateTxt;
+
+    var thead = '<tr><th class="t-title" colspan="6">东上联自助值机数据表-'
+      + '<input id="dateInput" class="date-in" type="text" value="' + attr(dateTxt) + '" spellcheck="false" title="点击修改日期" aria-label="数据日期">'
+      + '</th></tr>'
+      + '<tr class="t-head"><th>出港航班</th><th>到站</th><th>WEB</th><th>CUSS</th><th>人数</th><th>自助率</th></tr>';
+
+    var body = '';
+    model.forEach(function(b){
+      if(b.kind !== 'flight' && b.kind !== 'sum') return;
+      if(b.kind === 'flight'){
+        var r = state.groups[b.g][b.i];
+        var g = b.g, i = b.i;
+        body += '<tr>'
+          + '<td class="c-flight">' + esc(r.flight) + '</td>'
+          + '<td class="c-dest">' + esc(r.dest) + '</td>'
+          + cellInput(g, i, 'web', r.web) + cellInput(g, i, 'cuss', r.cuss) + cellInput(g, i, 'pax', r.pax)
+          + '<td class="c-rate" id="rate-' + g + '-' + i + '">' + esc(rateText(r.web, r.cuss, r.pax)) + '</td>'
+          + '</tr>';
+      }else{
+        body += '<tr class="sum-row">'
+          + '<td colspan="2">' + esc(b.label) + '</td>'
+          + '<td id="sum-' + b.g + '-web"></td>'
+          + '<td id="sum-' + b.g + '-cuss"></td>'
+          + '<td id="sum-' + b.g + '-pax"></td>'
+          + '<td class="c-rate" id="sum-' + b.g + '-rate"></td>'
+          + '</tr>';
+      }
+    });
+
+    if(!body){
+      body = '<tr><td colspan="6" style="padding:34px;color:var(--muted)">'
+           + '没有符合条件的出港航班（已剔除取消与国际航班），请检查文件。</td></tr>';
+    }
+
+    document.getElementById('thead').innerHTML = thead;
+    document.getElementById('tbody').innerHTML = body;
+    // 日期格是这次渲染新生成的，事件得重新挂
+    var di = document.getElementById('dateInput');
+    if(di) di.addEventListener('input', function(){ state.date = di.value; });
+    updateRates();
+    renderStats();
+  }
+  function cellInput(g, i, k, val){
+    return '<td><input class="cell-in" type="number" min="0" step="1" inputmode="numeric" placeholder="—"'
+      + ' data-g="' + g + '" data-i="' + i + '" data-k="' + k + '"'
+      + ' aria-label="' + esc(g + ' 第 ' + (i+1) + ' 班 ' + k.toUpperCase()) + '"'
+      + ' value="' + attr(val) + '"></td>';
+  }
+
+  /* 只改数字，不整表重绘 —— 否则每敲一个键输入框就失焦 */
+  function updateRates(){
+    GROUPS.forEach(function(G){
+      state.groups[G.key].forEach(function(r, i){
+        var el = document.getElementById('rate-' + G.key + '-' + i);
+        if(el) el.textContent = rateText(r.web, r.cuss, r.pax);
+      });
+    });
+    function paint(key, s){
+      var w = document.getElementById('sum-' + key + '-web');
+      if(!w) return;
+      var empty = (s.web === 0 && s.cuss === 0 && s.pax === 0);
+      w.textContent      = empty ? '' : String(s.web);
+      document.getElementById('sum-' + key + '-cuss').textContent = empty ? '' : String(s.cuss);
+      document.getElementById('sum-' + key + '-pax').textContent  = empty ? '' : String(s.pax);
+      document.getElementById('sum-' + key + '-rate').textContent = fmtRate(s.web, s.cuss, s.pax);
+    }
+    var sums = {};
+    GROUPS.forEach(function(G){ sums[G.key] = groupSums(G.key); paint(G.key, sums[G.key]); });
+    paint('DF', {
+      web:  sums.MU.web  + sums.FM.web,
+      cuss: sums.MU.cuss + sums.FM.cuss,
+      pax:  sums.MU.pax  + sums.FM.pax
+    });
+  }
+
+  function renderStats(){
+    var m = state.meta;
+    var parts = ['<span class="stat-pill">✈ 出港航班 <b>' + m.total + '</b> 班</span>'];
+    if(m.cancel) parts.push('<span class="stat-pill mute">🚫 已剔除取消 <b>' + m.cancel + '</b> 班</span>');
+    if(m.intl)   parts.push('<span class="stat-pill mute">🌏 已剔除国际 <b>' + m.intl + '</b> 班</span>');
+    if(m.other)  parts.push('<span class="stat-pill mute">其他航司 <b>' + m.other + '</b> 班（不进表）</span>');
+    document.getElementById('statsBar').innerHTML = parts.join('');
+  }
+
+  /* 输入即算：更新本行自助率 + 各组小计 + 东上航合计 */
+  document.getElementById('tbody').addEventListener('input', function(e){
+    var t = e.target;
+    if(!t || !t.classList || !t.classList.contains('cell-in')) return;
+    var g = t.getAttribute('data-g'), i = parseInt(t.getAttribute('data-i'),10), k = t.getAttribute('data-k');
+    if(!state.groups[g] || !state.groups[g][i]) return;
+    state.groups[g][i][k] = t.value;
+    updateRates();
+  });
+
+  /* ---------- 清空 / 换文件 ---------- */
+  document.getElementById('clearBtn').addEventListener('click', function(){
+    GROUPS.forEach(function(G){
+      state.groups[G.key].forEach(function(r){ r.web = ''; r.cuss = ''; r.pax = ''; });
+    });
+    document.querySelectorAll('input.cell-in').forEach(function(el){ el.value = ''; });
+    updateRates();
+  });
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    document.getElementById('resultArea').style.display = 'none';
+    uploadArea.style.display = 'block';
+    fileInput.value = '';
+  });
+
+  /* ---------- 导出 Excel ----------
+     标题行跨 A:F、每个合计行标签跨 A:B，其余一格一值。
+     自助率与合计行都写成**活公式**，并带上算好的缓存值（预览器不重算也能看）。
+     ⚠️ SheetJS 社区版不写单元格样式（字体/底色/边框），所以导出是「干净无样式」的表，
+        只有合并、列宽、数字格式（百分比）和公式会保留。 */
+  document.getElementById('exportBtn').addEventListener('click', exportExcel);
+
+  function exportExcel(){
+    var model = buildModel();
+    var dateTxt = (state.date || '').trim() || todayLabel();
+
+    var aoa = [['东上联自助值机数据表-' + dateTxt]];
+    var merges = [{ s:{ r:0, c:0 }, e:{ r:0, c:5 } }];    // 标题跨 A:F
+    var formulas = [];                                    // { r, c, f, v }，r/c 为 0 基
+    var rangeOf = {};                                     // 分组 → { from, to }（Excel 行号，1 基）
+
+    aoa.push(['出港航班', '到站', 'WEB', 'CUSS', '人数', '自助率']);
+
+    model.forEach(function(b){
+      if(b.kind === 'flight'){
+        var r = state.groups[b.g][b.i];
+        aoa.push([r.flight, r.dest, nn(r.web), nn(r.cuss), nn(r.pax), undefined]);
+        var R = aoa.length;                               // 本行的 Excel 行号
+        var t = fmtRate(r.web, r.cuss, r.pax);
+        formulas.push({ r: R - 1, c: 5, f: rateFormula(R), v: t ? pctNum(t) : null });
+        if(!rangeOf[b.g]) rangeOf[b.g] = { from: R, to: R };
+        else rangeOf[b.g].to = R;
+        return;
+      }
+      if(b.kind !== 'sum') return;                        // title / head 上面已写好
+
+      var row = aoa.length;                               // 0 基下标
+      aoa.push([b.label]);
+      merges.push({ s:{ r:row, c:0 }, e:{ r:row, c:1 } });  // 合计标签跨 A:B
+      var R2 = row + 1;
+
+      var fx, cached;
+      if(b.g === 'DF'){
+        // 东上航合计 = MU 合计行 + FM 合计行（引小计行，不重复求和）
+        var refs = b.refs.map(function(x){ return x + 1; });   // 小计行下标 → Excel 行号
+        fx = { C: refs.map(function(x){ return 'C' + x; }).join('+'),
+               D: refs.map(function(x){ return 'D' + x; }).join('+'),
+               E: refs.map(function(x){ return 'E' + x; }).join('+') };
+        var a = groupSums('MU'), b2 = groupSums('FM');
+        cached = { web: a.web + b2.web, cuss: a.cuss + b2.cuss, pax: a.pax + b2.pax };
+      }else{
+        var rg = rangeOf[b.g];
+        fx = { C: 'SUM(C' + rg.from + ':C' + rg.to + ')',
+               D: 'SUM(D' + rg.from + ':D' + rg.to + ')',
+               E: 'SUM(E' + rg.from + ':E' + rg.to + ')' };
+        cached = groupSums(b.g);
+      }
+      formulas.push({ r: row, c: 2, f: fx.C, v: cached.web });
+      formulas.push({ r: row, c: 3, f: fx.D, v: cached.cuss });
+      formulas.push({ r: row, c: 4, f: fx.E, v: cached.pax });
+      var tr = fmtRate(cached.web, cached.cuss, cached.pax);
+      formulas.push({ r: row, c: 5, f: rateFormula(R2), v: tr ? pctNum(tr) : null });
+    });
+
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = merges;
+    ws['!cols'] = [{ wch:14 },{ wch:14 },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:10 }];
+    ws['!ref'] = XLSX.utils.encode_range({ s:{ r:0, c:0 }, e:{ r:aoa.length - 1, c:5 } });
+
+    formulas.forEach(function(fc){
+      var addr = XLSX.utils.encode_cell({ r: fc.r, c: fc.c });
+      var cell = ws[addr] || {};
+      cell.f = fc.f;
+      if(fc.c === 5) cell.z = '0.0%';                     // 只有自助率列是百分比格式
+      if(fc.v == null){ delete cell.v; delete cell.t; delete cell.w; }   // 无缓存值 → 交给 Excel 自己算
+      else { cell.t = 'n'; cell.v = fc.v; }
+      ws[addr] = cell;
+    });
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '自助值机数据');
+    XLSX.writeFile(wb, '东上联自助值机数据表_' + dateTxt.replace(/[\/\\:*?"<>|]/g, '') + '.xlsx');
+  }
+
+  /* 空值 → undefined：aoa_to_sheet 会跳过，写成真正的空单元格，
+     这样 Excel 里 C+D 不会因为「空字符串」而报 #VALUE! */
+  function nn(v){ var x = numOrNull(v); return x == null ? undefined : x; }
+  function pctNum(t){ return Number(String(t).replace('%', '')) / 100; }
+  /* 🔥 SheetJS 的 cell.f 里**不能带开头的 `=`** —— 带上会被原样写进 <f>，
+     变成 `==SUM(...)`，Excel 打开直接报错。openpyxl 读回来才会补一个 `=`
+     （所以回读看到 `==…` 就是写错了）。 */
+  function rateFormula(R){
+    return 'IF(E' + R + '>0,(C' + R + '+D' + R + ')/E' + R + ',"")';
+  }
+  </script>
+</body>
+</html>

@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>航班工作工具集 · 导航</title>
 <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-<meta name="description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、早始发正常率测算等 8 个工具，覆盖出港全流程。">
+<meta name="description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作、早始发正常率测算等 9 个工具，覆盖出港全流程。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="航班工作工具集 · 导航">
-<meta property="og:description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、早始发正常率测算等 8 个工具，覆盖出港全流程。">
+<meta property="og:description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作、早始发正常率测算等 9 个工具，覆盖出港全流程。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/index.html">
 <!-- 首页页眉是白色通栏，移动端浏览器 chrome 也跟着白 -->
 <meta name="theme-color" content="#ffffff">
@@ -170,6 +170,7 @@
   .tile:nth-child(3) { animation-delay: .08s; } .tile:nth-child(4) { animation-delay: .11s; }
   .tile:nth-child(5) { animation-delay: .14s; } .tile:nth-child(6) { animation-delay: .17s; }
   .tile:nth-child(7) { animation-delay: .20s; } .tile:nth-child(8) { animation-delay: .23s; }
+  .tile:nth-child(9) { animation-delay: .26s; }
 
   /* 卡片缩略图：该工具自己的暗色配图（16:10）。
      图就是「这个工具长什么样」的第一印象，所以不再用图标占位。
@@ -308,14 +309,14 @@
        配图 assets/hero-aircraft.webp 为原创生成，不含任何航司涂装 / 商标。 -->
   <section class="hero">
     <p class="eyebrow">航班地面服务 · 工作台</p>
-    <h1>八个工具，<br>装进出港的一天。</h1>
+    <h1>九个工具，<br>装进出港的一天。</h1>
     <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="#tools" id="ctaBrowse">浏览全部工具</a>
       <a class="link-more" href="#notice">使用须知<span class="chev">›</span></a>
     </div>
     <div class="factrow">
-      <div class="fact"><span class="fv">8 个</span><span class="fl">在线工具</span></div>
+      <div class="fact"><span class="fv">9 个</span><span class="fl">在线工具</span></div>
       <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
       <div class="fact"><span class="fv">⌘K</span><span class="fl">快速搜索</span></div>
     </div>
@@ -327,7 +328,7 @@
     <section class="tools" id="tools">
       <div class="tools-head">
         <h2>全部工具</h2>
-        <div class="count" id="toolsCount" role="status" aria-live="polite">8 个工具</div>
+        <div class="count" id="toolsCount" role="status" aria-live="polite">9 个工具</div>
       </div>
 
       <main class="grid" id="toolGrid">
@@ -432,6 +433,19 @@
             <h3>早始发正常率测算</h3>
             <p>录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。</p>
             <div class="tags"><span class="tag">机场对标</span><span class="tag">T1·T2·T3 档位</span><span class="tag">追不上告警</span></div>
+            <span class="tile-cta">进入<span class="chev">›</span></span>
+          </div>
+        </a>
+
+        <a class="tile" href="./checkin/index.html" data-keywords="09 值机数据制作 值机 自助值机 自助率 WEB CUSS 出港 中联航 东上航 导出 Excel">
+          <div class="tile-thumb">
+            <span class="tile-no">09</span>
+            <img src="./assets/tools/09-checkin.webp" alt="" width="1400" height="933" loading="lazy">
+          </div>
+          <div class="tile-body">
+            <h3>值机数据制作</h3>
+            <p>导入 FIOS 出港 Excel，自动按东航 / 上航 / 中联航分组排出《东上联自助值机数据表》，填入 WEB / CUSS / 人数后自助率自动计算，一键导出带公式的 Excel。</p>
+            <div class="tags"><span class="tag">自助值机</span><span class="tag">自助率自动算</span><span class="tag">导出 Excel</span></div>
             <span class="tile-cta">进入<span class="chev">›</span></span>
           </div>
         </a>
