@@ -344,7 +344,7 @@
 
       <div class="ocr-bar" id="ocrBar">
         <div class="oc-t" id="ocrTitle">正在自动识别机组信息…</div>
-        <div class="oc-s" id="ocrSub">第一次用要先下载识别引擎，大约几秒，之后会快很多</div>
+        <div class="oc-s" id="ocrSub">先看单子里有没有文字，没有再逐列认，一般两三秒</div>
         <div class="oc-track"><div class="oc-fill" id="ocrFill"></div></div>
       </div>
 
@@ -413,14 +413,14 @@
         </div>
         <div class="rules-inner">
           <ul>
-            <li><b>机组信息怎么来的：</b>GD 单打印时文字被转成了曲线（不是图片，是没了字符的文字），文件里提不出文字，所以靠<b>识别（OCR）</b>。识别在你自己的浏览器里跑，<b>单子不上传任何服务器，断网也能用</b>。认出来的行标成浅黄，扫一眼确认再导出 —— 护照号错一个字母就要返工，最后这道眼还得过。</li>
+            <li><b>机组信息怎么来的：</b>分两种情况，自动判断。<b>单子里有文字</b>（浏览器或 WPS 打印出来的 PDF），直接把字符读出来，一个不差；<b>文字被转成了曲线</b>（「Microsoft Print to PDF」打印的老单子，看着像字其实是画出来的形状），就逐列识别（OCR）。两种都在你自己的浏览器里跑，<b>单子不上传任何服务器，断网也能用</b>。填进来的行标成浅黄，扫一眼确认再导出 —— 护照号错一个字母就要返工，最后这道眼还得过。</li>
             <li><b>职务对照：</b><code>CA</code> → 1-航线机长；<code>FO</code> → 2-副驾驶；<code>STW</code> → 第一个算 3-乘务长、其余算 5-乘务员；<code>SEC</code> → 4-安全员。</li>
             <li><b>性别：</b>GD 单上的 <code>M</code> / <code>F</code> 对应模板的 <code>M - 男</code> / <code>F - 女</code>，点一下按钮即可切换。</li>
             <li><b>国籍：</b>GD 单护照号前那段 <code>CN</code> 就是国籍代码，默认 <code>CN-中国</code>，外籍机组可在行内改。</li>
             <li><b>证件类型：</b>统一按 <code>14-普通护照</code> 填（GD 单上以 SE 开头的都是普通护照）。</li>
             <li><b>导出模板：</b>原样使用「机组名单 / 货物明细 / 参数」三个 sheet 的官方模板。第 1 行表头、第 2 行说明行一字不动，数据从第 3 行开始写，序号自动连续；货物明细按惯例留空。</li>
             <li><b>文件名：</b>按 GD 单上的信息命名，格式 <code>月.日 + 航班号</code>，例如 <code>10.23MU262.xlsx</code>。</li>
-            <li><b>人数：</b>模板自带 20 行格式行；超过 20 人时自动续行并沿用同一套边框与居中。</li>
+            <li><b>人数：</b>模板自带 20 行格式行；超过 20 人时自动续行并沿用同一套边框与居中，不足 20 人时把多出的空行边框去掉，导出不会留空框。</li>
           </ul>
         </div>
       </div>
@@ -793,7 +793,8 @@ async function startOcr(){
     if (r.bad.name) notes.push(r.bad.name + ' 个姓名要留意');
     if (r.bad.pass) notes.push(r.bad.pass + ' 个护照号要留意');
     if (r.bad.duty) notes.push(r.bad.duty + ' 个职务要留意');
-    sub.textContent = '用了 ' + secs + ' 秒。'
+    var how = r.mode === 'text' ? '这张单子里带文字，是直接读出来的。' : '这张单子的文字是曲线，逐列认出来的。';
+    sub.textContent = '用了 ' + secs + ' 秒。' + how
       + (notes.length ? notes.join('，') + '。' : '')
       + '浅黄底的行是自动填的，对着左边原件扫一遍姓名和护照号；改过的行会自己变白。';
     $('crewCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -878,6 +879,15 @@ async function exportXlsx(){
     if (n > TEMPLATE_ROWS){
       for (var r2 = 3 + TEMPLATE_ROWS; r2 < 3 + n; r2++){
         for (var c2 = 1; c2 <= 8; c2++) copyStyle(ws.cell(3 + TEMPLATE_ROWS - 1, c2), ws.cell(r2, c2));
+      }
+    }
+
+    // 2b) 不足 20 人时，把多出来的空行边框去掉。
+    //     模板固定 20 行都带框线，19 人的单子直接导出会多一行空框，
+    //     看着像漏填了一个人。清掉边框才是干净的 19 行。
+    if (n < TEMPLATE_ROWS){
+      for (var r4 = 3 + n; r4 < 3 + TEMPLATE_ROWS; r4++){
+        for (var c4 = 1; c4 <= 8; c4++) ws.cell(r4, c4).style('border', null);
       }
     }
 

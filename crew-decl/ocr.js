@@ -1,17 +1,23 @@
 /* ============================================================
-   机组名单识别（OCR）
+   机组名单识别
    ------------------------------------------------------------
-   为什么要这么做：
-   指挥长导出的 GD 单是「矢量转曲」PDF —— 表格线是矢量路径，
-   文字被转成了轮廓曲线，文件里 0 个字体、0 条文字指令。
-   所以 pdf.js 提取不到任何字符（不是识别不了，是文件里没有字）。
+   GD 单有两种来源，处理方式不同，程序自动判断：
 
-   但正因为是矢量，渲染出来边缘绝对干净，比扫描件清楚得多。
-   做法：把页面渲染成高分辨率图 → 按列切开 → 每列单独 OCR。
-   分列识别精度远高于整页：一列 20 行，行高稳定，不会被
-   表头、左右邻列干扰。实测 20 人 × 5 字段 = 100/100 全对。
+   1) 单子里有文字层（浏览器 / WPS 打印出来的 PDF，Producer 为
+      Skia/PDF、Chrome 等）→ 直接把字符连同坐标读出来，零误差，
+      也不受人数多少影响。见 parseTextLayer。
+
+   2) 文字被转成曲线（「Microsoft Print to PDF」打印的老单子，
+      解压后 0 个字体、0 条文字指令，看着像字其实是矢量路径）
+      → 提取不到字符，只能渲染成高清图再逐列 OCR。
+
+   为什么是「逐列」而不是整页识别：
+   整页识别会直接丢掉职务列（CA/FO/STW/SEC）和性别列（M/F），
+   字太小被引擎忽略。切开单列识别，行高稳定、没有邻列干扰，
+   实测 20 人 × 5 字段 = 100/100 全对。
 
    所有依赖都在 ./libs/tesseract/，不联网、不走 CDN。
+   文字层模式不会加载那 5.8MB 引擎（懒加载，只在走 OCR 时才引）。
    ============================================================ */
 (function () {
   'use strict';
@@ -37,6 +43,112 @@
   var ROW_Y1 = 0.6534;   // 表格数据区下沿（20 行）
 
   var DUTY_OK = { CA: 1, FO: 1, STW: 1, SEC: 1 };
+
+  /* ============================================================
+     模式一：PDF 自带文字层，直接精确读
+     ------------------------------------------------------------
+     有些 GD 单是浏览器「打印成 PDF」生成的（Producer 为
+     Skia/PDF 或 Chrome），文字没被转曲，文件里就有真字符。
+     这种单子根本不用识别，把字符连同坐标读出来即可 —— 又快又准，
+     而且人数变了也不影响（不依赖固定行高比例）。
+
+     实测 gd-261.pdf（MU261 温州→马德里 19 人）：
+       职务 x=102  姓名 x=130.1  国籍 x=249.4
+       生日 x=275.4  性别 x=321.3  护照 x=345.9
+     六列起点完全一致，按「护照号」当行锚往下找同 y 的项即可。
+
+     列位置用「相对护照列的偏移 / 页宽」表达，不写死像素：
+     万一打印缩放不同，比例关系不变。
+     ============================================================ */
+  var PASS_RE = /^[A-Z]{2}\d{6,9}$/;
+  var DUTY_RE = /^(CA|FO|STW|SEC)$/;
+
+  // 各列相对「护照列起点」的横向偏移（已除以页宽）
+  var COLOFF = {
+    duty:   [-0.460, -0.390],
+    name:   [-0.390, -0.170],
+    nation: [-0.170, -0.135],
+    dob:    [-0.135, -0.048],
+    sex:    [-0.048, -0.012]
+  };
+
+  function readItems(pdfDoc) {
+    return pdfDoc.getPage(1).then(function (page) {
+      var vp = page.getViewport({ scale: 1 });
+      return page.getTextContent().then(function (tc) {
+        var out = [];
+        for (var i = 0; i < tc.items.length; i++) {
+          var it = tc.items[i];
+          var s = String(it.str || '').replace(/\s+/g, ' ').trim();
+          if (!s) continue;
+          out.push({
+            s: s,
+            x: it.transform[4],
+            y: it.transform[5],
+            w: it.width || 0
+          });
+        }
+        return { items: out, pageW: vp.width, pageH: vp.height };
+      });
+    });
+  }
+
+  // 从一行里按横向偏移区间取出文本
+  function pickBand(rowItems, anchor, pageW, band) {
+    var hit = [];
+    for (var i = 0; i < rowItems.length; i++) {
+      var d = (rowItems[i].x - anchor.x) / pageW;
+      if (d >= band[0] && d <= band[1]) hit.push(rowItems[i]);
+    }
+    hit.sort(function (a, b) { return a.x - b.x; });
+    return hit.map(function (o) { return o.s; }).join(' ').trim();
+  }
+
+  /* 把文字层整理成机组行。以护照号做锚：
+     每行必然有护照号，TTL 合计行没有，自然被排除。 */
+  function parseTextLayer(data) {
+    var items = data.items, pageW = data.pageW, pageH = data.pageH;
+    var tol = Math.max(2, pageH * 0.004);   // 同一行的 y 容差
+
+    var anchors = [];
+    for (var i = 0; i < items.length; i++) {
+      var t = items[i].s.toUpperCase().replace(/\s+/g, '');
+      if (PASS_RE.test(t)) anchors.push(items[i]);
+    }
+    if (anchors.length < 2) return null;    // 没有文字层，交给 OCR
+
+    var list = [];
+    var stwSeen = 0;
+    for (var a = 0; a < anchors.length; a++) {
+      var an = anchors[a];
+      // 收集同一行的所有项
+      var rowItems = [];
+      for (var j = 0; j < items.length; j++) {
+        if (Math.abs(items[j].y - an.y) <= tol) rowItems.push(items[j]);
+      }
+
+      var dutyRaw = pickBand(rowItems, an, pageW, COLOFF.duty).toUpperCase().replace(/[^A-Z]/g, '');
+      var duty = DUTY_RE.test(dutyRaw) ? dutyRaw : '';
+      var name = pickBand(rowItems, an, pageW, COLOFF.name).toUpperCase()
+        .replace(/[^A-Z'.\- ]/g, '').replace(/\s+/g, ' ').trim();
+      var dob = pickBand(rowItems, an, pageW, COLOFF.dob).replace(/\D/g, '').slice(0, 6);
+      var sexRaw = pickBand(rowItems, an, pageW, COLOFF.sex).toUpperCase();
+      var sex = /\bF\b/.test(sexRaw) ? 'F' : (/\bM\b/.test(sexRaw) ? 'M' : '');
+      var pass = an.s.toUpperCase().replace(/\s+/g, '');
+
+      if (duty === 'STW') stwSeen++;
+
+      list.push({
+        duty: duty,
+        isFirstStw: (duty === 'STW' && stwSeen === 1),
+        name: name,
+        dob: dob,
+        sex: sex,
+        passport: pass
+      });
+    }
+    return list;
+  }
 
   var libPromise = null;
 
@@ -168,6 +280,33 @@
     var step = onStep || function () {};
     if (!pdfDoc || !pdfDoc.numPages) throw new Error('没有可识别的 GD 单');
 
+    // ---------- 先看这份 PDF 有没有文字层 ----------
+    step('正在读单子…', 0.1);
+    var tl = null;
+    try { tl = await readItems(pdfDoc); } catch (e) { tl = null; }
+
+    if (tl) {
+      var fromText = parseTextLayer(tl);
+      if (fromText && fromText.length >= 2) {
+        step('正在核对…', 0.9);
+        var vT = judge(fromText);
+        var all = tl.items.map(function (o) { return o.s; }).join(' ');
+        var fmT = all.match(/\b[A-Z]{2}\d{3,4}\b/);
+        var dmT = all.match(/(19|20)\d{2}-\d{2}-\d{2}/);
+        return {
+          ok: vT.ok,
+          reason: vT.reason || '',
+          mode: 'text',
+          rows: fromText,
+          flightNo: fmT ? fmT[0] : '',
+          date: dmT ? dmT[0] : '',
+          counts: { n: fromText.length },
+          bad: { name: vT.badName || 0, pass: vT.badPass || 0, duty: vT.badDuty || 0 }
+        };
+      }
+    }
+
+    // ---------- 没有文字层：渲染成图再认 ----------
     step('正在把单子转成高清图…', 0.06);
     var cv = await renderPage(pdfDoc, 1);
 
@@ -229,6 +368,7 @@
     return {
       ok: verdict.ok,
       reason: verdict.reason || '',
+      mode: 'ocr',
       rows: list,
       flightNo: fm ? fm[0].replace(/\s/g, '') : '',
       date: dm ? dm[1] + dm[2] + '-' + pad(dm[3]) + '-' + pad(dm[4]) : '',
