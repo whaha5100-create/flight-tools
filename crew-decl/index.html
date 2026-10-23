@@ -768,9 +768,12 @@ async function startOcr(){
 
     if (!r.ok){
       bar.classList.add('fail');
-      title.textContent = '这张单子没认准，我没自动填';
+      var cntWrong = r.ttl && r.found !== undefined && r.ttl !== r.found;
+      title.textContent = cntWrong ? '人数对不上，我没自动填' : '这张单子没认准，我没自动填';
       sub.textContent = (r.reason ? r.reason + '。' : '')
-        + '可能是版式和常见 GD 单不一样。照左边原件手录最稳 —— 与其填错让你改，不如不填。';
+        + (cntWrong
+            ? '单子上自己写的合计人数和我认出来的对不上，说明中间漏了行。照左边原件手录这几个人，别用我填的。'
+            : '可能是版式和常见 GD 单不一样。照左边原件手录最稳 —— 与其填错让你改，不如不填。');
       return;
     }
 
@@ -794,6 +797,7 @@ async function startOcr(){
     if (r.bad.pass) notes.push(r.bad.pass + ' 个护照号要留意');
     if (r.bad.duty) notes.push(r.bad.duty + ' 个职务要留意');
     var how = r.mode === 'text' ? '这张单子里带文字，是直接读出来的。' : '这张单子的文字是曲线，逐列认出来的。';
+    if (r.pages > 1) how = '单子共 ' + r.pages + ' 页，' + (r.mode === 'text' ? '带文字，全部直接读出来了。' : '逐页认出来的。');
     sub.textContent = '用了 ' + secs + ' 秒。' + how
       + (notes.length ? notes.join('，') + '。' : '')
       + '浅黄底的行是自动填的，对着左边原件扫一遍姓名和护照号；改过的行会自己变白。';

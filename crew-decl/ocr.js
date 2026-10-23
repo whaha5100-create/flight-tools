@@ -36,11 +36,16 @@
     { key: 'dob',  x0: 0.4578, x1: 0.5229, psm: '6' },
     { key: 'sex',  x0: 0.5229, x1: 0.5628, psm: '6' },
     { key: 'pass', x0: 0.5628, x1: 0.6531, psm: '6' },
-    { key: 'duty', x0: 0.1680, x1: 0.2520, psm: '4', y1: 0.6670, retry: ['6', '11'] },
+    // 上限压在姓名列之前（姓名列起点 0.2478），留 ~1mm 余量。
+    // 原来裁到 0.2520 会把姓名首字母一起带进来，"CA" 变 "CA Z"，职务全判无效。
+    { key: 'duty', x0: 0.1680, x1: 0.2380, psm: '4', y1: 0.6670, retry: ['6', '11'] },
     { key: 'head', x0: 0.5376, x1: 0.8148, y0: 0.0564, y1: 0.0951, psm: '6' }
   ];
   var ROW_Y0 = 0.1812;   // 表格数据区上沿
-  var ROW_Y1 = 0.6534;   // 表格数据区下沿（20 行）
+  // 20 行时的表格下沿 = ROW_Y0 + 20 × ROW_H = 0.6534，实测吻合
+  var ROW_H  = 0.02361;  // 单行高度（占页高比例）—— GD 单行高是固定的，
+                         // 人数越多表格越长。固定按 20 行裁，人一多就漏行。
+  var ROW_PAD = 0.004;   // 底边多留一点，免得最后一行字的下缘被切掉
 
   var DUTY_OK = { CA: 1, FO: 1, STW: 1, SEC: 1 };
 
@@ -55,25 +60,32 @@
      实测 gd-261.pdf（MU261 温州→马德里 19 人）：
        职务 x=102  姓名 x=130.1  国籍 x=249.4
        生日 x=275.4  性别 x=321.3  护照 x=345.9
-     六列起点完全一致，按「护照号」当行锚往下找同 y 的项即可。
+     六列起点完全一致。
 
-     列位置用「相对护照列的偏移 / 页宽」表达，不写死像素：
+     行锚用「职务」而不是护照号：职务只有 CA/FO/SEC/STW 四个枚举值，
+     文字层里一定是独立一项，最可靠。护照号不能当锚 —— 外籍护照格式
+     五花八门（X12345678、AB1234567、纯数字…），一旦某行护照号认不出，
+     整行就丢，而且后面的行会往上错位顶替，看着还很像一份正常的表。
+     实测踩过：3 人单里有 1 个外籍，结果只填 2 人且全部错位。
+
+     列位置用「相对职务列的偏移 / 页宽」表达，不写死像素：
      万一打印缩放不同，比例关系不变。
      ============================================================ */
-  var PASS_RE = /^[A-Z]{2}\d{6,9}$/;
+  var PASS_LOOSE = /^(?=.*\d)[A-Z][A-Z0-9]{5,11}$/;  // 放宽：字母开头、含数字、6~12 位
   var DUTY_RE = /^(CA|FO|STW|SEC)$/;
 
-  // 各列相对「护照列起点」的横向偏移（已除以页宽）
+  // 各列相对「职务列起点」的横向偏移（已除以页宽）
+  // 上限压在国籍列之前，免得姓名尾巴把 CN 一起吃进来
   var COLOFF = {
-    duty:   [-0.460, -0.390],
-    name:   [-0.390, -0.170],
-    nation: [-0.170, -0.135],
-    dob:    [-0.135, -0.048],
-    sex:    [-0.048, -0.012]
+    name:   [0.020, 0.225],
+    nation: [0.225, 0.275],
+    dob:    [0.275, 0.340],
+    sex:    [0.340, 0.395],
+    pass:   [0.395, 0.490]
   };
 
-  function readItems(pdfDoc) {
-    return pdfDoc.getPage(1).then(function (page) {
+  function readItems(pdfDoc, pageNo) {
+    return pdfDoc.getPage(pageNo || 1).then(function (page) {
       var vp = page.getViewport({ scale: 1 });
       return page.getTextContent().then(function (tc) {
         var out = [];
@@ -88,7 +100,7 @@
             w: it.width || 0
           });
         }
-        return { items: out, pageW: vp.width, pageH: vp.height };
+        return { items: out, pageW: vp.width, pageH: vp.height, page: pageNo || 1 };
       });
     });
   }
@@ -104,48 +116,94 @@
     return hit.map(function (o) { return o.s; }).join(' ').trim();
   }
 
-  /* 把文字层整理成机组行。以护照号做锚：
-     每行必然有护照号，TTL 合计行没有，自然被排除。 */
+  /* 把一页的文字层整理成机组行。以职务（CA/FO/SEC/STW）做行锚：
+     TTL 合计行、表头、底部签字区都没有这四个词，天然被排除。
+     返回 null 表示这页没有可用的文字层。 */
   function parseTextLayer(data) {
     var items = data.items, pageW = data.pageW, pageH = data.pageH;
     var tol = Math.max(2, pageH * 0.004);   // 同一行的 y 容差
 
     var anchors = [];
     for (var i = 0; i < items.length; i++) {
-      var t = items[i].s.toUpperCase().replace(/\s+/g, '');
-      if (PASS_RE.test(t)) anchors.push(items[i]);
+      if (DUTY_RE.test(items[i].s.toUpperCase())) anchors.push(items[i]);
     }
-    if (anchors.length < 2) return null;    // 没有文字层，交给 OCR
+    if (!anchors.length) return null;
+
+    // PDF 的 y 轴朝上，按 y 从大到小 = 从上到下的阅读顺序
+    anchors.sort(function (a, b) { return b.y - a.y; });
 
     var list = [];
-    var stwSeen = 0;
     for (var a = 0; a < anchors.length; a++) {
       var an = anchors[a];
-      // 收集同一行的所有项
       var rowItems = [];
       for (var j = 0; j < items.length; j++) {
         if (Math.abs(items[j].y - an.y) <= tol) rowItems.push(items[j]);
       }
 
-      var dutyRaw = pickBand(rowItems, an, pageW, COLOFF.duty).toUpperCase().replace(/[^A-Z]/g, '');
-      var duty = DUTY_RE.test(dutyRaw) ? dutyRaw : '';
+      var duty = an.s.toUpperCase();
+
+      // 姓名：只留字母、撇号、点、横线、空格
       var name = pickBand(rowItems, an, pageW, COLOFF.name).toUpperCase()
         .replace(/[^A-Z'.\- ]/g, '').replace(/\s+/g, ' ').trim();
+
       var dob = pickBand(rowItems, an, pageW, COLOFF.dob).replace(/\D/g, '').slice(0, 6);
+
       var sexRaw = pickBand(rowItems, an, pageW, COLOFF.sex).toUpperCase();
       var sex = /\bF\b/.test(sexRaw) ? 'F' : (/\bM\b/.test(sexRaw) ? 'M' : '');
-      var pass = an.s.toUpperCase().replace(/\s+/g, '');
 
-      if (duty === 'STW') stwSeen++;
+      // 护照号：各页格式不统一，宽松取，取不到就留原始文本让校验去报
+      var passRaw = pickBand(rowItems, an, pageW, COLOFF.pass)
+        .toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var pass = passRaw;
+      if (!PASS_LOOSE.test(passRaw)) {
+        // 常见是首字母被认成数字或丢了，尝试从原文里捞一段形似护照的
+        var m = passRaw.match(/[A-Z][A-Z0-9]{5,11}/);
+        if (m) pass = m[0];
+      }
 
       list.push({
         duty: duty,
-        isFirstStw: (duty === 'STW' && stwSeen === 1),
+        isFirstStw: false,     // 跨页合并后再统一算乘务长
         name: name,
         dob: dob,
         sex: sex,
         passport: pass
       });
+    }
+    return list;
+  }
+
+  /* 从单子上读 TTL（Total）那个合计人数 —— 用来交叉核对：
+     认出来的人数和单子自己写的人数对不上，就一定有问题。 */
+  function readTtl(data) {
+    var items = data.items;
+    for (var i = 0; i < items.length; i++) {
+      var s = items[i].s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (s === 'TTL' || s === 'TOTAL') {
+        // TTL 右边紧邻的那一项就是人数
+        var best = null, bestDx = 1e9;
+        for (var j = 0; j < items.length; j++) {
+          if (Math.abs(items[j].y - items[i].y) > 6) continue;
+          var dx = items[j].x - items[i].x;
+          if (dx > 0 && dx < bestDx) { bestDx = dx; best = items[j]; }
+        }
+        if (best) {
+          var n = String(best.s).replace(/\D/g, '');
+          if (n && n.length <= 3) return Number(n);
+        }
+      }
+    }
+    return 0;
+  }
+
+  // 合并多页结果，重新算「第一个 STW 当乘务长」
+  function finalize(list) {
+    var stw = 0;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].duty === 'STW') {
+        stw++;
+        list[i].isFirstStw = (stw === 1);
+      }
     }
     return list;
   }
@@ -205,8 +263,18 @@
     return String(s || '').replace(/\D/g, '');
   }
 
+  /* 职务归一化：把常见误识纠正过来，不是四种合法职务就返回空 */
+  function normalizeDuty(s) {
+    var d = String(s || '').toUpperCase().replace(/[^A-Z]/g, '');
+    if (/^[5S]T3?W$/.test(d)) d = 'STW';        // 5T3W / ST3W / 5TW → STW
+    if (d === '5EC' || d === 'SEC') d = 'SEC';
+    return DUTY_OK[d] ? d : '';
+  }
+
   /* 把 OCR 出来的原始文本整理成一行行数据。
-     行数以「姓名列」为准 —— 每行必有人名，最不容易漏。 */
+     行数以「姓名列」为准 —— 每行必有人名，最不容易漏。
+     表格下面还印着 TTL 合计行、签字栏，裁高一点就会混进姓名列里，
+     所以末尾那种「既没职务、护照号也不成形」的尾巴整段丢掉。 */
   function assemble(raw) {
     var nameList = raw.name || [];
     var n = nameList.length;
@@ -217,11 +285,7 @@
     var out = [];
     var stwSeen = 0;
     for (var i = 0; i < n; i++) {
-      var duty = pick(raw.duty, i).toUpperCase().replace(/[^A-Z]/g, '');
-      // 职务常见误识纠正：5T3W→STW、CA 打成 GA/DA 等
-      if (/^[5S]T[Ww]$/.test(duty) || duty === 'ST3W') duty = 'STW';
-      if (duty === '5EC' || duty === 'SEC') duty = 'SEC';
-      if (!DUTY_OK[duty]) duty = '';
+      var duty = normalizeDuty(pick(raw.duty, i));
 
       var sexRaw = pick(raw.sex, i).toUpperCase();
       var sex = sexRaw.indexOf('F') === 0 ? 'F' : (sexRaw.indexOf('M') === 0 ? 'M' : '');
@@ -248,6 +312,13 @@
         passport: pass
       });
     }
+
+    // 掐掉末尾的噪音行（TTL 合计、签字、说明文字）
+    while (out.length) {
+      var last = out[out.length - 1];
+      if (last.duty || PASS_LOOSE.test(last.passport)) break;
+      out.pop();
+    }
     return out;
   }
 
@@ -258,7 +329,8 @@
     var badName = 0, badPass = 0, badDuty = 0;
     list.forEach(function (r) {
       if (!/^[A-Z][A-Z'.\- ]{1,}$/.test(r.name)) badName++;
-      if (!/^[A-Z]{2}\d{6,8}$/.test(r.passport)) badPass++;
+      // 护照号用宽松规则：外籍机组不一定是 SE+7 位数字
+      if (!PASS_LOOSE.test(r.passport)) badPass++;
       if (!r.duty) badDuty++;
     });
     var n = list.length;
@@ -280,37 +352,53 @@
     var step = onStep || function () {};
     if (!pdfDoc || !pdfDoc.numPages) throw new Error('没有可识别的 GD 单');
 
-    // ---------- 先看这份 PDF 有没有文字层 ----------
-    step('正在读单子…', 0.1);
-    var tl = null;
-    try { tl = await readItems(pdfDoc); } catch (e) { tl = null; }
+    var totalPages = pdfDoc.numPages;
 
-    if (tl) {
-      var fromText = parseTextLayer(tl);
-      if (fromText && fromText.length >= 2) {
-        step('正在核对…', 0.9);
-        var vT = judge(fromText);
-        var all = tl.items.map(function (o) { return o.s; }).join(' ');
-        var fmT = all.match(/\b[A-Z]{2}\d{3,4}\b/);
-        var dmT = all.match(/(19|20)\d{2}-\d{2}-\d{2}/);
-        return {
-          ok: vT.ok,
-          reason: vT.reason || '',
-          mode: 'text',
-          rows: fromText,
-          flightNo: fmT ? fmT[0] : '',
-          date: dmT ? dmT[0] : '',
-          counts: { n: fromText.length },
-          bad: { name: vT.badName || 0, pass: vT.badPass || 0, duty: vT.badDuty || 0 }
-        };
+    // ---------- 先看这份 PDF 有没有文字层 ----------
+    // 逐页看：人手多的时候单子会跨页，只读第 1 页会漏人
+    step(totalPages > 1 ? '正在读单子（共 ' + totalPages + ' 页）…' : '正在读单子…', 0.08);
+    var pages = [];
+    try {
+      for (var p = 1; p <= totalPages; p++) pages.push(await readItems(pdfDoc, p));
+    } catch (e) { pages = []; }
+
+    var fromText = [], ttl = 0, headTextAll = '';
+    for (var pi = 0; pi < pages.length; pi++) {
+      var part = parseTextLayer(pages[pi]);
+      if (part && part.length) fromText = fromText.concat(part);
+      var t = readTtl(pages[pi]);
+      if (t) ttl = t;
+      headTextAll += ' ' + pages[pi].items.map(function (o) { return o.s; }).join(' ');
+    }
+
+    if (fromText.length >= 1) {
+      step('正在核对…', 0.9);
+      fromText = finalize(fromText);
+      var vT = judge(fromText);
+      // 单子上自己写着 TTL 人数，对不上就一定有问题 —— 宁可退回手录
+      if (vT.ok && ttl && ttl !== fromText.length) {
+        vT = { ok: false, reason: '单子写 ' + ttl + ' 人，只认出 ' + fromText.length + ' 人' };
       }
+      var fmT = headTextAll.match(/\b[A-Z]{2}\d{3,4}\b/);
+      var dmT = headTextAll.match(/(19|20)\d{2}-\d{2}-\d{2}/);
+      return {
+        ok: vT.ok,
+        reason: vT.reason || '',
+        mode: 'text',
+        rows: vT.ok ? fromText : [],
+        found: fromText.length,
+        ttl: ttl,
+        pages: totalPages,
+        flightNo: fmT ? fmT[0] : '',
+        date: dmT ? dmT[0] : '',
+        counts: { n: fromText.length },
+        bad: { name: vT.badName || 0, pass: vT.badPass || 0, duty: vT.badDuty || 0 }
+      };
     }
 
     // ---------- 没有文字层：渲染成图再认 ----------
-    step('正在把单子转成高清图…', 0.06);
-    var cv = await renderPage(pdfDoc, 1);
-
-    step('正在加载识别引擎（第一次会稍慢）…', 0.12);
+    // 同样逐页处理：第 1 页按标准版式裁，第 2 页起没有表头，从页面顶部整页裁
+    step('正在加载识别引擎（第一次会稍慢）…', 0.1);
     var T = await loadLib();
 
     var worker = await T.createWorker('eng', 1, {
@@ -320,47 +408,112 @@
       gzip: true
     });
 
-    var raw = {};
+    var list = [], rawHead = null;
+
+    /* 先单独读一下单子上的 TTL 合计人数 —— 它决定表格有多长。
+       GD 单行高固定，人数多表格就往下长；固定按 20 行裁，
+       21 人以上会被截断，多出来的行整行丢失。
+       读不到 TTL 就按 20 人算（最常见的规模）。 */
+    var ttlNum = 0;
     try {
-      for (var i = 0; i < COLS.length; i++) {
-        var c = COLS[i];
-        step('正在认第 ' + (i + 1) + ' / ' + COLS.length + ' 列…', 0.18 + 0.15 * i);
+      step('正在读单子上的合计人数…', 0.13);
+      var tcv = await renderPage(pdfDoc, totalPages);
+      var tpiece = crop(tcv,
+        0.168 * tcv.width, 0.15 * tcv.height,
+        (0.41 - 0.168) * tcv.width, 0.84 * tcv.height);
+      var tlines = await readColumn(worker, tpiece, '6');
+      var tm = tlines.join(' ').match(/TTL[^0-9]{0,6}(\d{1,3})/);
+      if (tm) ttlNum = Number(tm[1]);
+      if (window.CREW_OCR_DEBUG) console.log('[ocr] TTL 读到: ' + ttlNum + ' | ' + JSON.stringify(tlines.slice(-4)));
+    } catch (e) { ttlNum = 0; }
 
-        var x = c.x0 * cv.width;
-        var w = (c.x1 - c.x0) * cv.width;
-        var y0 = c.y0 === undefined ? ROW_Y0 : c.y0;
-        var y = y0 * cv.height;
-        var h = ((c.y1 || ROW_Y1) - y0) * cv.height;
-        var piece = crop(cv, x, y, w, h);
+    // 按人数算表格底边；一页放不下就整页裁，再逐页往下接
+    var perPageCap = Math.max(1, Math.floor((0.96 - ROW_Y0) / ROW_H));
+    var multiPage = ttlNum > perPageCap;
+    // 人数没读到时不要只按 20 行裁 —— 21 人单会悄悄少掉最后一行，
+    // 而且看起来还挺像一张正常的表。多放几行，末尾的噪音由 assemble 掐掉。
+    var y1Fixed = Math.min(0.96, ROW_Y0 + Math.max(ttlNum || 0, 24) * ROW_H + ROW_PAD);
 
-        var lines = await readColumn(worker, piece, c.psm);
+    try {
+      for (var pg = 1; pg <= totalPages; pg++) {
+        step('正在把第 ' + pg + ' 页转成高清图…', 0.16 + 0.1 * (pg - 1));
+        var cv = await renderPage(pdfDoc, pg);
+        var isFirst = (pg === 1);
+        var pageRaw = {};
 
-        // 职务列兜底：行数明显不对就换版面模式重认
-        if (c.retry) {
-          for (var k = 0; k < c.retry.length && lines.length < 5; k++) {
-            var alt = await readColumn(worker, piece, c.retry[k]);
-            if (alt.length > lines.length) lines = alt;
-            if (lines.length >= 5) break;
+        for (var i = 0; i < COLS.length; i++) {
+          var c = COLS[i];
+          // 航班号日期只取第 1 页的固定位置
+          if (c.key === 'head' && !isFirst) continue;
+          step('第 ' + pg + ' 页：正在认第 ' + (i + 1) + ' / ' + COLS.length + ' 列…',
+            0.22 + 0.55 * ((pg - 1) * COLS.length + i) / (totalPages * COLS.length));
+
+          var x = c.x0 * cv.width;
+          var w = (c.x1 - c.x0) * cv.width;
+          // 表头那种固定位置（有 y0 的）不动；数据列按人数算出来的底边
+          var isFixed = (c.y0 !== undefined);
+          var y0 = isFixed ? c.y0 : (isFirst ? ROW_Y0 : 0.02);
+          var y1;
+          if (isFixed) y1 = c.y1;
+          else if (!isFirst) y1 = 0.98;
+          else if (multiPage) y1 = 0.96;
+          else y1 = Math.max(c.y1 || 0, y1Fixed);
+          var y = y0 * cv.height;
+          var h = (y1 - y0) * cv.height;
+          var piece = crop(cv, x, y, w, h);
+
+          var lines = await readColumn(worker, piece, c.psm);
+
+          // 职务列兜底：这块是 200px 宽的窄条，最容易整列认废。
+          // 拿姓名列的行数当基准 —— 有效职务不到八成就换版面模式重认，取最好的那次。
+          if (c.retry) {
+            var need = Math.max(1, (pageRaw.name || []).length);
+            var countOk = function (ls) {
+              var v = 0;
+              for (var q = 0; q < ls.length; q++) if (normalizeDuty(ls[q])) v++;
+              return v;
+            };
+            var best = countOk(lines);
+            for (var k = 0; k < c.retry.length && best < need * 0.8; k++) {
+              var alt = await readColumn(worker, piece, c.retry[k]);
+              var sc = countOk(alt);
+              if (sc > best) { best = sc; lines = alt; }
+            }
+          }
+
+          pageRaw[c.key] = lines;
+          if (window.CREW_OCR_DEBUG) {
+            console.log('[ocr] 第' + pg + '页 ' + c.key + ' 裁 ' + Math.round(w) + 'x' + Math.round(h) +
+              ' 得 ' + lines.length + ' 行: ' + JSON.stringify(lines.slice(0, 5)));
           }
         }
 
-        raw[c.key] = lines;
-        if (window.CREW_OCR_DEBUG) {
-          console.log('[ocr] ' + c.key + ' 裁 ' + Math.round(w) + 'x' + Math.round(h) +
-            ' 得 ' + lines.length + ' 行: ' + JSON.stringify(lines.slice(0, 5)));
+        if (isFirst) { rawHead = pageRaw.head || []; }
+
+        var part2 = assemble(pageRaw);
+        // 第 2 页起没有表头，整页裁会带进签字、说明之类，靠护照/职务过滤掉噪音
+        if (!isFirst) {
+          part2 = part2.filter(function (r) {
+            return (r.passport && PASS_LOOSE.test(r.passport)) || r.duty;
+          });
         }
+        list = list.concat(part2);
       }
     } finally {
       try { await worker.terminate(); } catch (e) {}
     }
 
     step('正在核对…', 0.97);
-    var list = assemble(raw);
+    list = finalize(list);
     var verdict = judge(list);
+    var ttlOcr = ttlNum;   // 前面专门读过一次，比从头里猜准
+    if (verdict.ok && ttlOcr && ttlOcr !== list.length) {
+      verdict = { ok: false, reason: '单子写 ' + ttlOcr + ' 人，只认出 ' + list.length + ' 人' };
+    }
 
     // 顺手把右上角的 Flight No 和 Date 读出来，省得再手打
     // 日期里的横线常被认成空格（"2025-07-18" → "2025 07 18"），所以分隔符都放开
-    var headText = (raw.head || []).join(' ');
+    var headText = (rawHead || []).join(' ');
     var fm = headText.match(/[A-Z]{2}\s?\d{3,4}/);
     var dm = headText.match(/(19|20)(\d{2})[-./\s]?(\d{1,2})[-./\s]?(\d{1,2})/);
     var pad = function (v) { return ('0' + v).slice(-2); };
@@ -369,16 +522,13 @@
       ok: verdict.ok,
       reason: verdict.reason || '',
       mode: 'ocr',
-      rows: list,
+      rows: verdict.ok ? list : [],
+      found: list.length,
+      ttl: ttlOcr,
+      pages: totalPages,
       flightNo: fm ? fm[0].replace(/\s/g, '') : '',
       date: dm ? dm[1] + dm[2] + '-' + pad(dm[3]) + '-' + pad(dm[4]) : '',
-      counts: {
-        duty: (raw.duty || []).length,
-        name: (raw.name || []).length,
-        dob: (raw.dob || []).length,
-        sex: (raw.sex || []).length,
-        pass: (raw.pass || []).length
-      },
+      counts: { n: list.length },
       bad: { name: verdict.badName || 0, pass: verdict.badPass || 0, duty: verdict.badDuty || 0 }
     };
   };
