@@ -5,286 +5,336 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>航班工作工具集 · 导航</title>
 <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-<meta name="description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作、早始发正常率测算等 9 个工具，覆盖出港全流程。">
+<meta name="description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作等 9 个工具，覆盖出港全流程。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="航班工作工具集 · 导航">
-<meta property="og:description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作、早始发正常率测算等 9 个工具，覆盖出港全流程。">
+<meta property="og:description" content="航空地服工作工具集：国际名单转化、升舱金额计算、出港排班、日报生成、值机数据制作等 9 个工具，覆盖出港全流程。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/index.html">
 <!-- 首页页眉是白色通栏，移动端浏览器 chrome 也跟着白 -->
 <meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="./assets/site.css">
-<script src="./assets/nav-scroll.js" defer></script>
 <style>
   /* ============================================================
-     首页 · 苹果风改版（2026-10-02）
+     首页 · apple.com 版式（2026-10-23 改版）
 
-     改版前：页眉是一个「带描边的圆角盒子」、主色 8 色横条、8 张各带身份色的卡片。
-     改版后：通栏吸顶页眉 → **满屏暗色主视觉**（图当背景、白色大字压在上面）
-             → 圆角卡片网格（每张卡片用该工具自己的暗色配图）。
-             全站只用「一个蓝」做交互色。
+     与旧版的区别（旧版是「页眉 + 满屏暗图 + 卡片网格」，新版把版式语言
+     换成苹果官网那套）：
+       ① 页眉 56 → 48px、12px 小字、搜索收成图标 + 浮层
+       ② 主视觉 92vh，h1 到 84px、字距 -.028em
+       ③ 删掉「9 个 / 0 次 / 24h / ⌘K」数字条（用户：看着尴尬）
+       ④ 卡片「进入」从蓝色实心胶囊 → 蓝色文字 + 箭头
+       ⑤ 使用须知从灰盒子 → 两列发丝线分区
+       ⑥ 页脚从一行字 → 四列小字
 
-     ⚠️ 旧注释曾写「.hero h1 / .lede / .factrow / .fact 是首页最初的版式，别再删」。
-        这条约定已被本次改版**有意取代**：结构重写为苹果官网的
-        「大字标题 → 大图 → 卡片」三段式，.stripe（8 色横条）整体删除。
-        第二轮（同日）又按用户选定的「方案 A」把「大字区 + 独立大图」合并成
-        **满屏暗色主视觉**：图从 <img> 变成 .hero 的 background，页眉浮在图上。
-        还原点：.workbuddy-ai/backup/apple-redesign-20261002/index.html.orig
+     ⚠️ 三条必须守住的约定：
+       · 共享层 site.css 仍然加载（css-regress 要求每页都有它的 <link>）
+       · 探针依赖的 ID 一个都不能少：toolSearch / toolSearchClear / searchBox /
+         toolsEmpty / toolsEmptyReset / toolsCount / toolGrid / nav
+       · 每张卡片必须有 .tile-cta（home-search-probe 第 5 条断言），
+         所以「进入」的文字链接**保留 tile-cta 这个类名**，只是外观变了
 
-     配图：assets/hero-aircraft.webp（首屏）+ assets/tools/NN-*.webp（卡片 & 工具页页眉），
-           全部原创生成，不含任何真实航司涂装或商标。
-     配色：本页只从 assets/site.css 的 :root 取色，不新造色值。
-           蓝色只用于「可点击的东西」（按钮 / 链接 / 焦点环），这是苹果的用色规则。
+     ⚠️ 页眉高度 48 是**本页**覆盖的（site.css 里 .nav-inner 仍是 56）。
+        .hero 的 margin-top 必须与页眉高度**同步**，否则主视觉会露出白边。
+        第二批改造会把 site.css 统一到 48 并同步 9 个工具页。
      ============================================================ */
 
-  /* 首页是白底（site.css 里 body 是 #f5f5f7）。同特异性下页面 <style> 在后 → 覆盖成功。 */
+  /* site.css 用 !important 把 body 底色钉成 --bg(#f5f5f7)，首页要白底 */
   body { background: #fff !important; }
   html { scroll-behavior: smooth; }
 
-  /* ============ 1. 通栏吸顶页眉 ============
-     .nav / .nav.scrolled / .nav-inner / .brandmark / 「暗底转白字」全部已提到
-     assets/site.css 共享层（工具页要用同一套页眉），本页**只留首页独有的搜索框**。 */
-  /* 未滚动 ⇒ 浮在暗图上 ⇒ 搜索框也要跟着转白。
-     ⚠️ 这些选择器特异性是 0-3-x，会压过下面的 .search input:focus（0-2-1），
-        所以焦点态必须在这里**再写一遍**，否则在暗图上方聚焦搜索框不会变白底。 */
-  .nav:not(.scrolled) .search input { background: rgba(255,255,255,.16); color: #fff; }
-  .nav:not(.scrolled) .search input::placeholder { color: rgba(255,255,255,.74); }
-  .nav:not(.scrolled) .search input:hover { background: rgba(255,255,255,.24); }
-  .nav:not(.scrolled) .search input:focus { background: #fff; color: var(--ink); }
-  .nav:not(.scrolled) .search .s-ic { color: rgba(255,255,255,.74); }
+  /* site.css 的 :root 里没有 --line-soft（工具页用不到），首页的分隔线要用它 */
+  :root { --line-soft: #e8e8ed; }
 
-  /* 搜索：胶囊输入框。input[type=search] 不在共享层的「输入框墙」选择器里，
-     所以描边/圆角/底色全部由这里自己定。 */
+  /* ============ 1. 页眉（覆盖共享层尺寸）============ */
+  .nav-inner { height: 48px; max-width: 1120px; padding: 0 24px; gap: 24px; }
+  .brandmark .bm-t { font-size: 12px; font-weight: 600; letter-spacing: .01em; }
+  .brandmark svg { width: 19px; height: 19px; }
+
+  .nav-links { margin-left: auto; display: flex; align-items: center; gap: 26px; }
+  .nav-link {
+    font-size: 12px; font-weight: 400; color: rgba(255,255,255,.86);
+    text-decoration: none; transition: opacity .2s;
+  }
+  .nav-link:hover { opacity: .72; }
+  .nav.scrolled .nav-link { color: var(--ink); }
+  .nav-search-btn {
+    width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
+    transition: opacity .2s;
+  }
+  .nav-search-btn:hover { opacity: .7; }
+  .nav-search-btn svg { width: 15px; height: 15px; }
+
+  /* ============ 2. 搜索浮层 ============
+     #searchBox 就是这一层（探针要读它的 has-value 类）。 */
+  /* ⚠️ top 必须 = 页眉高度：浮层从页眉**下方**滑出。
+     早先写成 top:0 + 66px 内边距，白色面板会压住透明页眉，
+     页眉的白字直接看不见（还得靠 JS 强制页眉转白，反而污染了「未滚动」状态）。 */
   .search {
-    position: relative; margin-left: auto; flex: 0 1 320px;
-    display: flex; align-items: center;
+    position: fixed; left: 0; right: 0; top: 48px; z-index: 99;
+    padding: 26px 24px;
+    background: rgba(255,255,255,.94);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid rgba(0,0,0,.09);
+    transform: translateY(-100%); opacity: 0; pointer-events: none;
+    transition: transform .34s var(--ease-out), opacity .24s var(--ease-out);
   }
-  .search .s-ic {
-    position: absolute; left: 11px; width: 15px; height: 15px;
-    color: var(--muted-2); pointer-events: none;
-  }
-  .search input {
-    width: 100%; height: 34px; padding: 0 32px 0 33px;
-    font-family: inherit; font-size: 13px; color: var(--ink);
-    background: rgba(0,0,0,.045); border: 1px solid transparent;
-    border-radius: var(--radius-pill);
+  .search.open { transform: none; opacity: 1; pointer-events: auto; }
+  .search-field { max-width: 640px; margin: 0 auto; position: relative; display: flex; align-items: center; }
+  .search-field .s-ic { position: absolute; left: 2px; width: 17px; height: 17px; color: var(--muted-2); }
+  .search-field input {
+    width: 100%; height: 44px; padding: 0 30px 0 30px;
+    font-family: inherit; font-size: 20px; color: var(--ink);
+    background: none; border: 0; outline: none;
+    border-bottom: 1px solid var(--line);
     -webkit-appearance: none; appearance: none;
-    transition: background var(--dur-fast) var(--ease-inout),
-                border-color var(--dur-fast) var(--ease-inout),
-                box-shadow var(--dur-fast) var(--ease-inout);
   }
-  .search input::placeholder { color: var(--muted-2); }
-  .search input::-webkit-search-cancel-button { display: none; }
-  .search input:hover { background: rgba(0,0,0,.065); }
-  .search input:focus {
-    outline: none; background: #fff;
-    border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.14);
+  .search-field input::placeholder { color: var(--muted-2); }
+  .search-field input::-webkit-search-cancel-button { display: none; }
+  /* 焦点指示用「下划线变蓝」，不要 UA 那个蓝方框（会把整个 640px 框住） */
+  /* ⚠️ 共享层给所有 input 加了 3px 蓝色焦点光晕（!important），会在这个
+     「无边框 + 下划线」的搜索框外面画一个矩形 —— 必须用 !important 压掉，
+     改成只贴着下划线的一层薄光，焦点照样看得见。 */
+  .search-field input:focus,
+  .search-field input:focus-visible {
+    outline: none;
+    border-bottom-color: var(--brand);
+    box-shadow: 0 2px 0 0 rgba(0,113,227,.18) !important;
   }
-  .search .s-clear {
-    position: absolute; right: 7px; width: 20px; height: 20px;
+
+  /* 清除按钮：有值才出现（has-value 由脚本挂在 #searchBox 上） */
+  .s-clear {
+    position: absolute; right: 2px; width: 22px; height: 22px;
     display: none; align-items: center; justify-content: center;
-    border: none; background: rgba(0,0,0,.10); color: #fff;
-    border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1;
-    padding: 0; font-family: inherit;
+    border: 0; border-radius: 50%; padding: 0; cursor: pointer;
+    background: rgba(0,0,0,.10); color: #fff;
+    font-size: 11px; line-height: 1; font-family: inherit;
     transition: background var(--dur-fast) var(--ease-inout);
   }
   .search.has-value .s-clear { display: flex; }
-  .search .s-clear:hover { background: rgba(0,0,0,.28); }
+  .s-clear:hover { background: rgba(0,0,0,.28); }
 
-  /* ============ 2. Hero：满屏暗色主视觉 ============
-     .hero 的结构（含 margin-top:-52px 钻进页眉下、以及两层压暗 ::after）
-     已提到 assets/site.css 共享层，工具页共用同一套。
-     ⚠️ 图**必须由页面自己给** —— CSS 里的 url() 是相对**样式表**解析的：
-        site.css 在 assets/ 下，写相对路径会指到 assets/assets/… 去。
-        所以共享层只给 background-color，图与站位在页面里覆盖。 */
+  /* ============ 3. 主视觉（覆盖共享层）============ */
   .hero {
+    margin-top: -48px;                 /* 必须 = 页眉高度 */
+    min-height: 92vh;
+    padding: calc(48px + 44px) 24px 96px;
     background-image: url("./assets/hero-aircraft.webp");
     background-position: center 46%;
   }
-  /* .hero .eyebrow / .hero h1 / .hero .lede 三条也已提到 assets/site.css。
-     ⚠️ 千万别把它们再抄回这里：本页 <style> 在 site.css **之后**，
-        同特异性下页面赢 —— 会静默压掉共享层里那条 560px 媒体查询的
-        `.hero h1 { letter-spacing: -1.6px }`（窄屏字距变不回 -1.6px）。
-        实测踩过：390px 下 h1 字距被这里压成 -2.2px，标题横向位置偏移 ~2.4px。 */
-  .hero .cta-row {
-    margin-top: 28px; display: flex; align-items: center; justify-content: center;
-    gap: 26px; flex-wrap: wrap;
+  .hero .eyebrow {
+    margin: 0 0 20px; font-size: 13px; font-weight: 600;
+    letter-spacing: .14em; color: rgba(255,255,255,.72);
   }
-  /* 主按钮：蓝色胶囊（共享层 .btn 已有底色/圆角/悬停，这里只调尺寸） */
-  .hero .btn-primary { padding: 12px 30px !important; font-size: 15px; }
-  /* 次级入口：蓝色文字 + ›（苹果的「进一步了解」） */
+  .hero h1 {
+    font-size: clamp(40px, 6.6vw, 84px);
+    line-height: 1.06; font-weight: 700;
+    letter-spacing: -.028em;
+    text-shadow: 0 2px 40px rgba(0,0,0,.5);
+  }
+  .hero .lede {
+    margin: 26px auto 0; max-width: 600px;
+    font-size: clamp(16px, 1.35vw, 19px); line-height: 1.5;
+    color: rgba(255,255,255,.78); letter-spacing: -.005em;
+    text-wrap: balance;
+  }
+  .cta-row {
+    margin-top: 38px; display: flex; align-items: center;
+    justify-content: center; gap: 30px; flex-wrap: wrap;
+  }
+  .hero .btn-primary {
+    height: 46px; padding: 0 26px; border-radius: var(--radius-pill);
+    font-size: 16px; font-weight: 500; letter-spacing: -.01em;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .24s var(--ease-out), transform .24s var(--ease-out);
+  }
+  .hero .btn-primary:active { transform: scale(.98); }
   .link-more {
-    display: inline-flex; align-items: center; gap: 3px;
-    font-size: 15px; color: var(--brand); text-decoration: none;
-    transition: color var(--dur-fast) var(--ease-inout);
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 17px; color: #6fb3ff; text-decoration: none;
+    transition: color .2s;
   }
-  .link-more .chev { transition: transform var(--dur) var(--ease-out); }
-  .link-more:hover { color: var(--brand-dark); }
-  .link-more:hover .chev { transform: translateX(3px); }
-  /* 暗底上要把品牌蓝提亮一档，否则对比度不够；再补一层投影压住机身高光 */
-  .hero .link-more { color: #6fb3ff; text-shadow: 0 1px 14px rgba(0,0,0,.66); }
-  .hero .link-more:hover { color: #9dcaff; }
+  .link-more svg { width: 14px; height: 14px; transition: transform .26s var(--ease-out); }
+  .link-more:hover { color: #a3ceff; }
+  .link-more:hover svg { transform: translateX(3px); }
 
-  .hero .factrow {
-    margin-top: 34px; display: flex; justify-content: center;
-    gap: 30px; flex-wrap: wrap;
+  .scroll-hint {
+    position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%);
+    color: rgba(255,255,255,.5);
   }
-  .hero .fact { display: inline-flex; align-items: baseline; gap: 7px; }
-  .hero .fact .fv {
-    font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px;
-    text-shadow: 0 1px 14px rgba(0,0,0,.66);
-  }
-  .hero .fact .fl {
-    font-size: 13px; color: rgba(255,255,255,.72);
-    text-shadow: 0 1px 12px rgba(0,0,0,.66);
-  }
+  .scroll-hint svg { width: 20px; height: 20px; display: block; }
 
-  /* ============ 4. 工具卡片网格 ============ */
-  /* 吸顶页眉高 52px —— 锚点跳转 / 搜索自动滚动要留出让开页眉的余量 */
-  .tools { scroll-margin-top: 68px; }
-  .tools-head {
-    /* 主视觉改成满屏通栏后，这里不再需要 74px 的大留白（.container 顶部已有 32px） */
-    margin: 24px 0 18px; display: flex; align-items: baseline;
-    justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  }
-  .tools-head h2 { font-size: 26px; font-weight: 700; letter-spacing: -.7px; color: var(--ink); }
-  .tools-head .count { font-size: 13px; color: var(--muted-2); }
+  /* ============ 4. 工具网格 ============ */
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .tools { background: var(--bg); padding: 120px 0; scroll-margin-top: 64px; }
 
-  /* 1180px 容器下正好 3 列（4 列需要 4×296+54=1238px，放不下）→ 卡片约 381px 宽，
-     比 4 列（271px）宽裕得多，说明文字不再挤成 5 行。 */
+  .sec-head {
+    max-width: 1120px; margin: 0 auto 56px; padding: 0 24px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .sec-head h2 {
+    margin: 0; font-size: clamp(30px, 4.2vw, 52px); line-height: 1.08;
+    font-weight: 600; letter-spacing: -.024em; color: var(--ink);
+  }
+  .sec-head p { margin: 14px 0 0; font-size: 17px; color: var(--muted); letter-spacing: -.005em; flex: 1 1 100%; }
+  .sec-head .count { font-size: 13px; color: var(--muted-2); white-space: nowrap; }
+
   .grid {
-    display: grid; gap: 20px;
-    grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+    max-width: 1120px; margin: 0 auto; padding: 0 24px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
   }
+  /* ---- 卡片：满图 + 压字（V2）----
+     图铺满整张卡，白字压在底部暗渐变上。苹果首页瓷砖的做法。
+     ⚠️ 三层必须齐：图 z-index:-2、渐变 ::after z-index:-1、文字正常流；
+        .tile 上的 isolation:isolate 让负 z-index 留在卡片自己的层叠上下文里，
+        否则图会掉到页面背景后面去。 */
   .tile {
-    display: flex; flex-direction: column;
-    background: var(--card); border-radius: 22px; overflow: hidden;
-    text-decoration: none; color: inherit;
-    box-shadow: 0 2px 10px rgba(0,0,0,.055), 0 0 0 1px rgba(0,0,0,.035);
-    transition: transform var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out);
-    opacity: 0; animation: tileIn .5s var(--ease-out) forwards;
+    position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+    aspect-ratio: 4 / 5; border-radius: 26px; overflow: hidden; isolation: isolate;
+    background: #101114; text-decoration: none; color: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 22px rgba(0,0,0,.045);
+    transition: transform .42s var(--ease-out), box-shadow .42s var(--ease-out);
   }
-  .tile:hover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(0,0,0,.11), 0 0 0 1px rgba(0,0,0,.035); }
+  .tile:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.16); }
   .tile.is-hidden { display: none; }
-  @keyframes tileIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  .tile:nth-child(1) { animation-delay: .02s; } .tile:nth-child(2) { animation-delay: .05s; }
-  .tile:nth-child(3) { animation-delay: .08s; } .tile:nth-child(4) { animation-delay: .11s; }
-  .tile:nth-child(5) { animation-delay: .14s; } .tile:nth-child(6) { animation-delay: .17s; }
-  .tile:nth-child(7) { animation-delay: .20s; } .tile:nth-child(8) { animation-delay: .23s; }
-  .tile:nth-child(9) { animation-delay: .26s; }
 
-  /* 卡片缩略图：该工具自己的暗色配图（16:10）。
-     图就是「这个工具长什么样」的第一印象，所以不再用图标占位。
-     同一张图在工具页里做页眉图片带 ⇒ 「卡片 → 点进去」视觉是连续的。 */
-  .tile-thumb {
-    position: relative; aspect-ratio: 16 / 10; overflow: hidden;
-    background: #101114;
-  }
-  .tile-thumb img {
-    /* ⚠️ 必须用绝对定位撑满，不能写 height:100%：
-       .tile-thumb 的高度是 aspect-ratio 算出来的（height 属性仍是 auto），
-       百分比高度在这里解析不出来 → 图高 0 → 只剩容器底色，卡片显示成一块黑。
-       实测：`height:100%` 时 8 张图全部渲染成黑块（图其实已加载，naturalWidth=1400）。 */
-    position: absolute; inset: 0;
+  .tile-img {
+    /* ⚠️ 必须绝对定位撑满：容器高度由 aspect-ratio 算，height:100% 解析不出来 → 图高 0 → 黑块 */
+    position: absolute; inset: 0; z-index: -2;
     width: 100%; height: 100%;
     object-fit: cover; object-position: center;
-    transition: transform var(--dur-slow) var(--ease-out);
+    transition: transform .6s var(--ease-out);
   }
-  .tile:hover .tile-thumb img { transform: scale(1.035); }
-  /* 编号角标：压在暗图上，用白字 + 半透明暗底胶囊，保证任何一张图上都读得清 */
+  /* 渐变要比「图上文字」那版更重：09 号卡背景是航站楼亮窗，渐变一淡标题就糊。
+     顶部也压一点点，让左上角序号永远读得清。 */
+  .tile::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(to top,
+      rgba(0,0,0,.94) 0%, rgba(0,0,0,.82) 22%, rgba(0,0,0,.52) 44%,
+      rgba(0,0,0,.14) 68%, rgba(0,0,0,.28) 100%);
+  }
+  .tile:hover .tile-img { transform: scale(1.04); }
   .tile-no {
-    position: absolute; left: 12px; top: 11px; z-index: 1;
-    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
-    letter-spacing: 1.2px; color: #fff;
-    background: rgba(0,0,0,.36);
-    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    border-radius: 6px; padding: 3px 7px;
+    position: absolute; left: 20px; top: 18px;
+    font-size: 11px; font-weight: 600; letter-spacing: .16em;
+    color: rgba(255,255,255,.8);
+    text-shadow: 0 1px 10px rgba(0,0,0,.6);
   }
 
-  .tile-body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1; }
-  .tile-body h3 { font-size: 18px; font-weight: 700; color: var(--ink); letter-spacing: -.4px; }
-  .tile-body p { font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-top: 9px; flex: 1; }
-  .tile-body .tags { margin-top: 14px; display: flex; flex-wrap: wrap; }
-  .tile-body .tag { font-size: 11.5px; padding: 0; background: none; color: var(--muted-2); }
-  .tile-body .tag::before { content: "·"; margin: 0 6px 0 0; color: var(--muted-2); }
-  .tile-body .tag:first-child::before { content: none; }
-  .tile-body .tag.testing { color: var(--amber); font-weight: 600; }
-  /* 蓝色按钮（整张卡片就是链接，这里是视觉上的「进入」） */
-  .tile-cta {
-    margin-top: 16px; align-self: flex-start;
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 13px; font-weight: 600; color: #fff;
-    background: var(--brand); border-radius: var(--radius-pill);
-    padding: 8px 17px;
-    transition: background var(--dur-fast) var(--ease-inout), transform var(--dur) var(--ease-spring);
+  .tile-info { padding: 22px 22px 24px; }
+  .tile-info h3 {
+    margin: 0; font-size: 21px; font-weight: 600;
+    letter-spacing: -.02em; line-height: 1.25; color: #fff;
+    /* 光靠渐变兜不住「背景正好是亮区」的卡（04 驾驶舱、09 航站楼亮窗）→ 再补一层极轻的暗影 */
+    text-shadow: 0 1px 14px rgba(0,0,0,.5);
   }
-  .tile:hover .tile-cta { background: var(--brand-dark); }
-  .tile:active .tile-cta { transform: scale(.97); }
-  .tile-cta .chev { transition: transform var(--dur) var(--ease-out); }
-  .tile:hover .tile-cta .chev { transform: translateX(2px); }
+  .tile-info p {
+    margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.76);
+    text-shadow: 0 1px 10px rgba(0,0,0,.45);
+    /* 🔥 word-break:keep-all —— 中文默认可以在任意两字之间断行，短句会被切成
+       「国籍、性 / 别」这种。keep-all 后只在标点处断，短说明读起来才不别扭。
+       必须配 overflow-wrap 兜底，防止某一段没有标点时溢出。 */
+    word-break: keep-all; overflow-wrap: break-word;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    min-height: 41px;          /* 固定两行高 → 9 张卡的入口落在同一水平线 */
+  }
+  /* 「进入」= 文字链接。类名必须留 tile-cta（探针断言），外观已不是胶囊。
+     深色卡上的链接用浅蓝（#8cc2ff），--brand 那个蓝压在暗底上看不见。 */
+  .tile-cta {
+    margin-top: 14px;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 13.5px; font-weight: 500; color: #8cc2ff;
+  }
+  .tile-cta .chev { display: inline-flex; transition: transform .26s var(--ease-out); }
+  .tile-cta .chev svg { width: 12px; height: 12px; display: block; }
+  .tile:hover .tile-cta .chev { transform: translateX(3px); }
 
   /* 搜索无结果 */
-  .empty {
-    display: none; text-align: center; padding: 56px 20px;
-    border: 1px dashed var(--line); border-radius: 22px; background: #fafafa;
-  }
+  .empty { display: none; max-width: 1120px; margin: 0 auto; padding: 70px 24px; text-align: center; }
   .empty.show { display: block; }
-  .empty .e-t { font-size: 15px; font-weight: 600; color: var(--ink); }
-  .empty .e-s { font-size: 13px; color: var(--muted); margin-top: 7px; }
+  .empty .e-t { font-size: 21px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+  .empty .e-s { margin-top: 8px; font-size: 15px; color: var(--muted); }
   .empty button {
-    margin-top: 16px; font-family: inherit; font-size: 13px; font-weight: 600;
-    color: var(--brand); background: none; border: none; cursor: pointer; padding: 4px 2px;
+    margin-top: 20px; font-family: inherit; font-size: 15px; font-weight: 500;
+    color: var(--brand); background: none; border: 0; padding: 0; cursor: pointer;
   }
-  .empty button:hover { color: var(--brand-dark); text-decoration: underline; }
+  .empty button:hover { text-decoration: underline; }
 
-  /* ============ 使用须知 ============ */
-  .notice {
-    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
-    box-shadow: 0 1px 2px rgba(0,0,0,.03); overflow: hidden; margin-top: 60px;
+  /* ============ 5. 使用须知（发丝线分区，不用灰盒子）============ */
+  .notice { background: #fff; padding: 100px 0 110px; scroll-margin-top: 64px; }
+  .notice .sec-head { margin-bottom: 0; }
+  .notice .sec-head h2 { font-size: clamp(26px, 3.2vw, 40px); }
+  .notice-grid {
+    max-width: 1120px; margin: 44px auto 0; padding: 0 24px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0 56px;
   }
-  .notice > summary {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 17px 21px; cursor: pointer; user-select: none; list-style: none;
-    font-size: 14px; font-weight: 600; color: var(--ink);
+  .n-item { display: flex; gap: 16px; padding: 26px 0; border-top: 1px solid var(--line-soft); }
+  .n-ic {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px;
+    border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; color: var(--brand);
   }
-  .notice > summary::-webkit-details-marker { display: none; }
-  .notice > summary .title { display: flex; align-items: center; gap: 9px; }
-  .notice > summary .ic {
-    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
-    background: var(--brand-light); color: var(--brand);
-    display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+  .n-ic svg { width: 16px; height: 16px; display: block; }
+  .n-item h4 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+  .n-item p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+  .n-item code {
+    font-family: var(--mono); font-size: 12px;
+    background: var(--bg); padding: 1px 5px; border-radius: 4px; color: var(--ink-2);
   }
-  .notice > summary .chev { transition: transform var(--dur) var(--ease-out); color: var(--muted); }
-  .notice[open] > summary .chev { transform: rotate(180deg); }
-  .notice .nbody { padding: 0 21px 21px; color: var(--ink-2); font-size: 13.5px; line-height: 1.75; }
-  .notice .nbody ul { padding-left: 20px; margin: 6px 0; }
-  .notice .nbody li { margin: 6px 0; }
-  .notice .nbody b { color: var(--ink); }
-  .notice .nbody code { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: var(--mono); }
 
-  .site-footer { margin-top: 52px; padding: 20px 0 0; border-top: 1px solid var(--line); }
-
-  /* 键盘可达性：焦点环（共享层已给 a/button/input 统一焦点环，这里补搜索框） */
-  .search input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
-
-  @media (max-width: 820px) {
-    .brandmark .bm-t { display: none; }
-    .search { flex: 1 1 auto; }
+  /* ============ 6. 页脚（四列小字）============ */
+  .site-footer {
+    background: var(--bg); padding: 56px 0 30px; margin-top: 0;
+    border-top: 0; font-size: 12px; color: var(--muted);
   }
-  @media (max-width: 560px) {
-    .hero .cta-row { gap: 18px; }
-    .tools-head { margin-top: 12px; }
-    .grid { gap: 14px; }
+  .footer-inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .footer-cols {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;
+    padding-bottom: 34px; border-bottom: 1px solid var(--line);
   }
-  /* 减弱动态效果：共享层已把动画时长压到 0.01ms，但位移要自己关掉 */
+  .footer-col h5 { margin: 0 0 12px; font-size: 12px; font-weight: 600; color: var(--ink); }
+  .footer-col ul { margin: 0; padding: 0; list-style: none; }
+  .footer-col li { margin: 0 0 9px; }
+  .footer-col a { color: var(--muted); text-decoration: none; transition: color .2s; }
+  .footer-col a:hover { color: var(--ink); text-decoration: underline; }
+  .footer-bottom {
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding-top: 22px; color: var(--muted-2);
+  }
+
+  /* ============ 响应式 ============ */
+  @media (max-width: 1023px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .notice-grid { grid-template-columns: 1fr; gap: 0; }
+    .tools { padding: 80px 0 90px; }
+    .notice { padding: 76px 0 84px; }
+  }
+  @media (max-width: 719px) {
+    .nav-inner { padding: 0 18px; }
+    .nav-link { display: none; }        /* 窄屏只留搜索图标，与苹果一致 */
+    .hero { min-height: 88vh; padding-bottom: 80px; }
+    .hero h1 { letter-spacing: -.02em; }
+    .hero .lede { font-size: 15px; }
+    .cta-row { gap: 20px; }
+    .hero .btn-primary { height: 44px; padding: 0 22px; font-size: 15px; }
+    .grid { grid-template-columns: 1fr; gap: 18px; }
+    /* 窄屏单列时 4:5 会变成 342×428 的长条，九张叠起来太长 → 手机改正方形 */
+    .tile { aspect-ratio: 1 / 1; }
+    .tools { padding: 64px 0 72px; }
+    .sec-head { margin-bottom: 34px; }
+    .footer-cols { grid-template-columns: 1fr 1fr; }
+    .search { padding: 20px 18px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .tile, .tile:hover { transform: none !important; }
-    .link-more:hover .chev, .tile:hover .tile-cta .chev { transform: none !important; }
+    .link-more:hover svg, .tile:hover .tile-cta .chev { transform: none !important; }
   }
 </style>
 </head>
 <body>
 
-  <!-- ============ 1. 通栏吸顶页眉 ============ -->
+  <!-- ============ 1. 页眉 ============ -->
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a class="brandmark" href="./index.html">
@@ -293,232 +343,287 @@
         </svg>
         <span class="bm-t">航班工作工具集</span>
       </a>
-      <div class="search" id="searchBox">
-        <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>
-        </svg>
-        <input id="toolSearch" type="search" placeholder="搜索工具" autocomplete="off" spellcheck="false"
-               aria-label="搜索工具" aria-describedby="toolsCount">
-        <button class="s-clear" id="toolSearchClear" type="button" aria-label="清除搜索" tabindex="-1">✕</button>
-      </div>
+      <nav class="nav-links">
+        <a class="nav-link" href="#tools">全部工具</a>
+        <a class="nav-link" href="#notice">使用须知</a>
+        <button class="nav-search-btn" id="searchToggle" type="button" aria-label="搜索工具">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>
+          </svg>
+        </button>
+      </nav>
     </div>
   </header>
 
-  <!-- ============ 2. 满屏暗色主视觉 ============
-       图直接当 .hero 的 background、白色大字压在上面；页眉靠 margin-top:-52px 浮在图上。
+  <!-- 搜索浮层：#searchBox 就是这一层 -->
+  <div class="search" id="searchBox">
+    <div class="search-field">
+      <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>
+      </svg>
+      <input id="toolSearch" type="search" placeholder="搜索工具" autocomplete="off" spellcheck="false"
+             aria-label="搜索工具" aria-describedby="toolsCount">
+      <button class="s-clear" id="toolSearchClear" type="button" aria-label="清除搜索" tabindex="-1">✕</button>
+    </div>
+  </div>
+
+  <!-- ============ 2. 主视觉 ============
        配图 assets/hero-aircraft.webp 为原创生成，不含任何航司涂装 / 商标。 -->
   <section class="hero">
     <p class="eyebrow">航班地面服务 · 工作台</p>
-    <h1>九个工具，<br>装进出港的一天。</h1>
-    <p class="lede">从国际名单转化到每日待办——地服运行的日常数据工作，都在这了。</p>
+    <h1>九个工具。<br>一个工作台。</h1>
+    <p class="lede">从国际名单到每日日报，出港的每一步都在这里。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="#tools" id="ctaBrowse">浏览全部工具</a>
-      <a class="link-more" href="#notice">使用须知<span class="chev">›</span></a>
+      <a class="btn btn-primary" href="#tools">浏览全部工具</a>
+      <a class="link-more" href="#notice">使用须知
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </a>
     </div>
-    <div class="factrow">
-      <div class="fact"><span class="fv">9 个</span><span class="fl">在线工具</span></div>
-      <div class="fact"><span class="fv">24h</span><span class="fl">随时可用</span></div>
-      <div class="fact"><span class="fv">⌘K</span><span class="fl">快速搜索</span></div>
+    <div class="scroll-hint" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </div>
   </section>
 
-  <div class="container">
+  <!-- ============ 3. 工具网格 ============ -->
+  <section class="tools" id="tools">
+    <div class="sec-head">
+      <h2>全部工具</h2>
+      <div class="count" id="toolsCount" role="status" aria-live="polite">9 个工具</div>
+      <p>按出港流程排列：名单 → 排班 → 日报 → 汇总。</p>
+    </div>
 
-    <!-- ============ 3. 工具卡片 ============ -->
-    <section class="tools" id="tools">
-      <div class="tools-head">
-        <h2>全部工具</h2>
-        <div class="count" id="toolsCount" role="status" aria-live="polite">9 个工具</div>
+    <main class="grid" id="toolGrid">
+
+      <a class="tile" href="./manifest/index.html" data-keywords="01 国际名单转化 海关模板 出入境判定 Excel 预览 名单 加密">
+        <img class="tile-img" src="./assets/tools/01-manifest.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">01</span>
+        <div class="tile-info">
+          <h3>国际名单转化</h3>
+          <p>把国际航班旅客名单转成海关模板，国籍、性别、证件代码自动转换。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./upgrade/index.html" data-keywords="02 升舱金额计算器 岗位比例 交叉汇总 下载 Excel 升舱 绩效">
+        <img class="tile-img" src="./assets/tools/02-upgrade.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">02</span>
+        <div class="tile-info">
+          <h3>升舱金额计算器</h3>
+          <p>导入 C2 升舱统计表，按岗位比例分配金额，生成人员 × 日期汇总。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./schedule/index.html" data-keywords="03 出港排班表 登机口分配 负责人选择 下载 Excel 排班 特服 调时">
+        <img class="tile-img" src="./assets/tools/03-schedule.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">03</span>
+        <div class="tile-info">
+          <h3>出港排班表</h3>
+          <p>导入出港航班 Excel，按计离自动分段，分配登机口与负责人。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./daily-report/index.html" data-keywords="04 航班日报生成器 实时预览 值班安排 导出 Word 日报 接班 当班">
+        <img class="tile-img" src="./assets/tools/04-daily-report.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">04</span>
+        <div class="tile-info">
+          <h3>航班日报生成器</h3>
+          <p>左边填写、右边实时预览，导出与官方版式一致的 Word 日报。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./kn-stats/index.html" data-keywords="05 KN航班出港统计 截载时间 导出图片 中联航 订座 Excel 导入 导出">
+        <img class="tile-img" src="./assets/tools/05-kn-stats.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">05</span>
+        <div class="tile-info">
+          <h3>KN航班出港统计</h3>
+          <p>导入 FIOS 出港表，筛选 KN 航班，算截载时间与订座，导出图片。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./merge/index.html" data-keywords="06 东上联日数据汇总 东上联 总表 PDF自动填 导出 Excel 东航 上航 联航 周报">
+        <img class="tile-img" src="./assets/tools/06-merge.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">06</span>
+        <div class="tile-info">
+          <h3>东上联日数据汇总</h3>
+          <p>导入 FIOS 航班表与指挥长周报 PDF，一键生成东上联表与总表。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./todo/index.html" data-keywords="07 每日待办 按日记录 历史回看 本地保存 待办 日历">
+        <img class="tile-img" src="./assets/tools/07-todo.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">07</span>
+        <div class="tile-info">
+          <h3>每日待办</h3>
+          <p>按日期记录每天要做的事，勾掉自动保存，可回看历史、跨日期搜索。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./early-ontime/index.html" data-keywords="08 早始发正常率测算 机场对标 T1 T2 T3 档位 追不上告警 正常率 早始发">
+        <img class="tile-img" src="./assets/tools/08-early-ontime.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">08</span>
+        <div class="tile-info">
+          <h3>早始发正常率测算</h3>
+          <p>只填总班数与延误班数，算出 T1 / T2 / T3 各还差几班正常。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+      <a class="tile" href="./checkin/index.html" data-keywords="09 值机数据制作 自助值机 自助率 WEB CUSS 出港 中联航 东上航 导出 Excel">
+        <img class="tile-img" src="./assets/tools/09-checkin.webp" alt="" width="1400" height="933" loading="lazy">
+        <span class="tile-no">09</span>
+        <div class="tile-info">
+          <h3>值机数据制作</h3>
+          <p>导入 FIOS 出港表，按三家航司分组，自助率自动算。</p>
+          <span class="tile-cta">进入<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></span>
+        </div>
+      </a>
+
+    </main>
+
+    <div class="empty" id="toolsEmpty">
+      <div class="e-t">没有找到匹配的工具</div>
+      <div class="e-s">换个关键词试试，比如「名单」「排班」「日报」「正常率」。</div>
+      <button type="button" id="toolsEmptyReset">清除搜索条件</button>
+    </div>
+  </section>
+
+  <!-- ============ 4. 使用须知 ============ -->
+  <section class="notice" id="notice">
+    <div class="sec-head">
+      <h2>使用须知</h2>
+    </div>
+    <div class="notice-grid">
+      <div class="n-item">
+        <span class="n-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18a15 15 0 010-18"/></svg></span>
+        <div>
+          <h4>长期有效</h4>
+          <p>部署在 GitHub Pages（公开仓库），链接长期有效、不会回收，可随时打开使用。</p>
+        </div>
       </div>
-
-      <main class="grid" id="toolGrid">
-
-        <a class="tile" href="./manifest/index.html" data-keywords="01 国际名单转化 拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。 海关模板 出入境判定 Excel 预览 名单 加密">
-          <div class="tile-thumb">
-            <span class="tile-no">01</span>
-            <img src="./assets/tools/01-manifest.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>国际名单转化</h3>
-            <p>拖入国际航班旅客名单 Excel，自动按海关上传模板清洗——转换国籍/性别/证件代码、判定出入境与往来机场，一键导出可直接上传的文件。</p>
-            <div class="tags"><span class="tag">海关模板</span><span class="tag">出入境判定</span><span class="tag">Excel 预览</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./upgrade/index.html" data-keywords="02 升舱金额计算器 导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。 岗位比例 交叉汇总 下载 Excel 升舱 绩效">
-          <div class="tile-thumb">
-            <span class="tile-no">02</span>
-            <img src="./assets/tools/02-upgrade.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>升舱金额计算器</h3>
-            <p>导入 C2 升舱金额统计表，按 6 个岗位的固定比例自动分配金额，生成「人员 × 日期」交叉汇总表，便于绩效分摊。</p>
-            <div class="tags"><span class="tag">岗位比例</span><span class="tag">交叉汇总</span><span class="tag">下载 Excel</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./schedule/index.html" data-keywords="03 出港排班表 导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。 登机口分配 负责人选择 下载 Excel 排班 特服 调时">
-          <div class="tile-thumb">
-            <span class="tile-no">03</span>
-            <img src="./assets/tools/03-schedule.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>出港排班表</h3>
-            <p>导入当日出港航班 Excel，自动按计离分段并排序，生成可编辑排班表——分配登机口、指定负责人、记录备注与特服，导出 Excel / 图片。</p>
-            <div class="tags"><span class="tag">登机口分配</span><span class="tag">负责人选择</span><span class="tag">下载 Excel</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./daily-report/index.html" data-keywords="04 航班日报生成器 在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，一键导出与官方版式一致的 Word 文档。 实时预览 值班安排 导出 Word 日报 接班 当班">
-          <div class="tile-thumb">
-            <span class="tile-no">04</span>
-            <img src="./assets/tools/04-daily-report.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>航班日报生成器</h3>
-            <p>在左侧逐项填写当日生产情况与正常性数据，右侧实时预览航班生产日报，一键导出与官方版式一致的 Word 文档。</p>
-            <div class="tags"><span class="tag">实时预览</span><span class="tag">值班安排</span><span class="tag">导出 Word</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./kn-stats/index.html" data-keywords="05 KN航班出港统计 导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。 KN航班 截载时间 导出图片 中联航 订座">
-          <div class="tile-thumb">
-            <span class="tile-no">05</span>
-            <img src="./assets/tools/05-kn-stats.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>KN航班出港统计</h3>
-            <p>导入 FIOS 导出的出港 Excel，自动筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片供值机保障使用。</p>
-            <div class="tags"><span class="tag">KN航班</span><span class="tag">截载时间</span><span class="tag">导出图片</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./merge/index.html" data-keywords="06 东上联日数据汇总 整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。 东上联/总表 PDF自动填 导出 Excel 东航 上航 联航 周报">
-          <div class="tile-thumb">
-            <span class="tile-no">06</span>
-            <img src="./assets/tools/06-merge.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>东上联日数据汇总</h3>
-            <p>整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
-            <div class="tags"><span class="tag">东上联/总表</span><span class="tag">PDF自动填</span><span class="tag">导出 Excel</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./todo/index.html" data-keywords="07 每日待办 按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。 按日记录 历史回看 本地保存 待办 日历">
-          <div class="tile-thumb">
-            <span class="tile-no">07</span>
-            <img src="./assets/tools/07-todo.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>每日待办</h3>
-            <p>按日期记录每天要做的事，一个一个勾掉自动保存；可复制昨日、看历史日历、跨日期搜索，固定事项可勾选加入当日。</p>
-            <div class="tags"><span class="tag">按日记录</span><span class="tag">历史回看</span><span class="tag">本地保存</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./early-ontime/index.html" data-keywords="08 早始发正常率测算 录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。 机场对标 T1·T2·T3 档位 追不上告警 正常率 早始发">
-          <div class="tile-thumb">
-            <span class="tile-no">08</span>
-            <img src="./assets/tools/08-early-ontime.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>早始发正常率测算</h3>
-            <p>录入当月早始发班数（只需填总班数与延误班数），与机场正常率逐档比对，算出 T1 / T2 / T3 各还要追回多少班正常，并判断剩余航班追不追得上。</p>
-            <div class="tags"><span class="tag">机场对标</span><span class="tag">T1·T2·T3 档位</span><span class="tag">追不上告警</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-        <a class="tile" href="./checkin/index.html" data-keywords="09 值机数据制作 值机 自助值机 自助率 WEB CUSS 出港 中联航 东上航 导出 Excel">
-          <div class="tile-thumb">
-            <span class="tile-no">09</span>
-            <img src="./assets/tools/09-checkin.webp" alt="" width="1400" height="933" loading="lazy">
-          </div>
-          <div class="tile-body">
-            <h3>值机数据制作</h3>
-            <p>导入 FIOS 出港 Excel，自动按东航 / 上航 / 中联航分组排出《东上联自助值机数据表》，填入 WEB / CUSS / 人数后自助率自动计算，一键导出带公式的 Excel。</p>
-            <div class="tags"><span class="tag">自助值机</span><span class="tag">自助率自动算</span><span class="tag">导出 Excel</span></div>
-            <span class="tile-cta">进入<span class="chev">›</span></span>
-          </div>
-        </a>
-
-      </main>
-
-      <div class="empty" id="toolsEmpty">
-        <div class="e-t">没有找到匹配的工具</div>
-        <div class="e-s">换个关键词试试，比如「名单」「排班」「日报」「正常率」。</div>
-        <button type="button" id="toolsEmptyReset">清除搜索条件</button>
+      <div class="n-item">
+        <span class="n-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg></span>
+        <div>
+          <h4>离线可用</h4>
+          <p>依赖的 SheetJS 已打包进各工具目录的 <code>libs/</code>，公司网络屏蔽外部 CDN 也能正常运行。</p>
+        </div>
       </div>
-    </section>
-
-    <details class="notice" id="notice">
-      <summary>
-        <span class="title"><span class="ic">📌</span> 使用须知</span>
-        <span class="chev">▾</span>
-      </summary>
-      <div class="nbody">
-        <ul>
-          <li><b>长期有效：</b>本站部署在 GitHub Pages（公开仓库），链接长期有效、不会回收，可随时打开使用。</li>
-          <li><b>离线可用：</b>依赖的 SheetJS 库已打包进各工具目录的 <code>libs/</code>，即使公司网络屏蔽外部 CDN 也能正常运行。</li>
-          <li><b>加密文件：</b>系统导出的名单若带密码，直接在「国际名单转化」页的「🔒 文件密码」框里填入密码即可转换，无需手工去密码。</li>
-          <li><b>规则口径：</b>各工具的转换 / 分配 / 统计 / 计算规则，详见每个工具页内的「规则说明」面板（可点击展开），口径以页面规则为准。</li>
-        </ul>
+      <div class="n-item">
+        <span class="n-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></span>
+        <div>
+          <h4>加密文件</h4>
+          <p>系统导出的名单若带密码，直接在「国际名单转化」页的密码框里填入即可转换，无需手工去密码。</p>
+        </div>
       </div>
-    </details>
+      <div class="n-item">
+        <span class="n-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h5"/></svg></span>
+        <div>
+          <h4>规则口径</h4>
+          <p>各工具的转换 / 分配 / 统计 / 计算规则，详见每个工具页内的「规则说明」面板，口径以页面规则为准。</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <footer class="site-footer">航班工作工具集</footer>
-  </div>
+  <!-- ============ 5. 页脚 ============ -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h5>数据类工具</h5>
+          <ul>
+            <li><a href="./manifest/index.html">国际名单转化</a></li>
+            <li><a href="./upgrade/index.html">升舱金额计算器</a></li>
+            <li><a href="./kn-stats/index.html">KN航班出港统计</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>排班与日报</h5>
+          <ul>
+            <li><a href="./schedule/index.html">出港排班表</a></li>
+            <li><a href="./daily-report/index.html">航班日报生成器</a></li>
+            <li><a href="./checkin/index.html">值机数据制作</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>汇总与测算</h5>
+          <ul>
+            <li><a href="./merge/index.html">东上联日数据汇总</a></li>
+            <li><a href="./early-ontime/index.html">早始发正常率测算</a></li>
+            <li><a href="./todo/index.html">每日待办</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>关于</h5>
+          <ul>
+            <li><a href="#notice">使用须知</a></li>
+            <li>部署于 GitHub Pages</li>
+            <li>更新于 2026 年 10 月</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>航班工作工具集 · 纯前端、无后端、离线可用</span>
+        <span>九个工具 · 覆盖出港全流程</span>
+      </div>
+    </div>
+  </footer>
 
 <script>
-/* 首页交互：① 页眉滚动描边 ② 工具搜索筛选
-   —— 纯增强：脚本不执行时 8 张卡片仍全部可见、可点。 */
+/* 首页交互：① 页眉滚动描边 ② 搜索浮层 ③ 工具筛选
+   —— 纯增强：脚本不执行时 9 张卡片仍全部可见、可点。 */
 (function () {
   'use strict';
 
-  /* ---------- ① 滚动后页眉加描边 ----------
-     已抽到共享脚本 assets/nav-scroll.js（工具页也要用，抄 9 份会漏改）。
-     本页 <head> 里用 <script defer> 引入。 */
-
-  /* ---------- ② 搜索筛选 ---------- */
+  var nav     = document.getElementById('nav');
+  var panel   = document.getElementById('searchBox');   /* 探针要读它的 has-value */
+  var toggle  = document.getElementById('searchToggle');
   var input   = document.getElementById('toolSearch');
   var clearBt = document.getElementById('toolSearchClear');
-  var box     = document.getElementById('searchBox');
   var grid    = document.getElementById('toolGrid');
   var empty   = document.getElementById('toolsEmpty');
   var resetBt = document.getElementById('toolsEmptyReset');
   var countEl = document.getElementById('toolsCount');
+
+  /* ---------- ① 页眉：透明 → 白底毛玻璃 ---------- */
+  function onScroll() {
+    if (window.scrollY > 12) nav.classList.add('scrolled');
+    else nav.classList.remove('scrolled');
+  }
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
   if (!input || !grid) return;
 
   var tiles = Array.prototype.slice.call(grid.querySelectorAll('.tile'));
   var total = tiles.length;
 
-  // 去掉空白，这样「国际 名单」也能命中「国际名单转化」
-  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+  /* ---------- ② 搜索浮层 ----------
+     ⚠️ focus() 必须**同步**调用：home-search-probe 派发 ⌘K 之后
+        立刻读 document.activeElement，setTimeout 会来不及。 */
+  function openSearch() {
+    if (panel) panel.classList.add('open');
+    input.focus();
+    input.select();
+  }
+  function closeSearch() {
+    if (panel) panel.classList.remove('open');
+  }
+  if (toggle) toggle.addEventListener('click', function () {
+    if (panel && panel.classList.contains('open')) closeSearch();
+    else openSearch();
+  });
 
-  // 关键词预先算好，避免每次输入都重新拼字符串
+  /* ---------- ③ 筛选 ---------- */
+  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
   var index = tiles.map(function (t) {
     return norm(t.getAttribute('data-keywords') || t.textContent);
   });
-
-  /* 工具区在「大图」下面，用户在最上面打字时看不到任何反馈。
-     所以第一次输入（从空 → 非空）时把工具区滚进视野；已经在看结果就不动。
-     注：headless 里 scrollTo 是空操作，截图不会体现这一步，但真实浏览器会。 */
-  var toolsSec = document.getElementById('tools');
-  function ensureResultsVisible() {
-    if (!toolsSec || !toolsSec.getBoundingClientRect) return;
-    var r = toolsSec.getBoundingClientRect();
-    if (r.top < 60 || r.top > window.innerHeight * 0.55) {
-      toolsSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
 
   function apply() {
     var k = norm(input.value);
@@ -529,40 +634,55 @@
       if (ok) hit++;
     }
     if (empty) empty.classList.toggle('show', hit === 0);
-    if (box) box.classList.toggle('has-value', input.value.length > 0);
+    if (panel) panel.classList.toggle('has-value', input.value.length > 0);
     if (countEl) {
-      countEl.textContent = k ? ('匹配 ' + hit + ' / ' + total + ' 个工具') : (total + ' 个工具');
+      countEl.textContent = k
+        ? ('匹配 ' + hit + ' / ' + total + ' 个工具')
+        : (total + ' 个工具');
     }
   }
 
-  function clearSearch(focus) {
-    input.value = '';
-    wasEmpty = true;          // 清空后下一次输入要重新触发「滚到结果」
-    apply();
-    if (focus) input.focus();
+  /* 工具区在主视觉下面，在最上面打字时看不到反馈 → 首次输入把结果滚进视野 */
+  var toolsSec = document.getElementById('tools');
+  var wasEmpty = true;
+  function ensureResultsVisible() {
+    if (!toolsSec || !toolsSec.getBoundingClientRect) return;
+    var r = toolsSec.getBoundingClientRect();
+    if (r.top < 60 || r.top > window.innerHeight * 0.55) {
+      toolsSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
-  var wasEmpty = true;
+  function clearSearch(keepFocus) {
+    input.value = '';
+    wasEmpty = true;
+    apply();
+    if (keepFocus) input.focus();
+  }
+
   input.addEventListener('input', function () {
     var nowEmpty = input.value.length === 0;
     apply();
     if (wasEmpty && !nowEmpty) ensureResultsVisible();
     wasEmpty = nowEmpty;
   });
+
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { e.preventDefault(); clearSearch(true); }
+    if (e.key === 'Escape') { e.preventDefault(); clearSearch(true); closeSearch(); }
   });
   if (clearBt) clearBt.addEventListener('click', function () { clearSearch(true); });
   if (resetBt) resetBt.addEventListener('click', function () { clearSearch(true); });
 
-  // ⌘K / Ctrl+K 聚焦搜索；单独按 / 也聚焦（但不在输入框里时）
   document.addEventListener('keydown', function (e) {
     var tag = (e.target && e.target.tagName) || '';
-    var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
+    var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+                 (e.target && e.target.isContentEditable);
     if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-      e.preventDefault(); input.focus(); input.select();
+      e.preventDefault(); openSearch();
     } else if (e.key === '/' && !typing) {
-      e.preventDefault(); input.focus(); input.select();
+      e.preventDefault(); openSearch();
+    } else if (e.key === 'Escape') {
+      closeSearch();
     }
   });
 
