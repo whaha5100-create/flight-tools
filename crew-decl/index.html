@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>机组名单导出 · 航班工作工具集</title>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-<meta name="description" content="上传指挥长导出的 GD 单（机组总申报单），照单录入机组信息，一键导出可直接申报的机组名单 Excel。">
+<meta name="description" content="上传指挥长导出的 GD 单（机组总申报单），自动识别机组信息，核对后一键导出可直接申报的机组名单 Excel。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="机组名单导出 · 航班工作工具集">
-<meta property="og:description" content="上传 GD 单，照单录入机组信息，一键导出可直接申报的机组名单 Excel。">
+<meta property="og:description" content="上传 GD 单，自动识别机组信息，核对后一键导出可直接申报的机组名单 Excel。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/crew-decl/index.html">
 <meta name="theme-color" content="#ffffff">
 <link rel="stylesheet" href="../assets/site.css">
@@ -17,6 +17,7 @@
 <script src="crew-data.js"></script>
 <script src="libs/xlsx-populate.min.js"></script>
 <script src="template/crew-template.b64.js"></script>
+<script src="ocr.js"></script>
 <style>
   /* ============================================================
      crew-decl · 页面特有样式
@@ -167,6 +168,23 @@
   .tb-btn.quiet:hover { border-color: var(--line); color: var(--danger); }
   .tb-row .grow { margin-left: auto; }
 
+  /* ============ 自动识别 ============ */
+  .ocr-bar {
+    display: none; margin: 20px 0 0; padding: 16px 20px;
+    border: 1px solid var(--line-soft); border-radius: 12px; background: #fff;
+  }
+  .ocr-bar.active { display: block; }
+  .ocr-bar .oc-t { font-size: 13.5px; font-weight: 500; color: var(--ink); }
+  .ocr-bar .oc-s { margin-top: 4px; font-size: 12.5px; line-height: 1.65; color: var(--muted); }
+  .ocr-bar .oc-track { margin-top: 12px; height: 2px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
+  .ocr-bar .oc-fill { height: 100%; width: 0; background: var(--ink); transition: width .3s var(--ease-inout); }
+  .ocr-bar.done .oc-fill { background: var(--success); }
+  .ocr-bar.fail { border-color: #e8dcc0; background: #fdfbf4; }
+
+  /* 自动填进来的行：左侧细条 + 极淡底，提醒「这是认出来的，扫一眼」 */
+  table.crew tr.from-ocr td { background: #fdfbf4; }
+  table.crew tr.from-ocr td:first-child { box-shadow: inset 2px 0 0 #d9b45e; }
+
   /* ============ 结果提示 ============ */
   .ok-line {
     display: none; margin: 20px 0 0; padding: 2px 0 2px 14px;
@@ -211,7 +229,7 @@
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">04</span>航班工作工具集 · FLIGHT TOOLS</p>
     <h1>机组名单导出</h1>
-    <p class="lede">上传指挥长导出的 GD 单，照单录入机组信息，一键生成可申报的机组名单 Excel。</p>
+    <p class="lede">上传指挥长导出的 GD 单，自动认出机组信息，核对一遍就能生成申报用的 Excel。</p>
   </section>
 
   <div class="localnav">
@@ -270,7 +288,7 @@
       <div class="sec-h" id="flightInfo">
         <span class="k">第二步</span>
         <span class="t">核对航班信息</span>
-        <span class="i">照 GD 单上的 Flight No 和 Date 填，导出文件名跟着这里走</span>
+        <span class="i">已按单子自动填好，改这里导出文件名会跟着变</span>
       </div>
 
       <div class="summary-row strip">
@@ -300,7 +318,7 @@
       <div class="sec-h" id="pdfCard">
         <span class="k">原件</span>
         <span class="t">GD 单原图</span>
-        <span class="i" id="pageInfo">对照录入，护照号以这张单子为准</span>
+        <span class="i" id="pageInfo">识别结果以这张单子为准，看不清就放大</span>
       </div>
 
       <div class="table-wrapper">
@@ -321,7 +339,13 @@
       <div class="sec-h" id="crewCard">
         <span class="k">第三步</span>
         <span class="t">录入机组名单</span>
-        <span class="i">姓名和护照号照单抄，按回车跳到下一行同一列</span>
+        <span class="i">自动认出的会有浅黄底，照着原件核一遍再导出</span>
+      </div>
+
+      <div class="ocr-bar" id="ocrBar">
+        <div class="oc-t" id="ocrTitle">正在自动识别机组信息…</div>
+        <div class="oc-s" id="ocrSub">第一次用要先下载识别引擎，大约几秒，之后会快很多</div>
+        <div class="oc-track"><div class="oc-fill" id="ocrFill"></div></div>
       </div>
 
       <div class="table-wrapper">
@@ -389,7 +413,7 @@
         </div>
         <div class="rules-inner">
           <ul>
-            <li><b>为什么不能全自动：</b>GD 单是「打印成 PDF」的整页图片，文件里没有文字层，程序读不出内容。所以这里是<b>看原单、照单录入</b>，护照号由人眼把关（这类材料错一个字母就要返工，机器识别不敢替你把关）。</li>
+            <li><b>机组信息怎么来的：</b>GD 单打印时文字被转成了曲线（不是图片，是没了字符的文字），文件里提不出文字，所以靠<b>识别（OCR）</b>。识别在你自己的浏览器里跑，<b>单子不上传任何服务器，断网也能用</b>。认出来的行标成浅黄，扫一眼确认再导出 —— 护照号错一个字母就要返工，最后这道眼还得过。</li>
             <li><b>职务对照：</b><code>CA</code> → 1-航线机长；<code>FO</code> → 2-副驾驶；<code>STW</code> → 第一个算 3-乘务长、其余算 5-乘务员；<code>SEC</code> → 4-安全员。</li>
             <li><b>性别：</b>GD 单上的 <code>M</code> / <code>F</code> 对应模板的 <code>M - 男</code> / <code>F - 女</code>，点一下按钮即可切换。</li>
             <li><b>国籍：</b>GD 单护照号前那段 <code>CN</code> 就是国籍代码，默认 <code>CN-中国</code>，外籍机组可在行内改。</li>
@@ -471,7 +495,7 @@ function renderRows(){
   }
   var html = '';
   rows.forEach(function(r, i){
-    html += '<tr data-i="' + i + '">'
+    html += '<tr data-i="' + i + '"' + (r.fromOcr ? ' class="from-ocr"' : '') + '>'
       + '<td class="no">' + (i+1) + '</td>'
       + '<td><select data-k="post">' + postOptions(r.post) + '</select></td>'
       + '<td><input data-k="name" type="text" value="' + esc(r.name) + '" placeholder="HONG DONGXU" autocomplete="off" spellcheck="false"></td>'
@@ -513,7 +537,11 @@ document.addEventListener('DOMContentLoaded', function(){
     var el = e.target, k = el.getAttribute('data-k');
     if (!k || k === 'del' || k === 'sex') return;
     var tr = el.closest('tr'), i = +tr.getAttribute('data-i');
-    if (rows[i]) rows[i][k] = el.value;
+    if (rows[i]) {
+      rows[i][k] = el.value;
+      // 人工改过的格子就不再是「自动填的」，把提示标去掉
+      if (rows[i].fromOcr) { rows[i].fromOcr = false; tr.classList.remove('from-ocr'); }
+    }
   });
 
   $('crewBody').addEventListener('change', function(e){
@@ -651,8 +679,8 @@ async function loadPdf(file){
     $('filename').textContent = file.name;
     $('workArea').style.display = 'block';
     $('pageInfo').textContent = pdfDoc.numPages > 1
-      ? '共 ' + pdfDoc.numPages + ' 页 · 对照录入，护照号以这张单子为准'
-      : '对照录入，护照号以这张单子为准';
+      ? '共 ' + pdfDoc.numPages + ' 页 · 识别结果以这张单子为准'
+      : '识别结果以这张单子为准';
 
     // 文件名里带航班号的话（752.pdf / MU752.pdf）先填上，省一次输入
     var guess = (file.name.match(/([A-Z]{2}\d{3,4})/i) || [])[1];
@@ -664,7 +692,8 @@ async function loadPdf(file){
     // 桌面端直接把光标放到「航班号」——单子上第一个要抄的就是它。
     // 手机不抢焦点，否则键盘一弹就盖住半屏。
     if (window.innerWidth > 768) setTimeout(function(){ $('flightNo').focus(); }, 420);
-    if (!rows.length) showOk('GD 单已打开。按单子上的人数点「一次加」建行，再逐行录姓名和护照号。');
+    if (!rows.length) showOk('GD 单已打开，正在自动认机组信息。认完对着原件核一遍就能导出。');
+    startOcr();
   } catch (e) {
     setLoading(false);
     console.error(e);
@@ -691,6 +720,90 @@ async function renderPdf(){
     cv.style.width = cssW + 'px';
     host.appendChild(cv);
     await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  }
+}
+
+/* ================= 自动识别 ================= */
+/* GD 单是矢量转曲 PDF（文字被转成曲线，文件里没有字符），
+   所以靠 OCR 认。细节和实测数据见 ocr.js 顶部注释。 */
+var ocrRunning = false;
+
+function postFromDuty(r){
+  if (r.duty === 'CA') return '1-航线机长';
+  if (r.duty === 'FO') return '2-副驾驶';
+  if (r.duty === 'SEC') return '4-安全员';
+  if (r.duty === 'STW') return r.isFirstStw ? '3-乘务长' : '5-乘务员';
+  return '5-乘务员';
+}
+
+function applyOcrRows(list){
+  rows = list.map(function(r){
+    return {
+      post: postFromDuty(r),
+      name: r.name,
+      sex: r.sex === 'F' ? SEX_F : SEX_M,
+      nat: NAT_DEFAULT,
+      id: r.passport,
+      fromOcr: true
+    };
+  });
+  renderRows();
+}
+
+async function startOcr(){
+  if (!pdfDoc || ocrRunning || !window.crewOcr) return;
+  ocrRunning = true;
+  var bar = $('ocrBar'), title = $('ocrTitle'), sub = $('ocrSub'), fill = $('ocrFill');
+  bar.classList.add('active');
+  bar.classList.remove('done', 'fail');
+  fill.style.width = '2%';
+  var t0 = Date.now();
+
+  try {
+    var r = await window.crewOcr(pdfDoc, function(msg, p){
+      title.textContent = msg;
+      if (p) fill.style.width = Math.round(p * 100) + '%';
+    });
+    fill.style.width = '100%';
+
+    if (!r.ok){
+      bar.classList.add('fail');
+      title.textContent = '这张单子没认准，我没自动填';
+      sub.textContent = (r.reason ? r.reason + '。' : '')
+        + '可能是版式和常见 GD 单不一样。照左边原件手录最稳 —— 与其填错让你改，不如不填。';
+      return;
+    }
+
+    if (rows.length){
+      bar.classList.add('fail');
+      title.textContent = '认出 ' + r.rows.length + ' 人，但没覆盖你已录的内容';
+      sub.textContent = '表里已经有 ' + rows.length + ' 行。想用识别结果的话，先点「清空」，再重新拖一次这张单子。';
+      return;
+    }
+
+    applyOcrRows(r.rows);
+    // 航班号和日期一起填上；用户已经手填过的不覆盖
+    if (r.flightNo && !($('flightNo').value || '').trim()) $('flightNo').value = r.flightNo;
+    if (r.date) $('flightDate').value = r.date;
+    renderFname();
+    var secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
+    bar.classList.add('done');
+    title.textContent = '认出 ' + r.rows.length + ' 人，已填进下表';
+    var notes = [];
+    if (r.bad.name) notes.push(r.bad.name + ' 个姓名要留意');
+    if (r.bad.pass) notes.push(r.bad.pass + ' 个护照号要留意');
+    if (r.bad.duty) notes.push(r.bad.duty + ' 个职务要留意');
+    sub.textContent = '用了 ' + secs + ' 秒。'
+      + (notes.length ? notes.join('，') + '。' : '')
+      + '浅黄底的行是自动填的，对着左边原件扫一遍姓名和护照号；改过的行会自己变白。';
+    $('crewCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    console.error(e);
+    bar.classList.add('fail');
+    title.textContent = '自动识别没能完成';
+    sub.textContent = (e && e.message ? e.message : '未知原因') + '。不影响手录，照原件填就行。';
+  } finally {
+    ocrRunning = false;
   }
 }
 
