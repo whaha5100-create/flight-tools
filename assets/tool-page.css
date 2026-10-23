@@ -1,0 +1,400 @@
+/* ============================================================
+   工具页 v3 · tool-page.css
+   ------------------------------------------------------------
+   2026-10-23 新增。首页改成 apple.com 版式之后，工具页还停在旧语言：
+   56px 页眉（已统一到 48）、360–460px 大横幅、居中大虚线框 + emoji、
+   四张阴影统计卡、胶囊按钮、📋▼ 规则面板。本文件把工具页拉到同一套语言。
+
+   ⚠️ 只被 manifest/index.html 引用（2026-10-23）。02–09 逐个验收后再逐个加
+      <link>，所以**不要**把它塞进 site.css —— 那样会 9 页一起变，没法逐页看。
+
+   🔥 覆盖 site.css 时必须带 !important 的地方
+      site.css 顶部写着一条约定：「共享设计系统 > 各页内联 <style>」，
+      所以它对 .upload-zone / .summary-card / .btn / .rules-panel 的关键
+      视觉属性都加了 !important。本文件排在 site.css 之后，同等特异性下能赢，
+      但只要 site.css 那一条带 !important，我们这边也必须带，否则压不住。
+      下面凡是「带 !important」的，都是这个原因，不是随手加的。
+
+   ⚠️ 绝对不要给 .summary-row / .controls 写 display !important
+      JS 用 inline style 在 none / grid / flex 之间切（转换前隐藏、转换后显示）。
+      inline style 会被 !important 压死 ⇒ 结果区永远显示或永远不显示。
+   ============================================================ */
+
+:root {
+  /* site.css 的 :root 里没有这一档（旧工具页用不到发丝线），这里补一个 */
+  --line-soft: #e8e8ed;
+}
+
+/* ============ 1. 主视觉：414px → 260px ============
+   工具页是来干活的，横幅不该把功能区挤出第一屏。
+   标题 62px → 36px；副标 2 行 → 1 行（文案同步改短）。 */
+.hero.is-tool {
+  min-height: 0;
+  height: 260px;
+  padding: 48px 28px 0;
+}
+.hero.is-tool .eyebrow { margin: 0 0 12px; font-size: 12px; letter-spacing: .10em; }
+.hero.is-tool h1 {
+  font-size: clamp(28px, 3.2vw, 36px);
+  letter-spacing: -.026em; line-height: 1.12;
+}
+.hero.is-tool .lede {
+  margin: 12px auto 0; font-size: 15px; line-height: 1.6; max-width: 600px;
+}
+
+/* ============ 2. 本地导航（吸在 48px 页眉下面）============
+   原来要滚到页面最底部才能点到「规则说明」，加了这条随时能跳。 */
+.localnav {
+  position: sticky; top: 48px; z-index: 90;
+  background: rgba(255,255,255,.86);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.localnav-inner {
+  max-width: 1180px; margin: 0 auto; padding: 0 28px; height: 48px;
+  display: flex; align-items: center; gap: 26px;
+}
+.localnav .ln-t { font-size: 14px; font-weight: 590; letter-spacing: -.01em; color: var(--ink); }
+.localnav .ln-links { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+.localnav .ln-links a {
+  font-size: 13.5px; color: var(--muted); letter-spacing: -.005em;
+  text-decoration: none; padding: 4px 0;
+  transition: color var(--dur-fast) var(--ease-inout);
+}
+.localnav .ln-links a:hover { color: var(--brand); }
+
+/* 锚点跳转要避开「页眉 48 + 本地导航 48」 */
+#uploadZone, #previewWrapper, #rulesPanel { scroll-margin-top: 112px; }
+
+/* ============ 3. 内容容器 ============ */
+.container { padding: 56px 28px 0 !important; }
+
+/* 小节标题：kicker + 标题 + 右侧辅助信息（不用灰底盒子） */
+.sec-h { display: flex; align-items: baseline; gap: 12px; margin: 0 0 18px; }
+.sec-h .k { font-size: 12px; font-weight: 600; letter-spacing: .14em; color: var(--muted-2); }
+.sec-h .t { font-size: 19px; font-weight: 600; letter-spacing: -.018em; color: var(--ink); }
+.sec-h .i { margin-left: auto; font-size: 13px; color: var(--muted-2); }
+
+/* ============ 4. 导入区：居中大虚线框 → 左侧对齐的单行条 ============
+   只有 1px 虚线，**无底色、无阴影**。原来的「52px 灰蓝圆角方块 + 📂」
+   正是用户否掉的「组件库感」：Unicode 当图标 + 实心灰底 + 底色描边阴影三样齐上。 */
+.upload-zone {
+  display: flex !important; align-items: center; gap: 20px;
+  padding: 26px 28px !important; text-align: left !important;
+  border: 1px dashed var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  transition: border-color var(--dur-fast) var(--ease-inout);
+}
+.upload-zone:hover, .upload-zone.dragover, .upload-zone.drag {
+  border-color: var(--brand) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.upload-zone .icon {
+  width: 26px !important; height: 26px !important;
+  margin: 0 !important; padding: 0 !important;
+  border-radius: 0 !important; background: none !important;
+  color: var(--muted-2) !important; box-shadow: none !important;
+  flex: 0 0 auto;
+  transition: color var(--dur-fast) var(--ease-inout);
+}
+.upload-zone .icon svg { width: 26px; height: 26px; display: block; }
+.upload-zone:hover .icon, .upload-zone.dragover .icon { transform: none !important; color: var(--brand) !important; }
+
+.upload-zone .uz-body { min-width: 0; flex: 1 1 auto; }
+.upload-zone .text, .upload-zone .uz-t {
+  font-size: 15.5px; font-weight: 590; letter-spacing: -.012em; color: var(--ink);
+}
+.upload-zone .hint, .upload-zone .uz-d {
+  margin-top: 5px; font-size: 13px; color: var(--muted);
+  word-break: keep-all; overflow-wrap: break-word;
+}
+/* .xls / .xlsx 两个小胶囊的样式已并入 .hint 的文案，这里彻底关掉 */
+.upload-zone .formats { display: none !important; }
+
+/* 「选择文件 ›」——文字链接，不是居中实心按钮 */
+.upload-zone .uz-a {
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 500; color: var(--brand); white-space: nowrap;
+}
+.upload-zone .uz-a svg {
+  width: 13px; height: 13px; display: block;
+  transition: transform var(--dur) var(--ease-out);
+}
+.upload-zone:hover .uz-a svg { transform: translateX(3px); }
+
+/* 选完文件后显示的文件名 */
+.upload-zone .filename {
+  margin-top: 7px; font-size: 12.5px; font-weight: 500;
+  color: var(--brand-dark); word-break: break-all;
+}
+
+/* ============ 5. 密码行：去掉蓝色左竖条 ============
+   蓝色只用于「可点击的东西」—— 一条 4px 蓝边并不表达可点，纯粹是装饰。 */
+.pwd-row {
+  display: flex; align-items: center; gap: 14px;
+  background: none !important; border: 0 !important; border-radius: 0 !important;
+  box-shadow: none !important; padding: 0 !important;
+  margin: 16px 0 0 !important;
+}
+.pwd-row .pwd-label {
+  display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
+  font-size: 13.5px; font-weight: 400; color: var(--muted); white-space: nowrap;
+}
+.pwd-row .pwd-label svg { width: 14px; height: 14px; display: block; color: var(--muted-2); }
+/* ⚠️ site.css 的输入框规则只覆盖 text/number/date，**不含 password** → 这里写全 */
+.pwd-row input[type="password"] {
+  flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px;
+  font-family: inherit; font-size: 14px; color: var(--ink); letter-spacing: 0;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-inout), box-shadow var(--dur-fast) var(--ease-inout);
+}
+.pwd-row input[type="password"]::placeholder { color: var(--muted-2); }
+.pwd-row input[type="password"]:focus {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(0,113,227,.12);
+}
+.pwd-row .pwd-hint { flex: 0 0 auto; font-size: 12.5px; color: var(--muted-2); line-height: 1.6; }
+/* 文件确实加密、还没填密码时只把输入框和提示变红，不再整行铺红底 */
+.pwd-row.needed { background: none !important; }
+.pwd-row.needed input[type="password"] { border-color: var(--danger); }
+.pwd-row.needed .pwd-hint { color: var(--danger); font-weight: 600; }
+
+/* ============ 6. 操作行 + 按钮：胶囊 → 圆角 12 ============ */
+.controls {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin: 26px 0 0 !important;
+}
+.controls .info {
+  font-size: 13px; color: var(--muted-2);
+  background: none; border: 0; padding: 0; border-radius: 0;
+}
+.btn, .btn-primary, .btn-success {
+  height: 44px; padding: 0 22px !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 15px !important; font-weight: 500 !important;
+  letter-spacing: -.01em; box-shadow: none !important;
+}
+.btn-success { background: var(--brand) !important; }
+.btn-success:hover { background: var(--brand-dark) !important; }
+.btn-success:active { background: var(--brand-dark) !important; }
+
+/* ============ 7. 错误 / 加载 ============ */
+.error-msg {
+  background: var(--danger-soft); color: var(--danger);
+  padding: 15px 18px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border: 0; border-left: 2px solid var(--danger);
+  margin-bottom: 24px; display: none;
+  font-size: 14px; line-height: 1.7;
+}
+.error-msg.active { display: block; }
+.loading { display: none; text-align: center; padding: 56px; }
+.loading.active { display: block; }
+.spinner {
+  width: 34px; height: 34px; border: 3px solid var(--line-soft);
+  border-top-color: var(--brand); border-radius: 50%;
+  animation: tp-spin .8s linear infinite; margin: 0 auto 16px;
+}
+.loading div:last-child { color: var(--muted); font-size: 13.5px; }
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+
+/* ============ 8. 统计：四张阴影卡 → 发丝线分格的数据条 ============
+   ⚠️ 不要写 display —— JS 用 inline style 在 none / grid 之间切。 */
+.summary-row {
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 0 !important;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  margin: 0 0 24px !important;
+}
+.summary-card {
+  background: transparent !important; border: 0 !important;
+  border-radius: 0 !important; box-shadow: none !important;
+  padding: 22px 24px 24px !important; transform: none !important;
+}
+.summary-card + .summary-card { border-left: 1px solid var(--line-soft) !important; }
+.summary-card:hover { box-shadow: none !important; border-color: transparent !important; transform: none !important; }
+.summary-card .card-top { margin: 0; }
+/* 🛫🧭👥🏙️ 四个 emoji 图标位直接关掉：数据条靠标签区分，不需要图标 */
+.summary-card .card-ic { display: none !important; }
+.summary-card .label {
+  font-size: 12px; font-weight: 600; letter-spacing: .10em; color: var(--muted-2);
+}
+.summary-card .value {
+  margin-top: 9px; font-size: 27px; font-weight: 600;
+  letter-spacing: -.028em; line-height: 1.1; color: var(--ink);
+}
+.summary-card .sub { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.summary-card.accent-green .value { color: var(--ok); }
+
+/* ============ 9. 结果表格卡 ============ */
+.table-wrapper {
+  background: #fff; border: 1px solid var(--line-soft);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: none; margin-bottom: 24px;
+}
+.preview-head {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 18px 22px 16px; border-bottom: 1px solid var(--line-soft);
+  background: none;
+}
+.preview-head .p-k { font-size: 12px; font-weight: 600; letter-spacing: .14em; color: var(--muted-2); }
+.preview-head .label { font-size: 15px; font-weight: 590; letter-spacing: -.012em; color: var(--ink); }
+.preview-head .pinfo { margin-left: auto; font-size: 12.5px; color: var(--muted-2); }
+.table-scroll { overflow-x: auto; max-height: 62vh; overflow-y: auto; }
+#previewBody table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+#previewBody thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: #fafafa; color: var(--muted);
+  padding: 11px 14px; font-weight: 590; text-align: center; vertical-align: middle;
+  border-bottom: 1px solid var(--line-soft); border-right: 0;
+  font-size: 12px; letter-spacing: .02em; line-height: 1.35;
+}
+#previewBody tbody td {
+  padding: 11px 14px; text-align: left;
+  border-bottom: 1px solid var(--line-soft); border-right: 0;
+  color: var(--ink-2);
+}
+#previewBody tbody td:first-child {
+  text-align: center; font-weight: 590; color: var(--ink);
+  background: #fff; position: sticky; left: 0; z-index: 1;
+}
+#previewBody tbody tr:last-child td { border-bottom: 0; }
+#previewBody tbody tr:hover td { background: #fbfcfd; }
+#previewBody tbody tr:hover td:first-child { background: #fbfcfd; }
+
+/* ============ 10. 异常 / 跳过清单 ============ */
+.people-tags {
+  background: #fff; border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 20px 22px 22px;
+  margin-bottom: 24px; box-shadow: none;
+}
+.people-tags .label {
+  font-size: 14px; font-weight: 590; color: var(--ink); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.people-tags .label svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.ltable { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); overflow: hidden; }
+.ltable .lt-head, .ltable .lt-row { display: grid; align-items: center; gap: 0 14px; padding: 9px 16px; }
+/* ⚠️ 姓名列必须死宽：每行 .lt-row 是各自独立的 grid 容器，内容相关的轨道会让
+   每行按自己的内容算列宽 → 列对不齐、表头也对不上（见 REF-traps）。 */
+.ltable-warn .lt-head, .ltable-warn .lt-row { grid-template-columns: 56px 210px minmax(0, 1fr); }
+.ltable-skip .lt-head, .ltable-skip .lt-row { grid-template-columns: 210px minmax(0, 1fr); }
+.ltable .lt-head {
+  background: #fafafa; color: var(--muted); font-size: 12px; font-weight: 590;
+  border-bottom: 1px solid var(--line-soft); letter-spacing: .02em;
+}
+.tag-list { display: block; }
+.ltable .lt-row { border-bottom: 1px solid var(--line-soft); font-size: 13px; background: #fff; }
+.ltable .lt-row:last-child { border-bottom: none; }
+.ltable .lt-c { min-width: 0; overflow-wrap: anywhere; }
+.ltable .lt-name { overflow-wrap: break-word; font-weight: 590; color: var(--ink); }
+.ltable .lt-no { text-align: center; font-variant-numeric: tabular-nums; font-weight: 590; color: var(--muted); }
+.ltable .lt-code {
+  display: inline-block; padding: 2px 10px; border-radius: 7px;
+  background: var(--amber-soft); border: 1px solid var(--amber-line); color: var(--amber);
+  font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .5px;
+}
+.ltable .lt-miss { color: var(--ink-2); }
+.ltable .lt-chip {
+  display: inline-block; margin: 2px 6px 2px 0; padding: 2px 9px; border-radius: 6px;
+  background: var(--tool-light); border: 1px solid var(--tool-soft);
+  color: var(--tool-dark); font-size: 12px; font-weight: 600;
+}
+.ltable .lt-row.lt-fallback { grid-template-columns: minmax(0, 1fr); color: var(--ink-2); }
+
+/* ============ 11. 规则说明：📋 + ▼ → kicker + 发丝线 + 真 SVG 箭头 ============
+   site.css 对这块有大量 !important（底色 / 圆角 / 阴影 / 内边距 / 表头悬停底色），
+   要把它从「卡片」变成「页面底部的一段」必须逐条压回去。 */
+.rules-panel {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 64px 0 0 !important;
+  overflow: visible !important;
+}
+.rules-panel:hover { box-shadow: none !important; }
+.rules-header {
+  min-height: 0 !important;
+  padding: 24px 0 !important;
+  background: none !important;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.rules-header:hover { background: none !important; }
+.rules-header .title {
+  gap: 12px; font-size: 17px; font-weight: 590; letter-spacing: -.016em; color: var(--ink);
+}
+.rules-header .title .r-k {
+  font-size: 12px; font-weight: 600; letter-spacing: .14em; color: var(--muted-2);
+}
+.rules-header .title .hint { font-size: 13px; font-weight: 400; color: var(--muted-2); }
+/* 展开态文案用 CSS 切（JS 只负责 toggle .open） */
+.rules-header .when-open { display: none; }
+.rules-panel.open .rules-header .when-closed { display: none; }
+.rules-panel.open .rules-header .when-open { display: inline; }
+/* 箭头推到最右，用真 SVG（原来是 ▼ 这个 Unicode 字符） */
+.rules-header .arrow {
+  margin-left: auto; color: var(--muted-2);
+  transition: transform var(--dur) var(--ease-out);
+}
+.rules-header .arrow svg { width: 16px; height: 16px; display: block; }
+.rules-body { padding-left: 0 !important; padding-right: 0 !important; }
+.rules-panel.open .rules-body { padding: 0 0 34px !important; }
+.rules-body, .rules-intro, .rules-inner li { font-size: 14px !important; line-height: 1.7 !important; }
+.rules-intro { color: var(--muted); max-width: 820px; margin-bottom: 16px !important; }
+.rules-inner ul { margin: 0 !important; padding: 0; list-style: none; max-width: 900px; }
+.rules-inner li {
+  margin: 0 !important; padding: 13px 0; color: var(--ink-2);
+  border-top: 1px solid var(--line-soft);
+}
+.rules-inner li b, .rules-inner li strong { color: var(--ink); font-weight: 600; }
+.rules-inner code, .rules-body code {
+  background: var(--bg) !important; color: var(--ink-2) !important;
+  padding: 1px 5px !important; border-radius: 4px !important;
+  font-size: 12.5px !important; font-family: var(--mono) !important;
+}
+
+/* ============ 12. 页脚 ============ */
+footer.site-footer, .site-footer {
+  text-align: left !important;
+  border-top: 1px solid var(--line-soft);
+  margin-top: 72px;
+  padding: 26px 0 40px !important;
+  font-size: 12px;
+}
+
+/* ============ 13. 响应式 ============ */
+@media (max-width: 1023px) {
+  .summary-row { grid-template-columns: repeat(2, 1fr) !important; }
+  .summary-card:nth-child(3) { border-left: 0 !important; }
+  .summary-card:nth-child(n+3) { border-top: 1px solid var(--line-soft); }
+}
+@media (max-width: 768px) {
+  .container { padding: 40px 18px 0 !important; }
+  .hero.is-tool { height: 220px; padding: 40px 18px 0; }
+  .localnav-inner { padding: 0 18px; gap: 16px; }
+  .localnav .ln-t { display: none; }
+  .localnav .ln-links { margin-left: 0; gap: 18px; }
+  .pwd-row { flex-wrap: wrap; gap: 10px; }
+  .pwd-row .pwd-hint { display: none; }
+  .upload-zone { flex-wrap: wrap; gap: 14px; padding: 20px !important; }
+  .upload-zone .uz-a { margin-left: 0; }
+  .sec-h .i { display: none; }
+  .sec-h .t { font-size: 17px; }
+}
+@media (max-width: 560px) {
+  .ltable .lt-head, .ltable .lt-row { padding: 8px 12px; gap: 0 10px; }
+  .ltable-warn .lt-head, .ltable-warn .lt-row { grid-template-columns: 38px 108px minmax(0, 1fr); }
+  .ltable-skip .lt-head, .ltable-skip .lt-row { grid-template-columns: 108px minmax(0, 1fr); }
+  .ltable .lt-code { padding: 2px 7px; letter-spacing: .2px; }
+  .summary-card { padding: 18px 16px 20px !important; }
+  .summary-card .value { font-size: 23px; }
+}
