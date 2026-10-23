@@ -186,7 +186,46 @@ table.out-table thead th.hl { background: var(--tool-soft) !important; color: va
      ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
         写进 assets/site.css 会指到 assets/assets/… 去。 */
   .hero { background-image: url("../assets/tools/08-early-ontime.webp"); }
+  /* —— v3：去掉多余底色与蓝色非可点高亮，方块控件改分段控件 —— */
+  /* h2 前面的小蓝点：标题里已经有 ①②③ 编号，这个是纯装饰 */
+  .panel > h2 .dot { display: none !important; }
+  /* 录入格：原来「灰底 + 描边 + 里面再一个带描边的输入框」= 三层套盒。
+     压成「标签 + 输入框」两行，只留输入框自己那一圈描边。 */
+  .set-cell { background: none; border: 0; border-radius: 0; padding: 0; }
+  .set-cell.ro { background: none; border: 0; }
+  /* 正常率是这一格的主角，但不必用蓝色（蓝只表示可点）。靠字号与字重撑层级。 */
+  .set-cell.ro .ro-rate { color: var(--ink); font-weight: 600; letter-spacing: -.4px; }
+  table.io-table td.ro .ro-rate { color: var(--ink); font-weight: 600; letter-spacing: -.3px; }
+  table.io-table input { border-color: var(--line-soft) !important; }
+  .apt-title { font-size: 12px; font-weight: 600; letter-spacing: .1em; color: var(--muted-2); }
+  .mini-btn { border-radius: var(--radius-sm); font-size: 13px; padding: 7px 14px;
+    color: var(--ink); border-color: var(--line); }
+  .mini-btn:hover { background: #f5f5f7; border-color: var(--line); color: var(--ink);
+    box-shadow: none; transform: none; }
+  /* 目标档位：带底色的框 → 一行；胶囊按钮 → 分段控件 */
+  .goal-bar { background: none; border: 0; border-radius: 0; padding: 0; margin-bottom: 22px; }
+  .goal-lab { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .goal-tabs { background: #e8e8ed; border-radius: 10px; padding: 3px; gap: 3px; }
+  .goal-tabs button { border: 0; background: transparent; border-radius: 8px;
+    padding: 6px 15px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .goal-tabs button:hover { background: rgba(0,0,0,.04); color: var(--ink);
+    box-shadow: none; transform: none; }
+  .goal-tabs button.on { background: #fff; color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,.09); }
+  .goal-tabs button.on:hover { background: #fff; color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,.09); }
+  .goal-card { border-color: var(--line-soft); }
+  .gc-name { font-size: 15px; font-weight: 600; letter-spacing: -.012em; }
+  .gc-metric { background: #fafafa; border-color: var(--line-soft); }
+  .gc-metric .val { font-size: 26px; font-weight: 600; letter-spacing: -.6px; }
+  .sec-title { font-size: 15px; font-weight: 600; letter-spacing: -.012em; margin: 30px 0 12px; }
+  .out-wrap { border-color: var(--line-soft); border-radius: var(--radius); }
+  .alert { border-left-width: 2px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .ref-line { background: #fafafa; border-color: var(--line-soft); }
 </style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
 </head>
 <body>
 
@@ -207,6 +246,16 @@ table.out-table thead th.hl { background: var(--tool-soft) !important; color: va
   </section>
 
 
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">早始发正常率测算</span>
+    <nav class="ln-links">
+      <a href="#tblOurs">我方数据</a>
+      <a href="#outCard">测算结果</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
   <div class="container">
     <div class="anim">
 
@@ -316,10 +365,15 @@ table.out-table thead th.hl { background: var(--tool-soft) !important; color: va
 
       <!-- 折叠：计算规则说明 -->
       <div class="rules-panel" id="rulesPanel">
-        <div class="rules-header" id="rulesHeader">
-          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
-          <span class="arrow">▾</span>
-        </div>
+<div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">计算规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+      </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
         <div class="rules-body">
           <div class="rules-inner">
             <ul>

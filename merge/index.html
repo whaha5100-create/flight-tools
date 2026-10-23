@@ -96,7 +96,25 @@
      ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
         写进 assets/site.css 会指到 assets/assets/… 去。 */
   .hero { background-image: url("../assets/tools/06-merge.webp"); }
+  /* —— v3：区块标题 / 角标 / 航司分组（纯版式，不碰任何取值）—— */
+  .out-title { font-size: 15px; font-weight: 600; letter-spacing: -.014em; margin: 34px 0 10px; }
+  /* 角标原来是实心蓝胶囊（总表）/ 藏青胶囊（东上航）。两个区块本来就有标题，
+     角标只是重复提示 —— 改成中性细描边，蓝色不再用在非可点元素上。 */
+  .out-title .badge { font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 6px; background: #f5f5f7; color: var(--muted); border: 1px solid var(--line); }
+  .out-title .badge.east, .out-title .badge.total { background: #f5f5f7; color: var(--muted); }
+  .date-row { margin-bottom: 18px; }
+  .date-row label { font-size: 13px; font-weight: 400; color: var(--muted); }
+  /* 航司分组：去掉行名左侧那根 3px 色条（行名颜色本身已是数据含义，留着） */
+  table.airline-table tbody tr.al-east th.rname,
+  table.airline-table tbody tr.al-lian th.rname { box-shadow: none; }
+  table.airline-table th, table.airline-table td { border-color: #e8e8ed; }
+  table.airline-table thead tr.al-grp th { background: #f0f0f2; }
+  .legend { margin-top: 14px; }
 </style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
 </head>
 <body>
 
@@ -113,9 +131,20 @@
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">06</span>航班工作工具集 · FLIGHT TOOLS</p>
     <h1>东上联日数据汇总</h1>
-    <p class="lede">整合「航班数据统计」与「航班运量汇总」：导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表两块数据，逐行复制到共享文档或导出整合 Excel。</p>
+    <p class="lede">导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表。</p>
   </section>
 
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">东上联日数据汇总</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入 FIOS</a>
+      <a href="#airlineTable">录入运量</a>
+      <a href="#outTableEast">汇总结果</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
 <div class="container">
 
 
@@ -124,9 +153,12 @@
       <h2><span class="step">1</span> 导入 FIOS 航班表（自动算架次 / 特服 / 调时 / 取消）</h2>
       <div class="sub">拖入或选择当日 FIOS 导出的 Excel，系统按航班号区分东上航司 / 中联航，统计各维度。</div>
       <label class="upload-zone" id="uploadZone">
-        <div class="uz-ic">📥</div>
-        <div class="uz-t">点击或拖入 FIOS 航班 Excel</div>
-        <div class="uz-d">支持 .xls / .xlsx（需无密码）</div>
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+        <div class="uz-body">
+          <div class="text">点击或拖入 FIOS 航班 Excel</div>
+          <div class="hint">支持 .xls / .xlsx（需无密码）</div>
+        </div>
+        <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
         <input type="file" id="fileInput" accept=".xls,.xlsx">
       </label>
       <div id="statsMsg"></div>
@@ -137,9 +169,12 @@
       <h2><span class="step">+</span> 导入指挥长周报 PDF（自动读「起飞延误」表填延误架次与不正常原因）</h2>
       <div class="sub">拖入或选择《生产情况汇总》PDF，系统读取「起飞延误明细」表，按航班号统计东上(FM/MU)与联航(KN)起飞延误架次，并把完整表格文本填入总表「不正常原因」列。表格跨多页会自动拼接。</div>
       <label class="upload-zone" id="pdfUploadZone">
-        <div class="uz-ic">📄</div>
-        <div class="uz-t">点击或拖入指挥长周报 PDF</div>
-        <div class="uz-d">读取起飞延误明细，自动填入延误架次与不正常原因</div>
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
+        <div class="uz-body">
+          <div class="text">点击或拖入指挥长周报 PDF</div>
+          <div class="hint">读取起飞延误明细，自动填入延误架次与不正常原因</div>
+        </div>
+        <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
         <input type="file" id="pdfInput" accept=".pdf">
       </label>
       <div id="pdfMsg" class="pdf-msg"></div>
@@ -198,10 +233,14 @@
       </div>
     </section>
 
-    <details class="rules-panel" open>
+    <details class="rules-panel" id="rulesPanel">
       <summary>
-        <span class="r-title"><span class="r-ic">📘</span> 规则说明</span>
-        <span class="r-chev">▾</span>
+        <div class="title">
+          <span class="r-k">规则</span>
+          <span class="r-t">规则说明</span>
+          <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+        </div>
+        <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
       </summary>
       <div class="r-body">
         <ul>

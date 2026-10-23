@@ -154,6 +154,9 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
         写进 assets/site.css 会指到 assets/assets/… 去。 */
   .hero { background-image: url("../assets/tools/03-schedule.webp"); }
 </style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
 </head>
 <body>
 
@@ -170,29 +173,42 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">03</span>航班工作工具集 · FLIGHT TOOLS</p>
     <h1>航班排班表</h1>
-    <p class="lede">上传当日航班 Excel，自动提取出港航班信息，生成可编辑的排班表——分配登机口、指定负责人、查看备注与特服。</p>
+    <p class="lede">上传当日航班 Excel，自动排出可编辑的出港排班表。</p>
   </section>
 
 
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">出港排班表</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入数据</a>
+      <a href="#resultArea">排班表</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
   <div class="container anim" id="mainArea">
     <!-- 上传区 -->
-    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-      <div class="icon">📅</div>
-      <div class="text">点击或拖拽上传航班 Excel 文件</div>
-      <div class="hint">支持 .xls / .xlsx 格式 · 仅读取出港航班数据</div>
-      <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="handleFile(this.files[0])">
+    <div class="upload-zone anim" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+    <div class="uz-body">
+      <div class="text">把当日航班 Excel 拖进来</div>
+      <div class="hint">.xls / .xlsx ｜ 只读取出港航班，自动跳过进港与取消</div>
     </div>
+    <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+    <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="handleFile(this.files[0])">
+  </div>
 
     <!-- 草稿恢复入口（仅当存在草稿时显示） -->
     <div id="draftBar" style="display:none; text-align:center; margin-bottom:28px;">
       <span class="draft-note" id="draftNote"></span>
-      <button class="btn-sm draft" onclick="loadDraft()">📂 读取上次草稿</button>
+      <button class="btn-sm draft" onclick="loadDraft()">读取上次草稿</button>
     </div>
 
     <!-- 结果区 -->
     <div id="resultArea" style="display:none;">
       <div class="panel">
-        <h2>📋 出港航班排班表</h2>
+        <h2>出港航班排班表</h2>
         <div class="stats-bar" id="statsBar"></div>
         <div class="period-tabs" id="periodTabs"></div>
         <div class="table-wrap" style="margin-top:14px;">
@@ -207,14 +223,14 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
         </div>
       </div>
       <div class="actions">
-        <button class="btn btn-primary" onclick="exportExcel()">⬇ 下载 Excel</button>
-        <button class="btn btn-primary" onclick="exportImage()">🖼 导出图片</button>
-        <button class="btn-sm" onclick="exportExcelAll()">⬇ 导出全部(Excel)</button>
-        <button class="btn-sm" onclick="appendRow()">＋ 末尾新增一行</button>
-        <button class="btn-sm draft" onclick="saveDraft()">💾 存草稿</button>
-        <button class="btn-sm" onclick="loadDraft()">📂 读取草稿</button>
-        <button class="btn-sm" onclick="clearDraft()">🗑 清空草稿</button>
-        <button class="btn-sm danger" onclick="clearAll()">🗑 一键清空</button>
+        <button class="btn btn-primary" onclick="exportExcel()">下载 Excel</button>
+        <button class="btn btn-primary" onclick="exportImage()">导出图片</button>
+        <button class="btn-sm" onclick="exportExcelAll()">导出全部 Excel</button>
+        <button class="btn-sm" onclick="appendRow()">末尾新增一行</button>
+        <button class="btn-sm draft" onclick="saveDraft()">存草稿</button>
+        <button class="btn-sm" onclick="loadDraft()">读取草稿</button>
+        <button class="btn-sm" onclick="clearDraft()">清空草稿</button>
+        <button class="btn-sm danger" onclick="clearAll()">一键清空</button>
         <span class="info-hint">每行可「插入 / 删除」；插入的空行可直接编辑航班、到站、计离、订座与备注，导出时一并保留。</span>
       </div>
     </div>
@@ -222,13 +238,14 @@ table.sch-table input.gate-input:focus { border-color: var(--tool); box-shadow: 
   <!-- 规则说明面板 -->
     <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
       <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
-        <div class="title">
-          <span class="ic">📋</span>
-          排班表规则说明
-          <span class="hint">点击展开查看</span>
-        </div>
-        <div class="arrow">▼</div>
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">排班表规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
       </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
       <div class="rules-body">
         <div class="rules-intro">
           导入当日出港航班 Excel 后，系统按下列规则自动生成可编辑排班表：
@@ -445,10 +462,10 @@ function renderTable(data){
   data.forEach(function(d){ counts[d.period] = (counts[d.period]||0)+1; });
   var curCnt = data.filter(function(d){ return d.period===currentPeriod; }).length;
   document.getElementById('statsBar').innerHTML =
-    '<span class="stat-pill">📑 当前：'+PERIOD_LABEL[currentPeriod]+'（'+curCnt+' 班）</span>' +
-    '<span class="stat-pill">🌅 早 '+counts.morning+'</span>' +
-    '<span class="stat-pill">☀️ 午 '+counts.afternoon+'</span>' +
-    '<span class="stat-pill">🌙 晚 '+counts.evening+'</span>';
+    '<span class="stat-pill">当前 '+PERIOD_LABEL[currentPeriod]+' <b>'+curCnt+'</b> 班</span>' +
+    '<span class="stat-pill">早 <b>'+counts.morning+'</b></span>' +
+    '<span class="stat-pill">午 <b>'+counts.afternoon+'</b></span>' +
+    '<span class="stat-pill">晚 <b>'+counts.evening+'</b></span>';
 
   var html = '';
   data.forEach(function(item, idx){
@@ -654,10 +671,10 @@ function refreshPersonCell(idx){
 function renderPicker(idx){
   var hasPersons = flightData[idx].persons.length > 0;
   if(hasPersons){
-    return '<div class="picker-wrap"><span class="picker-trigger mini" title="添加 / 修改负责人" onclick="togglePickerMenu(event,'+idx+')">＋</span>' +
+    return '<div class="picker-wrap"><span class="picker-trigger mini" title="添加 / 修改负责人" onclick="togglePickerMenu(event,'+idx+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span>' +
            '<div class="picker-menu" id="pm_'+idx+'">'+pickerInner(idx)+'</div></div>';
   }
-  return '<div class="picker-wrap"><span class="picker-trigger" onclick="togglePickerMenu(event,'+idx+')">+ 添加 / 修改 ▾</span>' +
+  return '<div class="picker-wrap"><span class="picker-trigger" onclick="togglePickerMenu(event,'+idx+')">添加负责人<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>' +
          '<div class="picker-menu" id="pm_'+idx+'">'+pickerInner(idx)+'</div></div>';
 }
 function pickerInner(idx){

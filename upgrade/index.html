@@ -119,6 +119,9 @@ td.empty { color: var(--line); text-align: center !important; }
         写进 assets/site.css 会指到 assets/assets/… 去。 */
   .hero { background-image: url("../assets/tools/02-upgrade.webp"); }
 </style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
 </head>
 <body>
 
@@ -135,17 +138,29 @@ td.empty { color: var(--line); text-align: center !important; }
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">02</span>航班工作工具集 · FLIGHT TOOLS</p>
     <h1>升舱金额计算器</h1>
-    <p class="lede">上传 C2 升舱统计 Excel，系统自动按岗位比例分配金额并生成「人员 × 日期」汇总表。</p>
+    <p class="lede">上传 C2 升舱统计 Excel，自动按岗位比例分钱。</p>
   </section>
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">升舱金额计算器</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入数据</a>
+      <a href="#tableWrapper">汇总表</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
 <div class="container">
 
 
   <!-- Upload Zone -->
   <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
-    <div class="icon">📁</div>
-    <div class="text">点击选择 Excel 文件，或拖拽文件到此处</div>
-    <div class="hint">系统将自动识别日期、金额与各岗位人员</div>
-    <div class="formats"><span>.xls</span><span>.xlsx</span></div>
+    <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+    <div class="uz-body">
+      <div class="text">把 C2 升舱统计 Excel 拖进来</div>
+      <div class="hint">.xls / .xlsx ｜ 自动识别日期、金额与各岗位人员</div>
+    </div>
+    <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
     <input type="file" id="fileInput" accept=".xls,.xlsx">
   </div>
 
@@ -163,13 +178,13 @@ td.empty { color: var(--line); text-align: center !important; }
 
   <!-- People Tags -->
   <div class="people-tags" id="peopleTags" style="display:none">
-    <div class="label" id="peopleLabel">👥 涉及人员</div>
+    <div class="label" id="peopleLabel">涉及人员</div>
     <div id="tagContainer"></div>
   </div>
 
   <!-- Controls -->
   <div class="controls" id="controls" style="display:none">
-    <button class="btn btn-success" id="downloadBtn">📥 下载 Excel 汇总表</button>
+    <button class="btn btn-success" id="downloadBtn">下载 Excel 汇总表</button>
     <span class="info" id="tableInfo"></span>
   </div>
 
@@ -183,11 +198,12 @@ td.empty { color: var(--line); text-align: center !important; }
   <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
     <div class="rules-header" id="rulesHeader">
       <div class="title">
-        <span class="ic">📋</span>
-        分配规则说明
-        <span class="hint">点击展开查看</span>
+        <span class="r-k">规则</span>
+        <span class="r-t">分配规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
       </div>
-      <div class="arrow">▼</div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
     </div>
     <div class="rules-body">
       <div class="rules-intro">
@@ -197,7 +213,7 @@ td.empty { color: var(--line); text-align: center !important; }
       <div class="rules-grid" id="rulesGrid"></div>
       <div class="rules-total" id="rulesTotal"></div>
       <div class="rules-note">
-        <b>💡 分配与计算细则</b><br>
+        <b>分配与计算细则</b><br>
         • <b>比例固定：</b>主班 30% / 副班 20% / 运行协助人员 20% / 指挥长 10% / 当日班组其他人员 10% / 票台 10%，合计 100%。<br>
         • <b>同岗位多人平分：</b>若某岗位在当条记录里填了多个人（用 <code>/</code>、<code>、</code>、<code>，</code> 分隔），该岗位金额在几人之间平均分配。<br>
         • <b>岗位为空则跳过：</b>某岗位无人填写时，其对应比例的金额在这条记录中不分配，也不会摊给其它岗位。<br>
@@ -497,29 +513,29 @@ function renderResults(data) {
   summaryRow.classList.add('anim');
   summaryRow.innerHTML = `
     <div class="summary-card">
-      <div class="card-top"><span class="card-ic">📄</span><span class="label">记录总数</span></div>
+      <div class="card-top"><span class="label">记录总数</span></div>
       <div class="value">${summary.total_records}</div>
       <div class="sub">条有效升舱记录</div>
     </div>
     <div class="summary-card accent-green">
-      <div class="card-top"><span class="card-ic">💰</span><span class="label">升舱总金额</span></div>
+      <div class="card-top"><span class="label">升舱总金额</span></div>
       <div class="value">¥${fmt(summary.total_amount)}</div>
       <div class="sub">已分配 ¥${fmt(totalDistributed)}（100%）</div>
     </div>
     <div class="summary-card">
-      <div class="card-top"><span class="card-ic">📅</span><span class="label">日期范围</span></div>
+      <div class="card-top"><span class="label">日期范围</span></div>
       <div class="value">${summary.unique_dates}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 天</span></div>
       <div class="sub">${summary.date_range}</div>
     </div>
     <div class="summary-card">
-      <div class="card-top"><span class="card-ic">👥</span><span class="label">涉及人员</span></div>
+      <div class="card-top"><span class="label">涉及人员</span></div>
       <div class="value">${summary.unique_people}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 人</span></div>
       <div class="sub">参与分配的员工</div>
     </div>
   `;
 
   peopleTags.style.display = 'block';
-  peopleLabel.textContent = `👥 涉及人员（${people.length} 人）`;
+  peopleLabel.textContent = `涉及人员（${people.length} 人）`;
   tagContainer.innerHTML = people.map(p => `<span class="tag">${esc(p)}</span>`).join('');
 
   controls.style.display = 'flex';

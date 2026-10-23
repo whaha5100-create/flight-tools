@@ -50,7 +50,17 @@ tbody tr:nth-child(even) { background:#fafafa; }
      ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
         写进 assets/site.css 会指到 assets/assets/… 去。 */
   .hero { background-image: url("../assets/tools/05-kn-stats.webp"); }
+  /* 六列等分太浪费 —— 给每列一个符合内容量的宽度（仅版式） */
+  #tbl th:nth-child(1) { width: 15%; }
+  #tbl th:nth-child(2) { width: 15%; }
+  #tbl th:nth-child(3) { width: 12%; }
+  #tbl th:nth-child(4) { width: 14%; }
+  #tbl th:nth-child(5) { width: 14%; }
+  #tbl th:nth-child(6) { width: 30%; }
 </style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
 </head>
 <body>
 
@@ -67,20 +77,30 @@ tbody tr:nth-child(even) { background:#fafafa; }
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">05</span>航班工作工具集 · FLIGHT TOOLS</p>
     <h1>KN航班出港统计</h1>
-    <p class="lede">上传 FIOS 系统导出的 Excel，自动筛选次日出港 KN 航班、计算截载时间与订座人数，便于安排值机保障人数。</p>
+    <p class="lede">上传 FIOS 导出 Excel，自动筛出次日 KN 出港航班，算出截载时间与订座人数。</p>
   </section>
 
 
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">KN航班出港统计</span>
+    <nav class="ln-links">
+      <a href="#uploadArea">导入数据</a>
+      <a href="#resultArea">统计结果</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
   <div class="container">
 
-    <div class="upload" id="uploadArea">
-      <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
-      <div class="upload-inner">
-        <div class="up-ic">📥</div>
-        <p>点击或拖拽上传 FIOS 导出的 Excel（.xls / .xlsx）</p>
-        <button class="btn btn-primary" type="button" onclick="document.getElementById('fileInput').click()">选择文件</button>
-        <div class="hint">支持 .xls / .xlsx · 自动筛出 KN 开头的出港航班</div>
+    <div class="upload-zone no-click" id="uploadArea">
+      <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+      <div class="uz-body">
+        <div class="text">把 FIOS 导出的 Excel 拖进来</div>
+        <div class="hint">.xls / .xlsx ｜ 自动筛出 KN 开头的出港航班</div>
       </div>
+      <span class="uz-a" onclick="document.getElementById('fileInput').click()">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+      <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
     </div>
 
     <div id="resultArea" style="display:none">
@@ -94,21 +114,22 @@ tbody tr:nth-child(even) { background:#fafafa; }
         </table>
       </div>
       <div class="actions">
-        <button class="btn btn-primary" type="button" onclick="exportImage()">🖼 导出图片</button>
+        <button class="btn btn-primary" type="button" onclick="exportImage()">导出图片</button>
       </div>
       <div class="hint">截载时间 = 计飞 − 35 分钟；订座 = 出港订座三舱位数相加；订座 &gt; 160 标注「高客座航班」。</div>
     </div>
 
     <!-- 规则说明面板 -->
     <div class="rules-panel" id="rulesPanel">
-      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
-        <div class="title">
-          <span class="ic">📋</span>
-          KN出港统计规则说明
-          <span class="hint">点击展开查看</span>
-        </div>
-        <div class="arrow">▼</div>
+<div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">KN出港统计规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
       </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
       <div class="rules-body">
         <div class="rules-intro">
           系统读取 FIOS 导出的出港航班 Excel，按下列规则筛选与计算 KN 航班：
@@ -251,8 +272,8 @@ tbody tr:nth-child(even) { background:#fafafa; }
     document.getElementById('tbody').innerHTML = html;
 
     document.getElementById('statsBar').innerHTML =
-      '<span class="stat-pill">✈ KN出港航班 <b>' + processed.length + '</b> 班</span>' +
-      '<span class="stat-pill">🌅 早始发人数 <b>' + earlyTotal + '</b></span>';
+      '<span class="stat-pill">KN出港航班 <b>' + processed.length + '</b> 班</span>' +
+      '<span class="stat-pill">早始发人数 <b>' + earlyTotal + '</b></span>';
 
     document.getElementById('resultArea').style.display = 'block';
     uploadArea.style.display = 'none';
