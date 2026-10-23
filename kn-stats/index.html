@@ -291,23 +291,53 @@ tbody tr:nth-child(even) { background:#fafafa; }
     '</tr>';
   }
 
-  // ---------- 导出图片（Canvas 2x · 简洁克制风格） ----------
+  // ---------- 导出图片（Canvas 2x · 白底极简版 · 2026-10 改版） ----------
+  // 设计依据：苹果 HIG 的「字重 + 字号 + 颜色」三层建层级；Linear 的「只用发丝线、不用阴影填充」；
+  // Vercel 的「避开 60–80% 亮度的灰」。所以：白底、无卡片外壳、无整行灰底、无口径注释。
   function exportImage(){
     if(!processed.length){ alert('请先上传并生成统计表'); return; }
+
     var F = '"PingFang SC","Microsoft YaHei",sans-serif';
-    var MF = '"SF Mono","Menlo",ui-monospace';
-    var cols = [
-      {t:'出港航班', w:130, a:'left'}, {t:'到站', w:130, a:'left'}, {t:'计飞', w:90, a:'center'},
-      {t:'截载时间', w:112, a:'center'}, {t:'出港订座', w:108, a:'right'}, {t:'备注', w:130, a:'center'}
-    ];
-    var tableW = cols.reduce(function(a,c){return a+c.w;},0);
+    var M = '"SF Mono","Menlo",ui-monospace';
+    var INK='#1d1d1f', SEC='#6e6e73', TIME='#424245', TER='#86868b',
+        RULE='#e5e5ea', RULE_STRONG='#d2d2d7', DOT='#c07c21';
+
+    // 字距必须跟着字号走：大字收负字距，小字加正字距
+    function tracked(s,x,y,sp){
+      ctx.textAlign='left';
+      var chars=Array.from(s), sx=x;
+      for(var i=0;i<chars.length;i++){ ctx.fillText(chars[i],sx,y); sx+=ctx.measureText(chars[i]).width+sp; }
+    }
+    function tw(s,sp){
+      var chars=Array.from(s), w=0;
+      for(var i=0;i<chars.length;i++) w+=ctx.measureText(chars[i]).width+sp;
+      return w-sp;
+    }
+
     var earlyRows = processed.filter(function(x){ return x.early; });
     var lateRows  = processed.filter(function(x){ return !x.early; });
-    var hasSummary = earlyRows.length>0;
-    var pad = 40, titleH = 70, subH = 34, headerH = 46, rowH = 48, summaryH = 52, footerH = 48;
+    var hasGroup  = earlyRows.length > 0;
+    var earlyNum  = earlyRows.reduce(function(a,b){ return a + (Number(b.sum)||0); },0);
+    var highN     = processed.filter(function(x){ return (Number(x.sum)||0) > 160; }).length;
+
+    // GAP：右对齐列的表头与数字都要从列右边界内缩，否则「出港订座」会和「备注」表头挤成一串
+    var GAP = 12;
+    var cols = [
+      {t:'出港航班', w:136, a:'left',  pl:0},
+      {t:'到站',     w:152, a:'left',  pl:12},
+      {t:'计飞',     w:88,  a:'right'},
+      {t:'截载时间', w:104, a:'right'},
+      {t:'出港订座', w:104, a:'right'},
+      {t:'备注',     w:96,  a:'left',  pl:12}
+    ];
+    var tableW = cols.reduce(function(a,c){ return a+c.w; },0);
+    var pad = 56;
     var W = tableW + pad*2;
-    var bodyH = headerH + rowH*processed.length + (hasSummary ? summaryH : 0);
-    var H = titleH + subH + 22 + bodyH + footerH + 20;
+
+    var rowH = 56, headerH = 40, groupH = 72;
+    var headTop = pad + 48 + 40 + 34 + 48;   // 顶部留白 → 标题 → 数字标签 → 数字值 → 表头
+    var bodyH = headerH + rowH*processed.length + (hasGroup ? groupH : 0);
+    var H = headTop + bodyH + 56;
 
     var scale = 2;
     var canvas = document.createElement('canvas');
@@ -315,56 +345,123 @@ tbody tr:nth-child(even) { background:#fafafa; }
     var ctx = canvas.getContext('2d');
     ctx.scale(scale,scale);
 
-    // 苹果式浅灰背景，重点交给内容本身
-    ctx.fillStyle = '#f5f5f7';
-    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,W,H);
+    var x0 = pad, xw = tableW;
+
     var now = new Date();
     var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-    // 仅保留原有标题与日期，以清爽的黑白灰建立层级
-    drawLogo(ctx, pad, 25, 23, '#0071e3');
-    ctx.fillStyle = '#1d1d1f'; ctx.font = '700 24px ' + F; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText('KN航班出港统计', pad+34, 38);
-    ctx.fillStyle='#86868b'; ctx.font='500 12px '+MF; ctx.textAlign='right'; ctx.fillText(dateStr,W-pad,38);
-    ctx.strokeStyle='#d2d2d7';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,titleH);ctx.lineTo(W-pad,titleH);ctx.stroke();
-    ctx.fillStyle='#6e6e73';ctx.font='500 13px '+F;ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillText('出港 ' + processed.length + ' 班',pad,titleH+21);
-    var tableY = titleH + subH + 22;
-    roundRect(ctx,pad,tableY,tableW,bodyH,10); ctx.fillStyle='#ffffff'; ctx.fill();
-    ctx.save(); roundRect(ctx,pad,tableY,tableW,bodyH,12); ctx.clip();
-    ctx.fillStyle='#f5f5f7'; ctx.fillRect(pad,tableY,tableW,headerH);
-    var cx = pad;
-    cols.forEach(function(c){
-      ctx.fillStyle='#6e6e73'; ctx.font='600 12px '+F; ctx.textBaseline='middle'; ctx.textAlign=c.a==='left'?'left':(c.a==='right'?'right':'center');
-      ctx.fillText(c.t,cx+(c.a==='left'?18:(c.a==='right'?c.w-18:c.w/2)),tableY+headerH/2); cx+=c.w;
-    });
-    var y = tableY+headerH, idx = 0;
-    function drawRow(x){
-      ctx.fillStyle='#ffffff'; ctx.fillRect(pad,y,tableW,rowH);
-      ctx.strokeStyle='#e5e5ea'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pad,y+rowH);ctx.lineTo(pad+tableW,y+rowH);ctx.stroke();
-      var values=[x.flight,x.dest,x.dep,x.cut,String(x.sum),x.note]; var xPos=pad;
-      values.forEach(function(value,k){ var c=cols[k], align=c.a; ctx.textAlign=align==='left'?'left':(align==='right'?'right':'center'); ctx.textBaseline='middle';
-        var tx=xPos+(align==='left'?18:(align==='right'?c.w-18:c.w/2));
-        if(k===0){ctx.fillStyle='#1d1d1f';ctx.font='700 14px '+MF;}
-        else if(k===4){ctx.fillStyle='#1d1d1f';ctx.font='700 15px '+MF;}
-        else {ctx.fillStyle='#424245';ctx.font='400 14px '+F;}
-        if(k===5 && value){ var cw=76,ch=22; roundRect(ctx,xPos+(c.w-cw)/2,y+(rowH-ch)/2,cw,ch,11);ctx.fillStyle='#fdf3e3';ctx.fill();ctx.fillStyle='#b4610d';ctx.font='600 11px '+F;ctx.textAlign='center';ctx.fillText('高客座',xPos+c.w/2,y+rowH/2+1); }
-        else if(k!==5 || value){ctx.fillText(value,tx,y+rowH/2+1);} xPos+=c.w;
-      });
-      y+=rowH; idx++;
-    }
-    earlyRows.forEach(drawRow);
-    if(hasSummary){
-      ctx.fillStyle='#f5f5f7';ctx.fillRect(pad,y,tableW,summaryH);
-      ctx.strokeStyle='#e5e5ea';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,y+summaryH);ctx.lineTo(pad+tableW,y+summaryH);ctx.stroke();
-      ctx.fillStyle='#1d1d1f';ctx.font='700 14px '+F;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('早始发人数：' + earlyTotal,pad+18,y+summaryH/2);
-      ctx.fillStyle='#6e6e73';ctx.font='500 13px '+F;ctx.textAlign='right';ctx.fillText(earlyRows.length+' 班，计飞 10:30（含）之前',pad+tableW-18,y+summaryH/2);y+=summaryH;
-    }
-    lateRows.forEach(drawRow); ctx.restore();
-    roundRect(ctx,pad,tableY,tableW,bodyH,10);ctx.strokeStyle='#d2d2d7';ctx.lineWidth=1;ctx.stroke();
-    var fy=H-footerH+24; ctx.fillStyle='#86868b'; ctx.font='500 11px '+MF;ctx.textAlign='left';ctx.textBaseline='alphabetic';
     var timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    ctx.fillText('航班工作工具集  ·  生成于 ' + dateStr + ' ' + timeStr,pad,fy);
-    ctx.textAlign='right';ctx.fillText('KN · 01 / 01',W-pad,fy);
+
+    // ── 标题 ──
+    var y = pad + 48;
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillStyle = INK; ctx.font = '600 30px ' + F;
+    ctx.fillText('KN 航班出港统计', x0, y);
+    ctx.fillStyle = TER; ctx.font = '500 13px ' + M; ctx.textAlign = 'right';
+    ctx.fillText(dateStr + '  ' + timeStr, x0 + xw, y - 2);
+
+    // ── 三个数字：标签在上、数值在下，按实际宽度排（固定列宽会让后两块显得更挤） ──
+    y += 40;
+    var figs = [
+      {label:'出港航班',   v:String(processed.length), unit:'班'},
+      {label:'早始发人数', v:String(earlyNum),         unit:'人'},
+      {label:'高客座航班', v:String(highN),            unit:'班'}
+    ];
+    var FIG_GAP = 56;
+    var figW = figs.map(function(fg){
+      ctx.font = '500 12px ' + F; var lw = tw(fg.label, 1.0);
+      ctx.font = '600 30px ' + M; var vw = ctx.measureText(fg.v).width;
+      ctx.font = '400 13px ' + F; var uw = ctx.measureText(fg.unit).width;
+      return Math.max(lw, vw + 5 + uw);
+    });
+    var fx = x0;
+    figs.forEach(function(fg, i){
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.fillStyle = SEC; ctx.font = '500 12px ' + F;
+      tracked(fg.label, fx, y, 1.0);
+      ctx.fillStyle = INK; ctx.font = '600 30px ' + M;
+      var vw = ctx.measureText(fg.v).width;
+      ctx.fillText(fg.v, fx, y + 34);
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText(fg.unit, fx + vw + 5, y + 34);
+      fx += figW[i] + FIG_GAP;
+    });
+
+    // ── 表头：小字 + 微加字距，当"标签层"用，不铺灰底 ──
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = SEC; ctx.font = '500 12px ' + F;
+    var cx = x0;
+    cols.forEach(function(c){
+      var w = tw(c.t, 1.2);
+      var tx = c.a === 'right' ? cx + c.w - GAP - w : cx + (c.pl || 0);
+      tracked(c.t, tx, headTop + headerH/2 + 1, 1.2);
+      cx += c.w;
+    });
+    ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, headTop + headerH + .5); ctx.lineTo(x0 + xw, headTop + headerH + .5); ctx.stroke();
+
+    var ry = headTop + headerH;
+
+    function drawRow(x){
+      var base = ry + rowH/2;
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = INK; ctx.font = '600 16px ' + M; ctx.textAlign='left';
+      ctx.fillText(x.flight, x0, base + 1);
+
+      ctx.fillStyle = INK; ctx.font = '400 16px ' + F;
+      ctx.fillText(x.dest, x0 + cols[0].w + cols[1].pl, base + 1);
+
+      var px = x0 + cols[0].w + cols[1].w;
+      ctx.fillStyle = TIME; ctx.font = '500 15px ' + M; ctx.textAlign='right';
+      ctx.fillText(x.dep, px + cols[2].w - GAP, base + 1); px += cols[2].w;
+      ctx.fillText(x.cut, px + cols[3].w - GAP, base + 1); px += cols[3].w;
+
+      // 订座 = 这张表的主角：19px 600，可以放心压深
+      ctx.fillStyle = INK; ctx.font = '600 19px ' + M;
+      ctx.fillText(String(x.sum), px + cols[4].w - GAP, base + 1); px += cols[4].w;
+
+      // 高客座：圆点 + 文字（不单靠颜色传信息）。圆点必须离数字够远，贴着会被读成小数点
+      if ((Number(x.sum)||0) > 160){
+        ctx.fillStyle = DOT;
+        ctx.beginPath(); ctx.arc(px + 18, base - 4, 2.8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = SEC; ctx.font = '500 12px ' + F; ctx.textAlign='left';
+        ctx.fillText('高客座', px + 28, base + 1);
+      }
+
+      ctx.strokeStyle = RULE; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + rowH + .5); ctx.lineTo(x0 + xw, ry + rowH + .5); ctx.stroke();
+      ry += rowH;
+    }
+
+    earlyRows.forEach(drawRow);
+
+    // ── 早始发小计：不做整行灰底，用两条线收住，合计数落在「出港订座」列上 ──
+    if (hasGroup){
+      ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + .5); ctx.lineTo(x0 + xw, ry + .5); ctx.stroke();
+
+      var mid = ry + groupH/2;
+      ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+      ctx.fillStyle = TER; ctx.font = '500 12px ' + F;
+      tracked('早始发小计', x0, mid - 4, 1.2);
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText(earlyRows.length + ' 班 · 计飞 10:30（含）之前', x0, mid + 17);
+
+      var bigX = x0 + xw - cols[5].w - GAP;   // = 出港订座列右边界
+      ctx.textAlign='right';
+      ctx.fillStyle = INK; ctx.font = '600 24px ' + M;
+      ctx.fillText(String(earlyNum), bigX, mid + 8);
+      ctx.textAlign='left';
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText('人', bigX + 7, mid + 8);
+
+      ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + groupH + .5); ctx.lineTo(x0 + xw, ry + groupH + .5); ctx.stroke();
+      ry += groupH;
+    }
+
+    lateRows.forEach(drawRow);
 
     var a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
@@ -372,46 +469,6 @@ tbody tr:nth-child(even) { background:#fafafa; }
     a.click();
   }
 
-  // 极简线性飞机 logo（侧视）
-  function drawLogo(ctx, x, y, size, color){
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = 'none';
-    ctx.lineWidth = 1.7;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    var s = size;
-    // 机身（长椭圆）
-    ctx.beginPath();
-    ctx.ellipse(x + s*0.55, y + s*0.55, s*0.38, s*0.10, -0.18, 0, Math.PI*2);
-    ctx.stroke();
-    // 机头
-    ctx.beginPath();
-    ctx.moveTo(x + s*0.92, y + s*0.48);
-    ctx.lineTo(x + s*0.98, y + s*0.5);
-    ctx.lineTo(x + s*0.92, y + s*0.55);
-    ctx.stroke();
-    // 主翼（上）
-    ctx.beginPath();
-    ctx.moveTo(x + s*0.45, y + s*0.5);
-    ctx.lineTo(x + s*0.62, y + s*0.18);
-    ctx.lineTo(x + s*0.74, y + s*0.2);
-    ctx.lineTo(x + s*0.6,  y + s*0.5);
-    ctx.stroke();
-    // 尾翼
-    ctx.beginPath();
-    ctx.moveTo(x + s*0.22, y + s*0.5);
-    ctx.lineTo(x + s*0.16, y + s*0.32);
-    ctx.lineTo(x + s*0.28, y + s*0.42);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function roundRect(ctx,x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
-  }
   </script>
 </body>
 </html>
