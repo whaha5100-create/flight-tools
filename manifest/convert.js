@@ -406,7 +406,6 @@
     outRows.push(TITLE_HEADERS.slice());
 
     var seq = 1;
-    var warnings = [];
     var skipped = [];
 
     data_rows.forEach(function (row) {
@@ -432,16 +431,11 @@
       // 🔥 填了国籍但认不出来 → **整行删掉**（2026-10-23 用户拍板）。
       //    以前是「只警告、行照样导出」，结果 PE（秘鲁）这种原样写进文件、海关退单。
       //    宁可少一个人让用户补录，也不能把错的代码送上去。
+      //    ⚠️ 用户 2026-10-23 追加：「国籍自动修正的都不列，我只要删掉的行」
+      //       ⇒ 别名 / 中文名 / 二字转三字这些换算一律静默，不再往 warnings 里写。
       if (!nat) {
         skipped.push((name || '（无姓名）') + ': 国籍 ' + natRes.raw + ' 无法识别');
         return;
-      }
-
-      // 「标准二字母→三字母」（CN→CHN、PE→PER）是常规处理，不刷屏；
-      // 只有别名换算（CH→CHN）、中文名 / 英文名识别、换位手误纠正才单独提示。
-      if (natRes.how === '别名' || natRes.how === '中文名') {
-        warnings.push('第' + seq + '行 ' + (name || '（无姓名）') + ': 国籍 [' +
-          natRes.raw + '] 已自动修正为 ' + nat);
       }
 
       outRows.push([
@@ -455,7 +449,6 @@
     return {
       ok: true,
       outRows: outRows,
-      warnings: warnings,
       skipped: skipped,
       meta: {
         flight_code: flight_code,

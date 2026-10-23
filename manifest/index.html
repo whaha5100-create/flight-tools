@@ -153,20 +153,8 @@
     <div class="table-scroll" id="previewBody"></div>
   </div>
 
-  <!-- Warnings：非标准国籍的自动修正（CN→CHN 这种常规二字转换不列，避免刷屏） -->
-  <div class="people-tags" id="warnBox" style="display:none">
-    <div class="label" id="warnLabel">国籍已自动修正</div>
-    <div class="ltable ltable-warn">
-      <div class="lt-head">
-        <span class="lt-c lt-no">行号</span>
-        <span class="lt-c">姓名</span>
-        <span class="lt-c">原值 → 修正为</span>
-      </div>
-      <div class="tag-list" id="warnTags"></div>
-    </div>
-  </div>
-
-  <!-- Skipped：不完整 + 国籍无法识别（整行删除） -->
+  <!-- Skipped：不完整 + 国籍无法识别（整行删除）—— 这是页面上**唯一**的提示列表。
+       国籍的别名 / 中文名 / 二字转三字都不再单独提示（2026-10-23 用户：「都不列」）。 -->
   <div class="people-tags" id="skipBox" style="display:none">
     <div class="label" id="skipLabel">已删除的记录</div>
     <div class="ltable ltable-skip">
@@ -205,8 +193,7 @@
       <div class="rules-inner">
         <ul>
           <li><b>自动识别列：</b>按表头名称匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等字段，列序不同也能正确解析。</li>
-          <li><b>国籍代码：</b>以海关模板「国籍地区代码」全表（305 条）为准：二字码按 ISO 转三字码（<code>PE→PER</code>、<code>CN→CHN</code>、<code>US→USA</code>），也认中文名（<code>秘鲁→PER</code>）和常见错拼（<code>UK→GBR</code>、<code>SP→ESP</code>）。<b>认不出来的国籍不会硬猜——整行删除</b>，并在「已删除的记录」里写明原因和疑似值。</li>
-          <li><b>国籍自动修正：</b>非标准的换算（如 <code>CH→CHN</code>）会列在「国籍已自动修正」里供你复核；<code>CN→CHN</code> 这类常规二字转换不单独列出。</li>
+          <li><b>国籍代码：</b>以海关模板「国籍地区代码」全表（305 条）为准：二字码按 ISO 转三字码（<code>PE→PER</code>、<code>CN→CHN</code>、<code>US→USA</code>），也认中文名（<code>秘鲁→PER</code>）和常见错拼（<code>UK→GBR</code>、<code>SP→ESP</code>）。这些换算<b>不再逐条提示</b>；<b>认不出来的国籍不会硬猜——整行删除</b>，并在「已删除的记录」里写明原因和原值。</li>
           <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
           <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
           <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
@@ -237,7 +224,6 @@ const summaryRow  = document.getElementById('summaryRow');
 const previewWrap = document.getElementById('previewWrapper');
 const previewBody = document.getElementById('previewBody');
 const previewInfo = document.getElementById('previewInfo');
-const warnBox     = document.getElementById('warnBox');
 const skipBox     = document.getElementById('skipBox');
 const controls    = document.getElementById('controls');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -293,7 +279,6 @@ function hideResult() {
   summaryRow.style.display = 'none';
   document.getElementById('resultHead').style.display = 'none';
   previewWrap.style.display = 'none';
-  warnBox.style.display = 'none';
   skipBox.style.display = 'none';
   controls.style.display = 'none';
   previewBody.innerHTML = '';
@@ -342,17 +327,12 @@ function renderPreview(outRows) {
   previewWrap.style.display = 'block';
 }
 
-// ================ Render: Warnings / Skipped ================
-// 把 convert.js 产出的提示串拆成表格列；格式不认识时返回 null，退回整行显示（不丢信息）。
-//   自动修正：「第3行 张三: 国籍 [CH] 已自动修正为 CHN」
-//   已删除：  「张三: 缺少 姓名、证件号」
-//             「李四: 国籍 QQ9 无法识别、疑似 PER」
-function parseWarnItem(s) {
-  const m = /^第\s*(\d+)\s*行\s*(.*?)\s*[:：]\s*国籍\s*[[［]([^\]］]*)[\]］]\s*已自动修正为\s*(\S+)$/.exec(String(s));
-  return m ? { no: m[1], name: m[2] || '（无姓名）', code: m[3], to: m[4] } : null;
-}
+// ================ Render: 已删除的记录 ================
+// 页面上只保留这一张提示表（2026-10-23 用户：「国籍自动修正的都不列」）。
+// 把 convert.js 产出的删除原因拆成表格列；格式不认识时返回 null，退回整行显示（不丢信息）。
+//   「张三: 缺少 姓名、证件号」      → 小标签：缺少 姓名 / 缺少 证件号
+//   「李四: 国籍 QQ9 无法识别」      → 小标签：国籍 QQ9 无法识别
 function parseSkipItem(s) {
-  // 两种原因：`缺少 姓名、证件号`（没填）和 `国籍 PE 无法识别`（填了但认不出）
   // 统一按「姓名: 原因」拆，再按「、」切成小标签。
   // ⚠️ 「缺少」只写在第一个字段前面（convert.js 就是这么拼的）→ 这里给每一项补上，
   //    否则标签只剩「证件号」，用户分不清是没填还是填错了。
@@ -364,24 +344,13 @@ function parseSkipItem(s) {
   }
   return { name: m[1] || '（无姓名）', miss: miss };
 }
-function renderWarn(list, box, labelId, labelText, warnStyle) {
-  const tags = document.getElementById(labelId === 'warnLabel' ? 'warnTags' : 'skipTags');
+function renderSkipped(list) {
+  const box = skipBox, tags = document.getElementById('skipTags');
   if (list && list.length) {
     box.style.display = 'block';
-    document.getElementById(labelId).textContent = labelText + '（' + list.length + ' 条）';
+    document.getElementById('skipLabel').textContent = '已删除的记录（' + list.length + ' 条）';
     // ⚠️ 每条固定只产出一个 .lt-row（直接子元素个数 = 条目数，探针依赖这一点）
     tags.innerHTML = list.map((w) => {
-      if (warnStyle) {
-        const p = parseWarnItem(w);
-        if (!p) return '<div class="lt-row lt-fallback">' + escapeHtml(w) + '</div>';
-        return '<div class="lt-row">'
-          + '<span class="lt-c lt-no">' + escapeHtml(p.no) + '</span>'
-          + '<span class="lt-c lt-name">' + escapeHtml(p.name) + '</span>'
-          + '<span class="lt-c"><span class="lt-code">' + escapeHtml(p.code) + '</span>'
-          + '<span class="lt-arrow">→</span>'
-          + '<span class="lt-to">' + escapeHtml(p.to) + '</span></span>'
-          + '</div>';
-      }
       const p = parseSkipItem(w);
       if (!p) return '<div class="lt-row lt-fallback">' + escapeHtml(w) + '</div>';
       const chips = p.miss.split('、').map((x) =>
@@ -860,8 +829,7 @@ async function doConvert() {
 
     renderSummary(res.meta);
     renderPreview(res.outRows);
-    renderWarn(res.warnings, warnBox, 'warnLabel', '国籍已自动修正', true);
-    renderWarn(res.skipped, skipBox, 'skipLabel', '已删除的记录', false);
+    renderSkipped(res.skipped);
 
     controls.style.display = 'flex';
     const outName = buildOutName(res.meta, file);
