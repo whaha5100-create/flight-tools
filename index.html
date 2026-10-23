@@ -188,10 +188,12 @@
      图铺满整张卡，白字压在底部暗渐变上。苹果首页瓷砖的做法。
      ⚠️ 三层必须齐：图 z-index:-2、渐变 ::after z-index:-1、文字正常流；
         .tile 上的 isolation:isolate 让负 z-index 留在卡片自己的层叠上下文里，
-        否则图会掉到页面背景后面去。 */
+        否则图会掉到页面背景后面去。
+     🔥 border-radius: 0 是**用户明确要求**（2026-10-23：「我不希望卡片四个角是圆的，
+        我想是直角的」）→ 以后做「圆角统一」时**不要**把它并回 --radius，会白改一遍。 */
   .tile {
     position: relative; display: flex; flex-direction: column; justify-content: flex-end;
-    aspect-ratio: 4 / 5; border-radius: 26px; overflow: hidden; isolation: isolate;
+    aspect-ratio: 4 / 5; border-radius: 0; overflow: hidden; isolation: isolate;
     background: #101114; text-decoration: none; color: #fff;
     box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 22px rgba(0,0,0,.045);
     transition: transform .42s var(--ease-out), box-shadow .42s var(--ease-out);
