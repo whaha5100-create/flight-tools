@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机组名单导出 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="上传指挥长导出的 GD 单（机组总申报单），照单录入机组信息，一键导出可直接申报的机组名单 Excel。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="机组名单导出 · 航班工作工具集">
+<meta property="og:description" content="上传 GD 单，照单录入机组信息，一键导出可直接申报的机组名单 Excel。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/crew-decl/index.html">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="stylesheet" href="../assets/tool-page.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<script src="crew-data.js"></script>
+<script src="libs/xlsx-populate.min.js"></script>
+<script src="template/crew-template.b64.js"></script>
+<style>
+  /* ============================================================
+     crew-decl · 页面特有样式
+     通用件（页眉 / 主视觉 / 本地导航 / 上传条 / 数据条 / 表格卡 /
+     规则面板 / 页脚）全部来自 ../assets/tool-page.css，本页只写
+     「这一页独有」的三样：数据条里的输入框、录入表格、GD 单图区。
+     ============================================================ */
+
+  /* 主视觉配图沿用 04 那张（与首页第 4 张卡同一张图） */
+  .hero { background-image: url("../assets/tools/04-daily-report.webp"); }
+
+  /* 锚点跳转避开「页眉 48 + 本地导航 48」 */
+  #flightInfo, #pdfCard, #crewCard { scroll-margin-top: 112px; }
+
+  /* 步骤之间要有呼吸：tool-page.css 给 .sec-h 的是「上 0 下 18」，
+     那是给 01 用的（它只有两三个小节）。这里四步连排，上间距补到 48 —
+     8 的倍数，也和 .container 的 56 顶部内边距同一节奏。
+     第一个（第一步）不能要，否则标题会和主视觉拉开一段空。 */
+  .sec-h { margin: 48px 0 18px; }
+  .container > .sec-h:first-of-type { margin-top: 0; }
+
+  /* ============ 第二步 · 数据条里的输入框 ============
+     site.css 对所有 input 都加了 border-color / background / radius / focus 阴影
+     的 !important，要把它退化成「一个数字 + 一条发丝下划线」必须逐条压回去。
+     边框改成「只留下边」：border-width:0 0 1px + 透明色，
+     聚焦时只换 border-bottom-color —— 这样不会出现四边描边的输入框。 */
+  .strip .summary-card input {
+    display: block; width: 100%;
+    margin: 9px 0 0; padding: 0 0 3px !important;
+    border-width: 0 0 1px !important; border-style: solid !important;
+    border-color: transparent !important; border-radius: 0 !important;
+    background: none !important; box-shadow: none !important;
+    font-family: inherit; font-size: 27px; font-weight: 600;
+    letter-spacing: -.028em; line-height: 1.15; color: var(--ink);
+    -webkit-appearance: none; appearance: none;
+  }
+  .strip .summary-card input::placeholder { color: #c7c7cc; font-weight: 600; }
+  .strip .summary-card input:hover { border-bottom-color: var(--line) !important; }
+  .strip .summary-card input:focus {
+    border-bottom-color: var(--brand) !important;
+    box-shadow: none !important; outline: none;
+  }
+  /* 日期框不跟着 27px：原生日期控件里的年月日是等宽排的，27px 会撑爆格子 */
+  .strip .summary-card input[type="date"] { font-size: 24px; letter-spacing: -.014em; }
+  /* 文件名是输出值，用等宽字 + 小一号，跟左边三个输入形成层级差 */
+  .strip .summary-card .value-sm {
+    margin-top: 12px; font-family: var(--mono); font-size: 19px;
+    font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .strip .summary-card .sub { margin-top: 8px; }
+
+  /* ============ 第三步 · GD 单图区 ============
+     浅灰底衬托白纸，滚动条落在卡片内部 —— 页面本身不会被一张图拉得很长。 */
+  .pdf-scroll { background: #f5f5f7; padding: 18px; max-height: 46vh; overflow: auto; }
+  .pdf-scroll canvas {
+    display: block; margin: 0 auto 14px; height: auto;
+    background: #fff; border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(0,0,0,.06);
+  }
+  .pdf-scroll canvas:last-child { margin-bottom: 0; }
+  .pdf-hint { padding: 44px 20px; text-align: center; color: var(--muted-2); font-size: 13px; }
+
+  /* 缩放：三段文字按钮，不是胶囊 */
+  .zoom { display: flex; align-items: center; gap: 2px; margin-left: 18px; }
+  .zoom button {
+    border: 0; background: none; padding: 4px 9px; border-radius: 6px;
+    font-family: inherit; font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout);
+  }
+  .zoom button:hover { background: rgba(0,0,0,.04); color: var(--ink); }
+  .zoom button.on { background: rgba(0,0,0,.05); color: var(--ink); font-weight: 600; }
+
+  /* ============ 第四步 · 录入表 ============
+     表头口径抄 01 的预览表：11px 14px、灰底 fafafa、12px/590/.02em。
+     但这里是输入型表格，行内边距收到 4px 8px，否则一行 60px 高、20 人要滚半天。 */
+  .crew-wrap { overflow: auto; max-height: 54vh; }
+  table.crew { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; font-size: 13.5px; }
+  table.crew col.c-no   { width: 44px; }
+  table.crew col.c-post { width: 132px; }
+  table.crew col.c-sex  { width: 58px; }
+  table.crew col.c-nat  { width: 122px; }
+  table.crew col.c-id   { width: 134px; }
+  table.crew col.c-del  { width: 42px; }
+  table.crew thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: #fafafa; color: var(--muted);
+    padding: 10px 12px; font-size: 12px; font-weight: 590;
+    letter-spacing: .02em; text-align: left; white-space: nowrap;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.crew thead th.c { text-align: center; }
+  table.crew tbody td {
+    padding: 3px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: middle;
+  }
+  table.crew tbody tr:last-child td { border-bottom: 0; }
+  table.crew tbody tr:hover td { background: #fbfcfd; }
+  table.crew td.no {
+    text-align: center; color: var(--muted-2); font-size: 12.5px;
+    font-variant-numeric: tabular-nums; padding-left: 4px; padding-right: 4px;
+  }
+  /* 表内控件：默认「无框」，悬停才给一条描边，聚焦给品牌环 —— 视觉上是一张干净的名单 */
+  table.crew input, table.crew select, .sex-btn {
+    width: 100%; height: 34px; padding: 0 8px !important;
+    border: 1px solid transparent !important; border-radius: 8px !important;
+    background: none !important; box-shadow: none !important;
+    font-family: inherit; font-size: 13.5px; color: var(--ink);
+  }
+  table.crew input:hover, table.crew select:hover, .sex-btn:hover { border-color: var(--line) !important; }
+  table.crew input:focus, table.crew select:focus {
+    border-color: var(--brand) !important; background: #fff !important;
+    box-shadow: 0 0 0 3px rgba(0,113,227,.13) !important; outline: none;
+  }
+  table.crew input.mono { font-family: var(--mono); font-size: 13px; letter-spacing: .01em; }
+  table.crew select { cursor: pointer; }
+  .sex-btn { cursor: pointer; text-align: center; }
+  /* 女不染粉色：v3 里颜色只留给「可点」，性别靠「男 / 女」两个字就够。
+     （原来那版在灰白表里唯一一处彩色就是这里，扫读时反而抢注意力。）*/
+  .sex-btn.f { color: var(--ink); }
+  .sex-btn:hover { background: #f5f5f7 !important; }
+  .del {
+    border: 0; background: none; padding: 6px; border-radius: 6px; cursor: pointer;
+    color: #b0b0b6; line-height: 0; display: block; margin: 0 auto;
+  }
+  .del:hover { background: var(--danger-soft); color: var(--danger); }
+  .del svg { width: 14px; height: 14px; }
+  .crew-empty { padding: 46px 20px; text-align: center; color: var(--muted-2); font-size: 13.5px; }
+
+  /* 表头下的工具条：加行 / 清空。位置在表头与数据之间，视线不用离开表格。 */
+  .tb-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 12px 22px; border-bottom: 1px solid var(--line-soft); background: #fff;
+  }
+  .tb-row .tb-lab { font-size: 12.5px; color: var(--muted); }
+  .tb-num {
+    width: 54px; height: 32px !important; padding: 0 6px !important;
+    text-align: center; font-size: 13px !important; font-weight: 500;
+    border-radius: 8px !important;
+  }
+  .tb-btn {
+    height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; color: var(--ink); font-family: inherit; font-size: 13px;
+    font-weight: 500; cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout);
+  }
+  .tb-btn:hover { border-color: var(--muted-2); }
+  .tb-btn.quiet { border-color: transparent; color: var(--muted); }
+  .tb-btn.quiet:hover { border-color: var(--line); color: var(--danger); }
+  .tb-row .grow { margin-left: auto; }
+
+  /* ============ 结果提示 ============ */
+  .ok-line {
+    display: none; margin: 20px 0 0; padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--success);
+    font-size: 13.5px; line-height: 1.75; color: var(--ink-2);
+  }
+  .ok-line.active { display: block; }
+  .ok-line b { color: var(--ink); font-weight: 600; }
+
+  /* ============ 响应式 ============ */
+  @media (max-width: 1023px) {
+    .pdf-scroll { max-height: none; }
+    .crew-wrap { max-height: none; }
+  }
+  /* 390 宽下 5 个链接放不下，默认会折成两行（导航条变高、字还被拆开）。
+     改成单行 + 横向滑动，滑一下能看到「规则说明」。 */
+  @media (max-width: 768px) {
+    .localnav .ln-links { gap: 16px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+    .localnav .ln-links::-webkit-scrollbar { display: none; }
+    .localnav .ln-links a { flex: 0 0 auto; }
+  }
+  @media (max-width: 860px) {
+    .strip .summary-card input { font-size: 22px; }
+    .strip .summary-card input[type="date"] { font-size: 19px; }
+    .strip .summary-card .value-sm { font-size: 16px; }
+    .zoom { margin-left: auto; }
+    .tb-row { padding: 12px 16px; }
+    table.crew thead th { padding: 10px 8px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 主视觉（与首页 / 01 同一套）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>04</b>机组名单导出</span>
+    </div>
+  </header>
+
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">04</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>机组名单导出</h1>
+    <p class="lede">上传指挥长导出的 GD 单，照单录入机组信息，一键生成可申报的机组名单 Excel。</p>
+  </section>
+
+  <div class="localnav">
+    <div class="localnav-inner">
+      <span class="ln-t">机组名单导出</span>
+      <nav class="ln-links">
+        <a href="#uploadArea">导入 GD 单</a>
+        <a href="#flightInfo">航班信息</a>
+        <a href="#pdfCard">GD 单原图</a>
+        <a href="#crewCard">机组名单</a>
+        <a href="#rulesPanel">规则说明</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- ================= 第一步 · 导入 ================= -->
+    <div class="sec-h">
+      <span class="k">第一步</span>
+      <span class="t">导入 GD 单</span>
+      <span class="i">机组总申报单 · 单页或多页都可以</span>
+    </div>
+
+    <!-- ⚠️ 整块可点（JS 在 #uploadArea 上绑 click → fileInput.click()），
+         「选择文件」只是视觉提示，不要给它单独绑事件（会弹两次框）。 -->
+    <div class="upload-zone" id="uploadArea">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/>
+          <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/>
+        </svg>
+      </span>
+      <div class="uz-body">
+        <div class="text">把指挥长导出的 GD 单拖进来</div>
+        <div class="hint">.pdf ｜ 换一份单子直接再拖一次，已录数据会先问你</div>
+        <div class="filename" id="filename"></div>
+      </div>
+      <span class="uz-a">选择文件
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </span>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf">
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>正在打开 GD 单…</div>
+    </div>
+
+    <!-- ================= 结果区（选完文件后出现）================= -->
+    <div id="workArea" style="display:none">
+
+      <!-- ---------- 第二步 · 航班信息 ---------- -->
+      <div class="sec-h" id="flightInfo">
+        <span class="k">第二步</span>
+        <span class="t">核对航班信息</span>
+        <span class="i">照 GD 单上的 Flight No 和 Date 填，导出文件名跟着这里走</span>
+      </div>
+
+      <div class="summary-row strip">
+        <div class="summary-card">
+          <div class="card-top"><span class="label">航班号</span></div>
+          <input id="flightNo" type="text" placeholder="MU262" autocomplete="off" spellcheck="false" aria-label="航班号">
+          <div class="sub">GD 单右上角的 Flight No</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-top"><span class="label">日期</span></div>
+          <input id="flightDate" type="date" aria-label="航班日期">
+          <div class="sub">GD 单上的 Date</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-top"><span class="label">机组人数</span></div>
+          <div class="value" id="sumCrew">0</div>
+          <div class="sub" id="sumCrewSub">按单子上的人数建行</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-top"><span class="label">导出文件</span></div>
+          <div class="value-sm" id="sumFile">—</div>
+          <div class="sub">月.日 + 航班号，与模板同规矩</div>
+        </div>
+      </div>
+
+      <!-- ---------- GD 单原图 ---------- -->
+      <div class="sec-h" id="pdfCard">
+        <span class="k">原件</span>
+        <span class="t">GD 单原图</span>
+        <span class="i" id="pageInfo">对照录入，护照号以这张单子为准</span>
+      </div>
+
+      <div class="table-wrapper">
+        <div class="preview-head">
+          <span class="p-k">原件</span>
+          <span class="label">机组总申报单</span>
+          <span class="pinfo">看不清就放大</span>
+          <div class="zoom" id="zoomBar">
+            <button type="button" data-z="0.85">缩小</button>
+            <button type="button" data-z="1" class="on">适合</button>
+            <button type="button" data-z="1.5">放大</button>
+          </div>
+        </div>
+        <div class="pdf-scroll" id="pdfScroll"><div class="pdf-hint">正在渲染…</div></div>
+      </div>
+
+      <!-- ---------- 第三步 · 机组名单 ---------- -->
+      <div class="sec-h" id="crewCard">
+        <span class="k">第三步</span>
+        <span class="t">录入机组名单</span>
+        <span class="i">姓名和护照号照单抄，按回车跳到下一行同一列</span>
+      </div>
+
+      <div class="table-wrapper">
+        <div class="preview-head">
+          <span class="p-k">录入</span>
+          <span class="label">机组名单</span>
+          <span class="pinfo" id="pinfo">还没建行</span>
+        </div>
+
+        <div class="tb-row">
+          <span class="tb-lab">一次加</span>
+          <input class="tb-num" id="qty" type="number" value="2" min="1" max="30" aria-label="每次添加人数">
+          <button class="tb-btn" type="button" data-add="1-航线机长">机长</button>
+          <button class="tb-btn" type="button" data-add="2-副驾驶">副驾驶</button>
+          <button class="tb-btn" type="button" data-add="STW">乘务员</button>
+          <button class="tb-btn" type="button" data-add="4-安全员">安全员</button>
+          <span class="grow"></span>
+          <button class="tb-btn quiet" type="button" id="clearBtn">清空</button>
+        </div>
+
+        <div class="crew-wrap" id="crewWrap">
+          <table class="crew" id="crewTable">
+            <colgroup>
+              <col class="c-no"><col class="c-post"><col><col class="c-sex"><col class="c-nat"><col class="c-id"><col class="c-del">
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="c">#</th>
+                <th>职务</th>
+                <th>姓名（英文，与护照一致）</th>
+                <th class="c">性别</th>
+                <th>国籍 / 地区</th>
+                <th>护照号</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="crewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ---------- 操作行 ---------- -->
+      <div class="controls">
+        <button class="btn btn-success" id="exportBtn" type="button" onclick="exportXlsx()">导出 Excel</button>
+        <span class="info" id="ctlInfo">导出前再对一遍姓名和护照号</span>
+      </div>
+
+      <div class="ok-line" id="okLine"></div>
+
+    </div>
+
+    <!-- ================= 规则说明 ================= -->
+    <div class="rules-panel" id="rulesPanel">
+      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+        <div class="title">
+          <span class="r-k">规则</span>
+          <span class="r-t">机组名单导出规则说明</span>
+          <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+        </div>
+        <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+      </div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          本工具把 GD 单（GENERAL DECLARATION，机组总申报单）上的机组信息，按固定模板整理成可申报的机组名单 Excel。
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>为什么不能全自动：</b>GD 单是「打印成 PDF」的整页图片，文件里没有文字层，程序读不出内容。所以这里是<b>看原单、照单录入</b>，护照号由人眼把关（这类材料错一个字母就要返工，机器识别不敢替你把关）。</li>
+            <li><b>职务对照：</b><code>CA</code> → 1-航线机长；<code>FO</code> → 2-副驾驶；<code>STW</code> → 第一个算 3-乘务长、其余算 5-乘务员；<code>SEC</code> → 4-安全员。</li>
+            <li><b>性别：</b>GD 单上的 <code>M</code> / <code>F</code> 对应模板的 <code>M - 男</code> / <code>F - 女</code>，点一下按钮即可切换。</li>
+            <li><b>国籍：</b>GD 单护照号前那段 <code>CN</code> 就是国籍代码，默认 <code>CN-中国</code>，外籍机组可在行内改。</li>
+            <li><b>证件类型：</b>统一按 <code>14-普通护照</code> 填（GD 单上以 SE 开头的都是普通护照）。</li>
+            <li><b>导出模板：</b>原样使用「机组名单 / 货物明细 / 参数」三个 sheet 的官方模板。第 1 行表头、第 2 行说明行一字不动，数据从第 3 行开始写，序号自动连续；货物明细按惯例留空。</li>
+            <li><b>文件名：</b>按 GD 单上的信息命名，格式 <code>月.日 + 航班号</code>，例如 <code>10.23MU262.xlsx</code>。</li>
+            <li><b>人数：</b>模板自带 20 行格式行；超过 20 人时自动续行并沿用同一套边框与居中。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+<script>
+/* ================= 基础常量 ================= */
+var D = window.CREW_DATA || {nations:[], posts:[], idTypes:[], sexes:[]};
+var SEX_M = 'M - 男', SEX_F = 'F - 女';
+var NAT_DEFAULT = 'CN-中国';
+var ID_DEFAULT = '14-普通护照';
+var TEMPLATE_ROWS = 20;          // 模板自带格式行 r3–r22
+
+var rows = [];                   // {post, name, sex, nat, id}
+var pdfDoc = null;
+var currentFile = '';
+var zoomFactor = 1;
+
+var $ = function(id){ return document.getElementById(id); };
+
+/* ================= 提示 ================= */
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function showErr(html){
+  var m = $('errorMsg');
+  m.innerHTML = html;
+  m.classList.add('active');
+  $('okLine').classList.remove('active');
+}
+function hideErr(){ $('errorMsg').classList.remove('active'); }
+function showOk(html){
+  var m = $('okLine');
+  m.innerHTML = html;
+  m.classList.add('active');
+  hideErr();
+}
+function hideOk(){ $('okLine').classList.remove('active'); }
+function setLoading(on){ $('loading').classList.toggle('active', !!on); }
+
+/* ================= 录入表渲染 ================= */
+function postOptions(cur){
+  var h = '';
+  D.posts.forEach(function(p){
+    h += '<option value="' + esc(p) + '"' + (p === cur ? ' selected' : '') + '>' + esc(p) + '</option>';
+  });
+  return h;
+}
+function natOptions(cur){
+  var h = '';
+  D.nations.forEach(function(n){
+    h += '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>';
+  });
+  return h;
+}
+
+function renderRows(){
+  var body = $('crewBody');
+  if (!rows.length){
+    body.innerHTML = '<tr><td colspan="7"><div class="crew-empty">还没有人。用上面的「一次加 · 机长 / 副驾驶 / 乘务员 / 安全员」按 GD 单上的人数建行。</div></td></tr>';
+    updateCount();
+    return;
+  }
+  var html = '';
+  rows.forEach(function(r, i){
+    html += '<tr data-i="' + i + '">'
+      + '<td class="no">' + (i+1) + '</td>'
+      + '<td><select data-k="post">' + postOptions(r.post) + '</select></td>'
+      + '<td><input data-k="name" type="text" value="' + esc(r.name) + '" placeholder="HONG DONGXU" autocomplete="off" spellcheck="false"></td>'
+      + '<td><button type="button" class="sex-btn' + (r.sex === SEX_F ? ' f' : '') + '" data-k="sex">' + (r.sex === SEX_F ? '女' : '男') + '</button></td>'
+      + '<td><select data-k="nat">' + natOptions(r.nat) + '</select></td>'
+      + '<td><input data-k="id" class="mono" type="text" value="' + esc(r.id) + '" placeholder="SE1031466" autocomplete="off" spellcheck="false"></td>'
+      + '<td><button type="button" class="del" data-k="del" title="删除这一行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></td>'
+      + '</tr>';
+  });
+  body.innerHTML = html;
+  updateCount();
+}
+
+function updateCount(){
+  $('sumCrew').textContent = rows.length;
+  $('sumCrewSub').textContent = !rows.length ? '按单子上的人数建行'
+    : (rows.length > TEMPLATE_ROWS ? '已超模板 20 行，导出时自动续行' : '模板 20 行，够用');
+  $('pinfo').textContent = rows.length ? '共 ' + rows.length + ' 人' : '还没建行';
+  renderFname();
+}
+
+function renderFname(){
+  var no = ($('flightNo').value || '').trim().toUpperCase();
+  var d = $('flightDate').value || todayStr();
+  var parts = d.split('-');
+  var name = (parts[1] ? Number(parts[1]) : '') + '.' + (parts[2] ? Number(parts[2]) : '') + (no || '航班号');
+  $('sumFile').textContent = name + '.xlsx';
+  $('ctlInfo').textContent = '导出文件名 ' + name + '.xlsx　·　导出前再对一遍姓名和护照号';
+}
+
+/* ================= 交互 ================= */
+document.addEventListener('DOMContentLoaded', function(){
+  $('flightDate').value = todayStr();
+  renderRows();
+  renderFname();
+
+  // ---- 表格：值回写 / 性别切换 / 删行 / 回车跳下一行 ----
+  $('crewBody').addEventListener('input', function(e){
+    var el = e.target, k = el.getAttribute('data-k');
+    if (!k || k === 'del' || k === 'sex') return;
+    var tr = el.closest('tr'), i = +tr.getAttribute('data-i');
+    if (rows[i]) rows[i][k] = el.value;
+  });
+
+  $('crewBody').addEventListener('change', function(e){
+    var el = e.target, k = el.getAttribute('data-k');
+    if (k !== 'post' && k !== 'nat') return;
+    var tr = el.closest('tr'), i = +tr.getAttribute('data-i');
+    if (rows[i]) rows[i][k] = el.value;
+  });
+
+  $('crewBody').addEventListener('click', function(e){
+    var el = e.target.closest('[data-k]');
+    if (!el) return;
+    var k = el.getAttribute('data-k');
+    var tr = el.closest('tr'), i = +tr.getAttribute('data-i');
+    if (!rows[i]) return;
+    if (k === 'sex'){
+      rows[i].sex = rows[i].sex === SEX_F ? SEX_M : SEX_F;
+      el.textContent = rows[i].sex === SEX_F ? '女' : '男';
+      el.classList.toggle('f', rows[i].sex === SEX_F);
+    } else if (k === 'del'){
+      rows.splice(i, 1);
+      renderRows();
+    }
+  });
+
+  // 回车跳到下一行同一列，录得快
+  $('crewBody').addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    var el = e.target;
+    if (el.tagName !== 'INPUT') return;
+    e.preventDefault();
+    var tr = el.closest('tr'), i = +tr.getAttribute('data-i');
+    var next = $('crewBody').querySelector('tr[data-i="' + (i+1) + '"] input[data-k="' + el.getAttribute('data-k') + '"]');
+    if (next) { next.focus(); next.select && next.select(); }
+  });
+
+  // ---- 航班号 / 日期 ----
+  $('flightNo').addEventListener('input', function(){
+    this.value = this.value.toUpperCase().replace(/\s/g, '');
+    renderFname();
+  });
+  $('flightDate').addEventListener('change', renderFname);
+
+  // ---- 缩放 ----
+  $('zoomBar').addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    zoomFactor = parseFloat(b.getAttribute('data-z'));
+    Array.prototype.forEach.call($('zoomBar').children, function(x){ x.classList.toggle('on', x === b); });
+    renderPdf();
+  });
+
+  // ---- 清空 ----
+  $('clearBtn').addEventListener('click', function(){
+    if (!rows.length){ hideOk(); return; }
+    if (!confirm('清空已录入的 ' + rows.length + ' 人？')) return;
+    rows = [];
+    renderRows();
+    hideOk();
+  });
+
+  // ---- 快捷加人 ----
+  Array.prototype.forEach.call(document.querySelectorAll('.tb-row button[data-add]'), function(b){
+    b.addEventListener('click', function(){
+      var n = Math.max(1, Math.min(30, parseInt($('qty').value, 10) || 1));
+      var post = b.getAttribute('data-add');
+      // 性别按职务给默认值：机上乘务岗以女性居多，机长/副驾/安全员多为男性，点错了行内一键切换
+      var defaultSex = function(p){ return (p === '3-乘务长' || p === '5-乘务员') ? SEX_F : SEX_M; };
+      for (var i = 0; i < n; i++){
+        var p = post;
+        if (post === 'STW'){
+          // 第一个算乘务长，之后都是乘务员；已有乘务长就不再追加
+          var hasChief = rows.some(function(r){ return r.post === '3-乘务长'; });
+          p = (i === 0 && !hasChief) ? '3-乘务长' : '5-乘务员';
+        }
+        rows.push({ post: p, name: '', sex: defaultSex(p), nat: NAT_DEFAULT, id: '' });
+      }
+      if (!rows.length) return;
+      hideOk();
+      renderRows();
+      // 新行建完直接定位到第一行的姓名格
+      var first = $('crewBody').querySelector('tr[data-i="' + (rows.length - n) + '"] input[data-k="name"]');
+      if (first){
+        first.focus();
+        $('crewCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  // ---- 上传（整块可点 + 拖拽）----
+  var zone = $('uploadArea');
+  zone.addEventListener('click', function(){ $('fileInput').click(); });
+  ['dragenter','dragover'].forEach(function(ev){
+    zone.addEventListener(ev, function(e){
+      e.preventDefault(); zone.classList.add('dragover');
+    });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    zone.addEventListener(ev, function(e){
+      e.preventDefault(); zone.classList.remove('dragover');
+    });
+  });
+  zone.addEventListener('drop', function(e){
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadPdf(f);
+  });
+  $('fileInput').addEventListener('change', function(e){
+    var f = e.target.files && e.target.files[0];
+    if (f) loadPdf(f);
+  });
+});
+
+/* ================= PDF 渲染 ================= */
+async function loadPdf(file){
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf'){
+    showErr('这不是 PDF 文件。请上传指挥长导出的 GD 单 .pdf。');
+    return;
+  }
+  // 换单前先问：已录数据会丢
+  if (rows.length && !confirm('换一份 GD 单会清空当前已录的 ' + rows.length + ' 人，确定？')){
+    $('fileInput').value = '';
+    return;
+  }
+  if (rows.length){ rows = []; renderRows(); }
+  hideErr(); hideOk();
+  setLoading(true);
+
+  try {
+    var pdfjs = await import('./libs/pdfjs/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
+    var buf = await file.arrayBuffer();
+    pdfDoc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+
+    currentFile = file.name;
+    $('filename').textContent = file.name;
+    $('workArea').style.display = 'block';
+    $('pageInfo').textContent = pdfDoc.numPages > 1
+      ? '共 ' + pdfDoc.numPages + ' 页 · 对照录入，护照号以这张单子为准'
+      : '对照录入，护照号以这张单子为准';
+
+    // 文件名里带航班号的话（752.pdf / MU752.pdf）先填上，省一次输入
+    var guess = (file.name.match(/([A-Z]{2}\d{3,4})/i) || [])[1];
+    if (guess && !$('flightNo').value){ $('flightNo').value = guess.toUpperCase(); renderFname(); }
+
+    await renderPdf();
+    setLoading(false);
+    $('flightInfo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 桌面端直接把光标放到「航班号」——单子上第一个要抄的就是它。
+    // 手机不抢焦点，否则键盘一弹就盖住半屏。
+    if (window.innerWidth > 768) setTimeout(function(){ $('flightNo').focus(); }, 420);
+    if (!rows.length) showOk('GD 单已打开。按单子上的人数点「一次加」建行，再逐行录姓名和护照号。');
+  } catch (e) {
+    setLoading(false);
+    console.error(e);
+    showErr('这份 PDF 打不开：' + esc(e && e.message ? e.message : e) + '。若文件有密码，请先在系统里去掉密码再上传。');
+  }
+}
+
+async function renderPdf(){
+  if (!pdfDoc) return;
+  var host = $('pdfScroll');
+  host.innerHTML = '<div class="pdf-hint">正在渲染…</div>';
+  var dpr = window.devicePixelRatio > 1 ? 2 : 1;
+  var baseW = Math.max(320, host.clientWidth - 36);
+  host.innerHTML = '';
+  for (var i = 1; i <= pdfDoc.numPages; i++){
+    var page = await pdfDoc.getPage(i);
+    var vp1 = page.getViewport({ scale: 1 });
+    var cssW = Math.round(baseW * zoomFactor);
+    var scale = (cssW / vp1.width) * dpr;
+    var vp = page.getViewport({ scale: scale });
+    var cv = document.createElement('canvas');
+    cv.width = Math.floor(vp.width);
+    cv.height = Math.floor(vp.height);
+    cv.style.width = cssW + 'px';
+    host.appendChild(cv);
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  }
+}
+
+/* ================= 校验 ================= */
+function validate(){
+  var errs = [];
+  var no = ($('flightNo').value || '').trim();
+  if (!no) errs.push('还没填航班号（导出文件名要用）');
+  if (!rows.length) errs.push('一个人都没录');
+
+  var seen = {};
+  rows.forEach(function(r, i){
+    var n = (r.name || '').trim();
+    var id = (r.id || '').trim();
+    if (!n) errs.push('第 ' + (i+1) + ' 行姓名为空');
+    if (!id) errs.push('第 ' + (i+1) + ' 行护照号为空');
+    if (id){
+      if (seen[id]) errs.push('护照号 ' + id + ' 在第 ' + seen[id] + ' 行和第 ' + (i+1) + ' 行重复');
+      else seen[id] = i + 1;
+    }
+    if (n && !/^[A-Za-z][A-Za-z\s\/'\-\.]+$/.test(n)) errs.push('第 ' + (i+1) + ' 行姓名请只填英文（与护照一致）');
+  });
+  return errs;
+}
+
+/* ================= 导出 ================= */
+function b64ToArrayBuffer(b64){
+  var bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+// xlsx-populate 读不了「样式对象」，只能逐属性取；undefined 的跳过
+var STYLE_PROPS = ['fontSize','fontFamily','bold','italic','horizontalAlignment','verticalAlignment','wrapText','border','fill'];
+function copyStyle(srcCell, dstCell){
+  var o = {};
+  STYLE_PROPS.forEach(function(p){
+    try { var v = srcCell.style(p); if (v !== undefined) o[p] = v; } catch (e) {}
+  });
+  dstCell.style(o);
+}
+
+async function exportXlsx(){
+  var errs = validate();
+  if (errs.length){
+    showErr('还不能导出：<br>' + errs.slice(0, 6).map(function(s){ return '· ' + esc(s); }).join('<br>')
+      + (errs.length > 6 ? '<br>…还有 ' + (errs.length - 6) + ' 条' : ''));
+    $('crewCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  hideErr(); hideOk();
+  var btn = $('exportBtn');
+  var old = btn.textContent;
+  btn.disabled = true; btn.textContent = '正在生成…';
+
+  try {
+    if (!window.CREW_TEMPLATE_B64) throw new Error('模板没加载出来，请刷新页面');
+    if (!window.XlsxPopulate) throw new Error('Excel 组件没加载出来，请刷新页面');
+
+    var wb = await window.XlsxPopulate.fromDataAsync(b64ToArrayBuffer(window.CREW_TEMPLATE_B64));
+    var ws = wb.sheet('机组名单');
+    var n = rows.length;
+    var lastRow = Math.max(TEMPLATE_ROWS, n);
+
+    // 1) 先清空模板自带的数据（第 2 行说明行、第 1 行表头一律不碰）
+    for (var r = 3; r < 3 + lastRow; r++){
+      ws.cell(r, 1).value(null);
+      for (var c = 2; c <= 8; c++) ws.cell(r, c).value(null);
+    }
+
+    // 2) 超过模板 20 行时，把 r22 的样式逐格复制下来（否则新行没有边框）
+    if (n > TEMPLATE_ROWS){
+      for (var r2 = 3 + TEMPLATE_ROWS; r2 < 3 + n; r2++){
+        for (var c2 = 1; c2 <= 8; c2++) copyStyle(ws.cell(3 + TEMPLATE_ROWS - 1, c2), ws.cell(r2, c2));
+      }
+    }
+
+    // 3) 写数据：序号 / 姓名 / 性别 / 国籍 / 职务 / 证件类型 / 证件号
+    rows.forEach(function(row, i){
+      var r3 = 3 + i;
+      ws.cell(r3, 1).value(String(i + 1));
+      ws.cell(r3, 2).value((row.name || '').trim().toUpperCase());
+      ws.cell(r3, 3).value(row.sex === SEX_F ? SEX_F : SEX_M);
+      ws.cell(r3, 4).value(row.nat || NAT_DEFAULT);
+      ws.cell(r3, 5).value(row.post);
+      ws.cell(r3, 6).value(ID_DEFAULT);
+      ws.cell(r3, 7).value((row.id || '').trim().toUpperCase());
+    });
+
+    var blob = await wb.outputAsync();
+
+    // 文件名：月.日 + 航班号
+    var dparts = ($('flightDate').value || todayStr()).split('-');
+    var fname = Number(dparts[1]) + '.' + Number(dparts[2]) + ($('flightNo').value || '').trim().toUpperCase() + '.xlsx';
+
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+
+    showOk('已导出 <b>' + esc(fname) + '</b>，共 ' + n + ' 人。'
+      + (n > TEMPLATE_ROWS ? '（超过模板 20 行，已自动续行并沿用格式）' : '')
+      + '<br>模板的「机组名单 / 货物明细 / 参数」三个 sheet、表头与说明行均未改动，货物明细按惯例留空。');
+  } catch (e) {
+    console.error(e);
+    showErr('导出失败：' + esc(e && e.message ? e.message : e));
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+</script>
+</body>
+</html>
