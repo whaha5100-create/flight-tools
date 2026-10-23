@@ -296,6 +296,10 @@ function hideResult() {
   skipBox.style.display = 'none';
   controls.style.display = 'none';
   previewBody.innerHTML = '';
+  // 换文件时把上一份导出一并作废，免得下到旧数据
+  window.__lastBlob = null;
+  window.__lastBlobPending = null;
+  window.__lastOut = null;
 }
 
 // ================ Render: Summary ================
@@ -383,6 +387,290 @@ function renderWarn(list, box, labelId, labelText, warnStyle) {
 }
 
 // ================ Build workbook (download) ================
+// 🔥 2026-10-23：导出改成「拿海关官方模板当母版填数」。
+//   以前是 aoa_to_sheet 凭空造表 —— 只有一个 sheet、没有合并的标题行、
+//   没有红字必填表头、没有行高，更没有第二个 sheet「国籍地区代码」（305 条）。
+//   母版 = 官方模板剥掉真旅客数据后的骨架，由 .workbuddy-ai/tools/build-master.py 产出。
+//   SheetJS 社区版写不了单元格样式（字体色/填充/对齐），所以填充用 xlsx-populate
+//   —— 这个库本来就在包里（解密用），只是改成导出时也加载。
+const TEMPLATE_SRC = 'template/hg-upload-template.b64.js';
+
+// 母版里预置了多少行「有格式无值」的空行（build-master.py 的第 3 个参数）。
+// 正常航班不会超过它；超了才由代码补样式（见 buildFromTemplate 的兜底分支）。
+const PRESET_ROWS = 350;
+
+// 补样式用的逐列数字格式，与官方模板逐格比对过。
+// ⚠️ 反斜杠要保留：官方文件里存的就是 `yyyy\-mm\-dd;@` 这一串。
+const DATA_NUMFMT = {
+  1: '0_ ',
+  4: 'yyyy\\-mm\\-dd;@',
+  5: '@',
+  8: '[$-409]yyyy\\-mm\\-dd;@'
+};
+
+let tplLibPromise = null;
+function loadTemplateLib() {
+  if (window.HG_TEMPLATE_B64) return Promise.resolve();
+  if (tplLibPromise) return tplLibPromise;
+  tplLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = TEMPLATE_SRC;
+    s.onload = () => (window.HG_TEMPLATE_B64 ? resolve() : reject(new Error('模板未初始化')));
+    s.onerror = () => { tplLibPromise = null; reject(new Error('模板加载失败')); };
+    document.head.appendChild(s);
+  });
+  return tplLibPromise;
+}
+
+// Excel 日期序列值（1899-12-30 起算，1900 闰年 bug 之后的标准算法）。
+// 🔥 绝不写 new Date()：JS 的 Date 带时区，交给库转序列值时会整天偏移
+//   （历史上踩过 —— 2026-04-08 写进去变 04-07）。直接算数字最稳，也跟官方
+//   模板里的存法完全一致（官方 D 列就是 46120 这种数字 + 日期格式）。
+function excelSerial(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd == null ? '' : ymd).trim());
+  if (!m) return null;
+  const utc = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
+}
+
+// 用母版生成导出文件，返回 Blob
+async function buildFromTemplate(res) {
+  await loadTemplateLib();
+  await loadDecryptLib();               // 同一个库：XlsxPopulate
+  const bin = atob(window.HG_TEMPLATE_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+  const wb = await XlsxPopulate.fromDataAsync(bytes);
+  const ws = wb.sheet('Sheet1');
+
+  // outRows 前两行是「标题 + 表头」，母版里已经有了 → 只取数据行
+  const body = res.outRows.slice(2);
+  let last = 2;                       // 最后一行数据的行号（无数据时 = 表头行）
+  if (body.length) {
+    last = body.length + 2;
+    const rows = body.map((r) => [
+      r[0], r[1], r[2],
+      excelSerial(r[3]),              // D 航班日期 → 序列值
+      r[4], r[5], r[6],
+      excelSerial(r[7]),              // H 出生日期 → 序列值
+      r[8], r[9], r[10]
+    ]);
+    // 🔥 只写 A–K。L–O 官方模板里一直是空，**不要往里写 null** ——
+    //   实测往空单元格写 null 会让 xlsx-populate 把它的格式改掉
+    //   （L3 从 General 变成 @、垂直对齐变成 center）。
+    //   不碰它，母版里的样式就原样保留。
+    // 🔥 而且只写值、**绝不调 .style()**：xlsx-populate 不去重样式，逐格套样式会让
+    //   styles.xml 从 33 条 fills 涨到 4000+ 条、文件里塞满空 <fill/>。
+    ws.range('A3:K' + last).value(rows);
+
+    // 兜底：万一超过母版预置的行数（350），超出的部分只能现补样式
+    if (last > PRESET_ROWS + 2) {
+      const from = PRESET_ROWS + 3;
+      ws.range('A' + from + ':K' + last).style({
+        fontFamily: '宋体', fontSize: 11,
+        horizontalAlignment: 'center', verticalAlignment: 'center',
+        border: true, borderStyle: 'thin'
+      });
+      ws.range('L' + from + ':O' + last).style({ fontFamily: '宋体', fontSize: 11 });
+      Object.keys(DATA_NUMFMT).forEach((k) => {
+        const col = String.fromCharCode(64 + Number(k));
+        ws.range(col + from + ':' + col + last).style('numberFormat', DATA_NUMFMT[k]);
+      });
+      ws.range('J' + from + ':J' + last).style('numberFormat', '@');
+    }
+  }
+
+  const blob = await wb.outputAsync();   // 浏览器里返回 Blob
+  try {
+    const fixed = await postProcessXlsx(await blob.arrayBuffer(), last);
+    if (fixed) return new Blob([fixed], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+  } catch (e) {
+    console.warn('导出后处理跳过（不影响下载）：', e);
+  }
+  return blob;
+}
+
+// ============ 导出后处理（两处小修补，都是 xlsx-populate 的锅）============
+// 1) 它序列化 styles.xml 时会把 fill[0] 写成 `<patternFill/>`（丢了 patternType="none"）。
+//    这个写法本身合 schema，Excel / WPS / LibreOffice 都照开，但 openpyxl（Python 侧
+//    最常用的库，pandas.read_excel 也用它）会直接抛 TypeError 读不了。
+//    海关那边的系统万一是 Python 写的就废了 —— 所以把这一处改回去。
+// 2) 母版预置了 350 行「有格式无值」的空行（见 build-master.py）。导出只有 N 行数据时，
+//    后面那些空行要剪掉，不然打开一看是一大片空网格。
+// 做法：只重写 zip 里的 xl/styles.xml 和 xl/worksheets/sheet1.xml 这两条，其余原样搬。
+// 任何一步不对就返回 null，退回未处理的 Blob（宁可有点小毛病，不能导不出来）。
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function inflateRaw(u8) {
+  if (typeof DecompressionStream === 'undefined') throw new Error('浏览器不支持 DecompressionStream');
+  const ds = new DecompressionStream('deflate-raw');
+  const stream = new Blob([u8]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// 改写过的条目要重新压一下：sheet1.xml 裸着有 150KB+，压完才 20KB
+async function deflateRaw(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  const cs = new CompressionStream('deflate-raw');
+  const stream = new Blob([u8]).stream().pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function postProcessXlsx(buf, lastDataRow) {
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  // 1) 找 EOCD
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('找不到 zip 目录');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+
+  // 2) 读中央目录
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('中央目录损坏');
+    const nameLen = dv.getUint16(p + 28, true);
+    const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+    entries.push({
+      name,
+      flags: dv.getUint16(p + 8, true),
+      method: dv.getUint16(p + 10, true),
+      time: dv.getUint16(p + 12, true),
+      date: dv.getUint16(p + 14, true),
+      crc: dv.getUint32(p + 16, true),
+      csize: dv.getUint32(p + 20, true),
+      usize: dv.getUint32(p + 24, true),
+      offset: dv.getUint32(p + 42, true)
+    });
+    p += 46 + nameLen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  }
+
+  // 3) 需要改写哪几个条目
+  const transforms = {};
+  // 3a) styles.xml：把丢掉的 patternType="none" 补回去
+  transforms['xl/styles.xml'] = (xml) => (xml.indexOf('<patternFill/>') < 0
+    ? null
+    : xml.replace(/<patternFill\/>/g, '<patternFill patternType="none"/>'));
+  // 3b) sheet1.xml：剪掉数据行之后的空模板行（母版预置了 350 行）
+  if (lastDataRow) {
+    transforms['xl/worksheets/sheet1.xml'] = (xml) => {
+      const cut = xml.indexOf('<row r="' + (lastDataRow + 1) + '"');
+      const end = xml.indexOf('</sheetData>');
+      if (cut < 0 || end < 0 || cut > end) return null;
+      return xml.slice(0, cut) + xml.slice(end)
+        .replace(/<dimension ref="[^"]*"/, '<dimension ref="A1:O' + lastDataRow + '"');
+    };
+  }
+
+  // 4) 逐个解压 → 改写 → 压回去（压不了就裸存，只是文件大点，不影响打开）
+  const replaced = new Map();
+  for (const e of entries) {
+    const fn = transforms[e.name];
+    if (!fn) continue;
+    const lo = e.offset;
+    if (dv.getUint32(lo, true) !== 0x04034b50) throw new Error('本地文件头损坏');
+    const dataStart = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true);
+    const raw = u8.subarray(dataStart, dataStart + e.csize);
+    const plain = e.method === 0 ? raw : await inflateRaw(raw);
+    const out = fn(new TextDecoder().decode(plain));
+    if (out === null) continue;
+    const bytes = new TextEncoder().encode(out);
+    const packed = await deflateRaw(bytes);
+    // ⚠️ CRC 必须按**未压缩**的字节算（按压缩后的算 → zip 自检报 Bad CRC-32）
+    replaced.set(e.name, packed
+      ? { data: packed, method: 8, crc: crc32(bytes), usize: bytes.length }
+      : { data: bytes, method: 0, crc: crc32(bytes), usize: bytes.length });
+  }
+  if (!replaced.size) return null;      // 没有要改的，原样返回
+
+  // 5) 重新拼 zip：改写过的条目不压缩存，其余原样搬（连压缩数据都不解）
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let pos = 0;
+  const push = (arr) => { parts.push(arr); pos += arr.length; };
+
+  for (const e of entries) {
+    const nameBytes = enc.encode(e.name);
+    const newData = replaced.get(e.name);
+    let payload, method, crc, csize, usize;
+    if (newData) {
+      payload = newData.data; method = newData.method; crc = newData.crc;
+      csize = newData.data.length; usize = newData.usize;
+    } else {
+      const ds2 = e.offset + 30 + dv.getUint16(e.offset + 26, true) + dv.getUint16(e.offset + 28, true);
+      payload = u8.subarray(ds2, ds2 + e.csize);
+      method = e.method; crc = e.crc; csize = e.csize; usize = e.usize;
+    }
+    const start = pos;
+    const lh = new Uint8Array(30);
+    const ldv = new DataView(lh.buffer);
+    ldv.setUint32(0, 0x04034b50, true);
+    ldv.setUint16(4, 20, true);
+    ldv.setUint16(6, e.flags & 0x0800, true);   // 只保留 UTF-8 名标志，清掉 data descriptor
+    ldv.setUint16(8, method, true);
+    ldv.setUint16(10, e.time, true);
+    ldv.setUint16(12, e.date, true);
+    ldv.setUint32(14, crc, true);
+    ldv.setUint32(18, csize, true);
+    ldv.setUint32(22, usize, true);
+    ldv.setUint16(26, nameBytes.length, true);
+    ldv.setUint16(28, 0, true);
+    push(lh); push(nameBytes); push(payload);
+
+    const ch = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(ch.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint16(8, e.flags & 0x0800, true);
+    cdv.setUint16(10, method, true);
+    cdv.setUint16(12, e.time, true);
+    cdv.setUint16(14, e.date, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, csize, true);
+    cdv.setUint32(24, usize, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint32(42, start, true);
+    ch.set(nameBytes, 46);
+    central.push(ch);
+  }
+
+  const cdStart = pos;
+  central.forEach(push);
+  const cdSize = pos - cdStart;
+  const eo = new Uint8Array(22);
+  const edv = new DataView(eo.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(8, entries.length, true);
+  edv.setUint16(10, entries.length, true);
+  edv.setUint32(12, cdSize, true);
+  edv.setUint32(16, cdStart, true);
+  push(eo);
+
+  const out = new Uint8Array(pos);
+  let off = 0;
+  for (const part of parts) { out.set(part, off); off += part.length; }
+  return out;
+}
+
+// 兜底：模板路径失败时还能下载（旧的单 sheet 版），不至于点了没反应
 function buildWorkbook(res) {
   const ws = XLSX.utils.aoa_to_sheet(res.outRows);
   const widths = (window.MANIFEST_META && window.MANIFEST_META.COL_WIDTHS) || null;
@@ -401,8 +689,33 @@ function buildOutName(meta, file) {
   if (date && code) return '航班订票数据上传模板' + date + code + '.xlsx';
   return file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx';
 }
-function downloadResult() {
-  if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
+// 下载：优先用母版生成的 Blob；还没生成完就等一下；真失败了退回旧路径。
+// 行为对用户没变 —— 还是点一下就下载，文件名还是那个。
+async function downloadResult() {
+  if (window.__dlBusy) return;
+  window.__dlBusy = true;
+  const oldLabel = downloadBtn.textContent;
+  try {
+    if (!window.__lastBlob && window.__lastBlobPending) {
+      downloadBtn.textContent = '正在生成…';
+      try { await window.__lastBlobPending; } catch (e) { console.warn(e); }
+    }
+    if (window.__lastBlob) {
+      const url = URL.createObjectURL(window.__lastBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = window.__lastName || 'download.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return;
+    }
+    if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
+  } finally {
+    downloadBtn.textContent = oldLabel;
+    window.__dlBusy = false;
+  }
 }
 
 // ================ 加密名单解密（xlsx-populate，按需加载）================
@@ -517,6 +830,12 @@ async function doConvert() {
 
     window.__lastOut = buildWorkbook(res);
     window.__lastName = outName;
+    // 母版导出在后台做（要加载 642KB 的 xlsx-populate + 21KB 模板），
+    // 不挡住结果展示；用户点下载时若还没好，downloadResult 会等一下。
+    window.__lastBlob = null;
+    window.__lastBlobPending = buildFromTemplate(res)
+      .then((b) => { window.__lastBlob = b; return b; })
+      .catch((e) => { console.warn('模板导出失败，退回基础导出：', e); return null; });
   } catch (e) {
     loading.classList.remove('active');
     showError('转换出错：' + ((e && e.message) || e));
