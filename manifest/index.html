@@ -153,26 +153,26 @@
     <div class="table-scroll" id="previewBody"></div>
   </div>
 
-  <!-- Warnings -->
+  <!-- Warnings：非标准国籍的自动修正（CN→CHN 这种常规二字转换不列，避免刷屏） -->
   <div class="people-tags" id="warnBox" style="display:none">
-    <div class="label" id="warnLabel">国籍代码异常</div>
+    <div class="label" id="warnLabel">国籍已自动修正</div>
     <div class="ltable ltable-warn">
       <div class="lt-head">
         <span class="lt-c lt-no">行号</span>
         <span class="lt-c">姓名</span>
-        <span class="lt-c">异常代码</span>
+        <span class="lt-c">原值 → 修正为</span>
       </div>
       <div class="tag-list" id="warnTags"></div>
     </div>
   </div>
 
-  <!-- Skipped -->
+  <!-- Skipped：不完整 + 国籍无法识别（整行删除） -->
   <div class="people-tags" id="skipBox" style="display:none">
-    <div class="label" id="skipLabel">已跳过不完整记录</div>
+    <div class="label" id="skipLabel">已删除的记录</div>
     <div class="ltable ltable-skip">
       <div class="lt-head">
         <span class="lt-c">姓名</span>
-        <span class="lt-c">缺失项</span>
+        <span class="lt-c">原因</span>
       </div>
       <div class="tag-list" id="skipTags"></div>
     </div>
@@ -205,14 +205,15 @@
       <div class="rules-inner">
         <ul>
           <li><b>自动识别列：</b>按表头名称匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等字段，列序不同也能正确解析。</li>
-          <li><b>国籍代码：</b>二字码自动转三字码（<code>CN→CHN</code>、<code>US→USA</code>），并修正常见错别字；无法识别的国籍标黄提示你手动核查。</li>
+          <li><b>国籍代码：</b>以海关模板「国籍地区代码」全表（305 条）为准：二字码按 ISO 转三字码（<code>PE→PER</code>、<code>CN→CHN</code>、<code>US→USA</code>），也认中文名（<code>秘鲁→PER</code>）和常见错拼（<code>UK→GBR</code>、<code>SP→ESP</code>）。<b>认不出来的国籍不会硬猜——整行删除</b>，并在「已删除的记录」里写明原因和疑似值。</li>
+          <li><b>国籍自动修正：</b>非标准的换算（如 <code>CH→CHN</code>）会列在「国籍已自动修正」里供你复核；<code>CN→CHN</code> 这类常规二字转换不单独列出。</li>
           <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
           <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
           <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
           <li><b>出入境判定：</b>依据航班号——<b>单号出境、双号入境</b>：<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>；<code>FM883</code> 记为<b>出境</b>，<code>FM884</code> 记为<b>入境</b>。</li>
           <li><b>往来机场代码：</b>输出<b>英文 IATA 三字码</b>——<code>MU261 / MU262</code> 为 <code>MAD</code>（马德里），<code>MU751 / MU752</code> 为 <code>FCO</code>（罗马），<code>FM883 / FM884</code> 为 <code>BKK</code>（曼谷）；其它航班取非温州那一端的机场代码。</li>
           <li><b>上报口岸：</b>固定写入 <code>050-温州机场</code>。</li>
-          <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失的旅客行将被跳过，并在结果中单独列出，方便你补录。</li>
+          <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失，或国籍填了但认不出来的旅客行，<b>都会被整行删除</b>，并在「已删除的记录」中单独列出，方便你补录后重传。</li>
           <li><b>输出文件：</b>生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载上传。</li>
         </ul>
       </div>
@@ -343,15 +344,25 @@ function renderPreview(outRows) {
 
 // ================ Render: Warnings / Skipped ================
 // 把 convert.js 产出的提示串拆成表格列；格式不认识时返回 null，退回整行显示（不丢信息）。
-//   警告：「第3行 张三: 国籍代码异常 [ESP]，请手动核查」
-//   跳过：「张三: 缺少 姓名、证件号」
+//   自动修正：「第3行 张三: 国籍 [CH] 已自动修正为 CHN」
+//   已删除：  「张三: 缺少 姓名、证件号」
+//             「李四: 国籍 QQ9 无法识别、疑似 PER」
 function parseWarnItem(s) {
-  const m = /^第\s*(\d+)\s*行\s*(.*?)\s*[:：]\s*国籍代码异常\s*[[［]([^\]］]*)[\]］]/.exec(String(s));
-  return m ? { no: m[1], name: m[2] || '（无姓名）', code: m[3] } : null;
+  const m = /^第\s*(\d+)\s*行\s*(.*?)\s*[:：]\s*国籍\s*[[［]([^\]］]*)[\]］]\s*已自动修正为\s*(\S+)$/.exec(String(s));
+  return m ? { no: m[1], name: m[2] || '（无姓名）', code: m[3], to: m[4] } : null;
 }
 function parseSkipItem(s) {
-  const m = /^(.*?)\s*[:：]\s*缺少\s*(.+)$/.exec(String(s));
-  return m ? { name: m[1] || '（无姓名）', miss: m[2] } : null;
+  // 两种原因：`缺少 姓名、证件号`（没填）和 `国籍 PE 无法识别`（填了但认不出）
+  // 统一按「姓名: 原因」拆，再按「、」切成小标签。
+  // ⚠️ 「缺少」只写在第一个字段前面（convert.js 就是这么拼的）→ 这里给每一项补上，
+  //    否则标签只剩「证件号」，用户分不清是没填还是填错了。
+  const m = /^(.*?)\s*[:：]\s*(.+)$/.exec(String(s));
+  if (!m) return null;
+  let miss = m[2];
+  if (/^缺少\s*/.test(miss)) {
+    miss = miss.replace(/^缺少\s*/, '').split('、').map((x) => '缺少 ' + x).join('、');
+  }
+  return { name: m[1] || '（无姓名）', miss: miss };
 }
 function renderWarn(list, box, labelId, labelText, warnStyle) {
   const tags = document.getElementById(labelId === 'warnLabel' ? 'warnTags' : 'skipTags');
@@ -366,7 +377,9 @@ function renderWarn(list, box, labelId, labelText, warnStyle) {
         return '<div class="lt-row">'
           + '<span class="lt-c lt-no">' + escapeHtml(p.no) + '</span>'
           + '<span class="lt-c lt-name">' + escapeHtml(p.name) + '</span>'
-          + '<span class="lt-c"><span class="lt-code">' + escapeHtml(p.code) + '</span></span>'
+          + '<span class="lt-c"><span class="lt-code">' + escapeHtml(p.code) + '</span>'
+          + '<span class="lt-arrow">→</span>'
+          + '<span class="lt-to">' + escapeHtml(p.to) + '</span></span>'
           + '</div>';
       }
       const p = parseSkipItem(w);
@@ -493,15 +506,16 @@ async function buildFromTemplate(res) {
   return blob;
 }
 
-// ============ 导出后处理（两处小修补，都是 xlsx-populate 的锅）============
+// ============ 导出后处理（三处小修补，都是 xlsx-populate 的锅）============
 // 1) 它序列化 styles.xml 时会把 fill[0] 写成 `<patternFill/>`（丢了 patternType="none"）。
 //    这个写法本身合 schema，Excel / WPS / LibreOffice 都照开，但 openpyxl（Python 侧
 //    最常用的库，pandas.read_excel 也用它）会直接抛 TypeError 读不了。
 //    海关那边的系统万一是 Python 写的就废了 —— 所以把这一处改回去。
 // 2) 母版预置了 350 行「有格式无值」的空行（见 build-master.py）。导出只有 N 行数据时，
 //    后面那些空行要剪掉，不然打开一看是一大片空网格。
-// 做法：只重写 zip 里的 xl/styles.xml 和 xl/worksheets/sheet1.xml 这两条，其余原样搬。
-// 任何一步不对就返回 null，退回未处理的 Blob（宁可有点小毛病，不能导不出来）。
+// 3) 表头富文本：母版被 openpyxl 拍平后整行表头都是红的，这里补回「`*` 红 + 其余黑」。
+// 做法：只重写 zip 里的 xl/styles.xml、xl/sharedStrings.xml、xl/worksheets/sheet1.xml，
+// 其余原样搬。任何一步不对就返回 null，退回未处理的 Blob（宁可有点小毛病，不能导不出来）。
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
@@ -567,14 +581,39 @@ async function postProcessXlsx(buf, lastDataRow) {
   transforms['xl/styles.xml'] = (xml) => (xml.indexOf('<patternFill/>') < 0
     ? null
     : xml.replace(/<patternFill\/>/g, '<patternFill patternType="none"/>'));
-  // 3b) sheet1.xml：剪掉数据行之后的空模板行（母版预置了 350 行）
+  // 3b) 表头富文本：官方模板的表头是**两段 run** —— 只有 `*` 是红的，其余是黑的。
+  //     母版经 openpyxl 重存后被拍平成一整段纯文本，而单元格样式本身是红字（fontId=2）
+  //     ⇒ 导出后整行表头全红，跟官方对不上（2026-10-23 用户指出）。
+  //     这里在导出后处理里补回两段 run，效果与官方模板逐字一致。
+  const RPR_RED = '<rPr><sz val="11"/><color rgb="FFFF0000"/><rFont val="微软雅黑"/><charset val="134"/></rPr>';
+  const RPR_INK = '<rPr><sz val="11"/><color theme="1"/><rFont val="微软雅黑"/><charset val="134"/></rPr>';
+  const richRuns = (txt) => '<r>' + RPR_RED + '<t>*</t></r><r>' + RPR_INK
+    + '<t xml:space="preserve">' + txt.slice(1) + '</t></r>';
+  // 只处理「以 * 开头的单元格文本」，数据区不会命中（姓名/证件号不会以 * 打头）
+  const patchRich = (xml) => {
+    if (xml.indexOf('<r>') >= 0) return xml;      // 已经是富文本了，别重复包
+    return xml
+      .replace(/<si><t[^>]*>(\*[^<]*)<\/t><\/si>/g, (m, t) => '<si>' + richRuns(t) + '</si>')
+      .replace(/<is><t[^>]*>(\*[^<]*)<\/t><\/is>/g, (m, t) => '<is>' + richRuns(t) + '</is>');
+  };
+  transforms['xl/sharedStrings.xml'] = (xml) => {
+    const out = patchRich(xml);
+    return out === xml ? null : out;
+  };
+  // 3c) sheet1.xml：剪掉数据行之后的空模板行（母版预置了 350 行）+ 内联字符串兜底
   if (lastDataRow) {
     transforms['xl/worksheets/sheet1.xml'] = (xml) => {
       const cut = xml.indexOf('<row r="' + (lastDataRow + 1) + '"');
       const end = xml.indexOf('</sheetData>');
       if (cut < 0 || end < 0 || cut > end) return null;
-      return xml.slice(0, cut) + xml.slice(end)
+      const trimmed = xml.slice(0, cut) + xml.slice(end)
         .replace(/<dimension ref="[^"]*"/, '<dimension ref="A1:O' + lastDataRow + '"');
+      return patchRich(trimmed);
+    };
+  } else {
+    transforms['xl/worksheets/sheet1.xml'] = (xml) => {
+      const out = patchRich(xml);
+      return out === xml ? null : out;
     };
   }
 
@@ -821,8 +860,8 @@ async function doConvert() {
 
     renderSummary(res.meta);
     renderPreview(res.outRows);
-    renderWarn(res.warnings, warnBox, 'warnLabel', '国籍代码异常 · 需手动核查', true);
-    renderWarn(res.skipped, skipBox, 'skipLabel', '已跳过不完整记录', false);
+    renderWarn(res.warnings, warnBox, 'warnLabel', '国籍已自动修正', true);
+    renderWarn(res.skipped, skipBox, 'skipLabel', '已删除的记录', false);
 
     controls.style.display = 'flex';
     const outName = buildOutName(res.meta, file);

@@ -327,6 +327,12 @@
   background: var(--amber-soft); border: 1px solid var(--amber-line); color: var(--amber);
   font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .5px;
 }
+/* 卡片 01「原值 → 修正为」：琥珀=原值（要留意），墨色=改成的结果 */
+.ltable .lt-arrow { color: var(--muted); margin: 0 6px; font-size: 12px; }
+.ltable .lt-to {
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  letter-spacing: .5px; color: var(--ink);
+}
 .ltable .lt-miss { color: var(--ink-2); }
 .ltable .lt-chip {
   display: inline-block; margin: 2px 6px 2px 0; padding: 2px 9px; border-radius: 6px;
