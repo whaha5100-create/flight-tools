@@ -47,7 +47,12 @@
                          // 人数越多表格越长。固定按 20 行裁，人一多就漏行。
   var ROW_PAD = 0.004;   // 底边多留一点，免得最后一行字的下缘被切掉
 
-  var DUTY_OK = { CA: 1, FO: 1, STW: 1, SEC: 1 };
+  /* 职务白名单。CA 机长 / FO 副驾驶 / FE 飞行机械员 / STW 客舱 / SEC 安全员。
+     🔥 FE 是 2026-10-24 补的：FM824、MU256 两张单子上真有飞行机械员，
+        不在表里 → 那行不是锚点 → 整行丢 → 人数对不上 → 整张单子判失败。
+     🔥 别改成「职务列任意 2–3 位大写字母」：同一列里 `TTL` 也是 3 位大写，
+        那样会凭空多出一行。必须白名单。 */
+  var DUTY_OK = { CA: 1, FO: 1, FE: 1, STW: 1, SEC: 1 };
 
   /* ============================================================
      模式一：PDF 自带文字层，直接精确读
@@ -72,7 +77,14 @@
      万一打印缩放不同，比例关系不变。
      ============================================================ */
   var PASS_LOOSE = /^(?=.*\d)[A-Z][A-Z0-9]{5,11}$/;  // 放宽：字母开头、含数字、6~12 位
-  var DUTY_RE = /^(CA|FO|STW|SEC)$/;
+
+  /* 文字层里的职务常带尾部标点（实测 9 份单子里有 21 处 `STW.`），
+     直接拿正则匹配会漏掉这些行。先去标点、再查白名单。
+     ⚠️ 白名单不能放宽成「任意 2–3 位大写」：同一列里 `TTL` 也是 3 位大写。 */
+  function normDutyText(s) {
+    var d = String(s || '').toUpperCase().replace(/[^A-Z]/g, '');
+    return DUTY_OK[d] ? d : '';
+  }
 
   // 各列相对「职务列起点」的横向偏移（已除以页宽）
   // 上限压在国籍列之前，免得姓名尾巴把 CN 一起吃进来
@@ -125,7 +137,7 @@
 
     var anchors = [];
     for (var i = 0; i < items.length; i++) {
-      if (DUTY_RE.test(items[i].s.toUpperCase())) anchors.push(items[i]);
+      if (normDutyText(items[i].s)) anchors.push(items[i]);
     }
     if (!anchors.length) return null;
 
@@ -140,7 +152,7 @@
         if (Math.abs(items[j].y - an.y) <= tol) rowItems.push(items[j]);
       }
 
-      var duty = an.s.toUpperCase();
+      var duty = normDutyText(an.s);
 
       // 姓名：只留字母、撇号、点、横线、空格
       var name = pickBand(rowItems, an, pageW, COLOFF.name).toUpperCase()
@@ -194,6 +206,18 @@
       }
     }
     return 0;
+  }
+
+  /* 单子上到底有没有印 TTL 这一项。
+     用来区分「合计 0 人」和「压根没读到 TTL」——readTtl 两种都返回 0，
+     但含义完全不同：前者是空单子，后者只是没读出来。 */
+  function hasTtl(data) {
+    var items = data.items;
+    for (var i = 0; i < items.length; i++) {
+      var s = items[i].s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (s === 'TTL' || s === 'TOTAL') return true;
+    }
+    return false;
   }
 
   // 合并多页结果，重新算「第一个 STW 当乘务长」
@@ -362,12 +386,13 @@
       for (var p = 1; p <= totalPages; p++) pages.push(await readItems(pdfDoc, p));
     } catch (e) { pages = []; }
 
-    var fromText = [], ttl = 0, headTextAll = '';
+    var fromText = [], ttl = 0, headTextAll = '', ttlSeen = false;
     for (var pi = 0; pi < pages.length; pi++) {
       var part = parseTextLayer(pages[pi]);
       if (part && part.length) fromText = fromText.concat(part);
       var t = readTtl(pages[pi]);
       if (t) ttl = t;
+      if (hasTtl(pages[pi])) ttlSeen = true;
       headTextAll += ' ' + pages[pi].items.map(function (o) { return o.s; }).join(' ');
     }
 
@@ -393,6 +418,30 @@
         date: dmT ? dmT[0] : '',
         counts: { n: fromText.length },
         bad: { name: vT.badName || 0, pass: vT.badPass || 0, duty: vT.badDuty || 0 }
+      };
+    }
+
+    /* 有文字层、却连一个机组行都没有，而且单子上明明白白印着合计 0 人
+       —— 这是空单子（调机、无机组），不是认不出来。
+       以前这种会掉进下面的 OCR 分支，白等一次 5.8MB 识别引擎加载，
+       最后才说「没认出机组行」，让人以为是程序不行。直接给准确说法。
+       ⚠️ 只在「确实读到 TTL = 0」时才短路：如果 TTL 读不到（ttlSeen=false），
+          或者 TTL 有数但没有锚点（职务写法不认识），仍要走 OCR 再试一次。 */
+    if (ttlSeen && !ttl) {
+      var fmE = headTextAll.match(/\b[A-Z]{2}\d{3,4}\b/);
+      var dmE = headTextAll.match(/(19|20)\d{2}-\d{2}-\d{2}/);
+      return {
+        ok: false,
+        reason: '这张单子上没有机组行（合计 0 人）',
+        mode: 'text',
+        rows: [],
+        found: 0,
+        ttl: 0,
+        pages: totalPages,
+        flightNo: fmE ? fmE[0] : '',
+        date: dmE ? dmE[0] : '',
+        counts: { n: 0 },
+        bad: { name: 0, pass: 0, duty: 0 }
       };
     }
 

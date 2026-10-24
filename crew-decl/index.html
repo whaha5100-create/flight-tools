@@ -414,7 +414,7 @@
         <div class="rules-inner">
           <ul>
             <li><b>机组信息怎么来的：</b>分两种情况，自动判断。<b>单子里有文字</b>（浏览器或 WPS 打印出来的 PDF），直接把字符读出来，一个不差；<b>文字被转成了曲线</b>（「Microsoft Print to PDF」打印的老单子，看着像字其实是画出来的形状），就逐列识别（OCR）。两种都在你自己的浏览器里跑，<b>单子不上传任何服务器，断网也能用</b>。填进来的行标成浅黄，扫一眼确认再导出 —— 护照号错一个字母就要返工，最后这道眼还得过。</li>
-            <li><b>职务对照：</b><code>CA</code> → 1-航线机长；<code>FO</code> → 2-副驾驶；<code>STW</code> → 第一个算 3-乘务长、其余算 5-乘务员；<code>SEC</code> → 4-安全员。</li>
+            <li><b>职务对照：</b><code>CA</code> → 1-航线机长；<code>FO</code> → 2-副驾驶；<code>FE</code> → 6-机械师；<code>STW</code> → 第一个算 3-乘务长、其余算 5-乘务员；<code>SEC</code> → 4-安全员。</li>
             <li><b>性别：</b>GD 单上的 <code>M</code> / <code>F</code> 对应模板的 <code>M - 男</code> / <code>F - 女</code>，点一下按钮即可切换。</li>
             <li><b>国籍：</b>GD 单护照号前那段 <code>CN</code> 就是国籍代码，默认 <code>CN-中国</code>，外籍机组可在行内改。</li>
             <li><b>证件类型：</b>统一按 <code>14-普通护照</code> 填（GD 单上以 SE 开头的都是普通护照）。</li>
@@ -731,6 +731,7 @@ var ocrRunning = false;
 function postFromDuty(r){
   if (r.duty === 'CA') return '1-航线机长';
   if (r.duty === 'FO') return '2-副驾驶';
+  if (r.duty === 'FE') return '6-机械师';
   if (r.duty === 'SEC') return '4-安全员';
   if (r.duty === 'STW') return r.isFirstStw ? '3-乘务长' : '5-乘务员';
   return '5-乘务员';
@@ -769,6 +770,14 @@ async function startOcr(){
     if (!r.ok){
       bar.classList.add('fail');
       var cntWrong = r.ttl && r.found !== undefined && r.ttl !== r.found;
+      // 空单子（合计 0 人）不是「没认准」，别让人以为是程序不行
+      var isEmptyForm = (r.reason || '').indexOf('没有机组行') >= 0;
+      if (isEmptyForm){
+        title.textContent = '这张单子上没有机组行';
+        sub.textContent = '单子上的合计人数是 0，表格里也没有机组。如果是调机或空单子，就不用填；'
+          + '如果原件上确实有人，说明这张是扫描件或版式不认识，照左边原件手录。';
+        return;
+      }
       title.textContent = cntWrong ? '人数对不上，我没自动填' : '这张单子没认准，我没自动填';
       sub.textContent = (r.reason ? r.reason + '。' : '')
         + (cntWrong
