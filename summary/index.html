@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航班运量汇总 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="录入东航/上航/中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算表达式。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="航班运量汇总 · 航班工作工具集">
+<meta property="og:description" content="录入东航/上航/中联航运量，自动汇总东上航、联航与总计，输入框支持四则运算表达式。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/summary/index.html">
+<meta name="theme-color" content="#ffffff">
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* ============ summary · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+/* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============ IO Table ============ */
+  table.io-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.io-table th, table.io-table td { border: 1px solid var(--line); padding: 9px 10px; text-align: center; }
+table.io-table thead th { background: var(--tool-light); color: var(--ink-2); font-weight: 600; }
+table.io-table td.al { background: var(--tool-light); font-weight: 600; color: var(--ink); white-space: nowrap; }
+table.io-table input { width: 100%; min-width: 90px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+                        font-size: 14px; text-align: center; outline: none; transition: border .15s; }
+table.io-table input::placeholder { color: var(--line); }
+table.io-table input:focus { border-color: var(--tool); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
+table.io-table input:focus::placeholder { color: transparent; }
+.seat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.seat-cell { background: var(--tool-light); border: 1px solid var(--tool-soft); border-radius: 10px; padding: 14px; text-align: center; }
+.seat-cell .lab { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; font-weight: 600; }
+.seat-cell input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; font-size: 15px;
+                    text-align: center; outline: none; transition: border .15s; }
+.seat-cell input::placeholder { color: var(--line); }
+.seat-cell input:focus { border-color: var(--tool); box-shadow: 0 0 0 3px rgba(0,113,227,.14); }
+.seat-cell input:focus::placeholder { color: transparent; }
+/* ============ Output Table ============ */
+  .out-wrap { overflow-x: auto; margin-top: 6px; border-radius: 10px; border: 1px solid var(--line); }
+table.out-table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 920px; }
+table.out-table th, table.out-table td { border: 1px solid var(--line); padding: 10px 12px; text-align: center; white-space: nowrap; }
+table.out-table thead th { background: #f5f5f7; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+table.out-table td.rowname { background: var(--tool-light); font-weight: 700; color: var(--ink); position: sticky; left: 0; }
+table.out-table tr.total td { background: #f5f5f7; font-weight: 700; }
+table.out-table tr.eastsup td.rowname { color: var(--tool-dark); }
+.out-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn-sm { background: #fff; color: var(--tool); border: 1px solid var(--tool); cursor: pointer; font-size: 14px;
+           font-weight: 600; padding: 10px 20px; border-radius: 10px; }
+.btn-sm:hover { background: var(--tool-light); }
+.out-card { display: none; }
+.out-card.show { display: block; animation: fadeUp .4s ease both; }
+@media (max-width:620px) { .seat-row{ grid-template-columns:1fr; } .header{ padding:32px 24px; } }
+</style>
+</head>
+<body>
+  <a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
+<header class="header">
+    <div class="header-main">
+      <p class="eyebrow"><span class="no">04</span>航班工作工具集 · FLIGHT TOOLS</p>
+      <h1>航班运量汇总</h1>
+      <p>输入东航 / 上航 / 中联航的旅客、行李与客座率，一键汇总东上航、联航与总计。</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="anim">
+
+      <!-- 区块A：出港 & 托运 -->
+      <div class="panel">
+        <h2><span class="dot"></span>① 出港 & 托运（东航 / 上航 / 中联航）</h2>
+        <div style="overflow-x:auto;">
+          <table class="io-table" id="tblA">
+            <thead><tr><th>航司</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th></tr></thead>
+            <tbody><!-- JS 填充 --></tbody>
+          </table>
+        </div>
+        <p class="hint">提示：每格可直接填数字，或填加减乘除表达式（如 11+65+231）。</p>
+      </div>
+
+      <!-- 区块B：进港 & 行李 -->
+      <div class="panel">
+        <h2><span class="dot"></span>② 进港 & 行李（东航 / 上航 / 中联航）</h2>
+        <div style="overflow-x:auto;">
+          <table class="io-table" id="tblB">
+            <thead><tr><th>航司</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+            <tbody><!-- JS 填充 --></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 区块C：客座率 -->
+      <div class="panel">
+        <h2><span class="dot"></span>③ 出港客座率（填数字或表达式，如 85 或 16*78/15）</h2>
+        <div class="seat-row" id="seatRow"><!-- JS 填充 --></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="calcBtn">🚀 开始计算</button>
+      </div>
+
+      <div class="error-box" id="errorBox"></div>
+
+      <!-- 输出 -->
+      <div class="panel out-card" id="outCard">
+        <h2><span class="dot"></span>汇总结果</h2>
+        <div class="summary-row" id="statCards"></div>
+        <div class="out-wrap" style="margin-top:18px;">
+          <table class="out-table" id="outTable">
+            <thead><tr><th>项目</th><th>国内国际出港旅客总人数</th><th>国际出港旅客总人数</th><th>国内国际托运总件数</th><th>国际托运总件数</th><th>出港客座率</th><th>国内国际进港人数</th><th>国际进港人数</th><th>国内国际进港行李</th><th>国际进港行李</th></tr></thead>
+            <tbody id="outBody"></tbody>
+          </table>
+        </div>
+        <div class="out-actions">
+          <button class="btn-sm" id="downloadBtn">⬇ 下载 Excel</button>
+        </div>
+      </div>
+
+      <!-- 折叠：计算规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title"><span class="ic">📖</span> 计算规则说明 <span class="hint">点击展开</span></div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>东上航</b> = 东航 + 上航，按旅客、行李等字段逐列相加。</li>
+              <li><b>联航</b> = 中联航（直接取中联航录入的数据）。</li>
+              <li><b>总计</b> = 东上航 + 联航 = 东航 + 上航 + 中联航。</li>
+              <li><b>出港客座率</b>：东上航 =（东航客座率 + 上航客座率）÷ 2；联航 = 中联航客座率；总计 =（东上航客座率 + 联航客座率）÷ 2。结果均带 <b>%</b> 单位。</li>
+              <li><b>输入框表达式</b>：每格支持 <code>+ - * /</code> 四则运算（先乘除后加减），例如 <code>11+65+231</code> 得 307、<code>16*78/15</code> 得 83.2；空单元格自动按 <b>0</b> 计算。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <footer class="site-footer">航班工作工具集</footer>
+    </div>
+  </div>
+
+<script>
+  var AIRLINES = ['东航','上航','中联航'];
+  var FIELDS_A = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数'];
+  var FIELDS_B = ['国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
+  var COLS = ['国内国际出港旅客总人数','国际出港旅客总人数','国内国际托运总件数','国际托运总件数','出港客座率','国内国际进港人数','国际进港人数','国内国际进港行李','国际进港行李'];
+
+  // 规则面板开合
+  document.getElementById('rulesHeader').addEventListener('click', function(){
+    document.getElementById('rulesPanel').classList.toggle('open');
+  });
+
+  // 表达式求值（支持 + - * / 含运算符优先级；空值视为 0；不使用 eval，安全）
+  function evalExpr(s){
+    s = String(s == null ? '' : s).trim();
+    if(s === '') return 0;                                  // 空单元格 = 0
+    if(!/^[\d\s.+\-*/]+$/.test(s)) return NaN;              // 仅允许数字、小数点、+-*/、空格
+    var raw = s.match(/(\d+\.?\d*|\.\d+|[+\-*/])/g);
+    if(!raw || raw.length === 0) return NaN;
+    var nums = [], ops = [], pendingSign = 1;
+    for(var i=0;i<raw.length;i++){
+      var t = raw[i];
+      if(t === '*' || t === '/'){
+        ops.push(t);
+      } else if(t === '+' || t === '-'){
+        if(nums.length === 0 || ops.length === nums.length){
+          pendingSign *= (t === '-') ? -1 : 1;             // 一元正负号（如 -5、16*-3）
+        } else {
+          ops.push(t);
+        }
+      } else {
+        var v = parseFloat(t);
+        if(isNaN(v)) return NaN;
+        nums.push(v * pendingSign);
+        pendingSign = 1;
+      }
+    }
+    if(nums.length === 0 || ops.length !== nums.length - 1) return NaN;   // 格式不合法
+    // 第一遍：先算 * 和 /
+    var stack = [nums[0]], sop = [];
+    for(var j=0;j<ops.length;j++){
+      var op = ops[j], n = nums[j+1];
+      if(op === '*'){ stack[stack.length-1] *= n; }
+      else if(op === '/'){ if(n === 0) return NaN; stack[stack.length-1] /= n; }
+      else { stack.push(n); sop.push(op); }
+    }
+    // 第二遍：再算 + 和 -
+    var total = stack[0];
+    for(var k=0;k<sop.length;k++){
+      total = (sop[k] === '+') ? total + stack[k+1] : total - stack[k+1];
+    }
+    return total;
+  }
+
+  function val(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+
+  // 构建输入表格
+  function buildInput(tableId, prefix, fields){
+    var tbody = document.querySelector('#' + tableId + ' tbody');
+    var html = '';
+    for(var a=0;a<3;a++){
+      html += '<tr><td class="al">' + AIRLINES[a] + '</td>';
+      for(var f=0;f<4;f++){
+        html += '<td><input id="' + prefix + '_' + a + '_' + f + '" placeholder="0" inputmode="decimal"></td>';
+      }
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+  buildInput('tblA','inA',FIELDS_A);
+  buildInput('tblB','inB',FIELDS_B);
+
+  // 客座率输入
+  (function(){
+    var row = document.getElementById('seatRow');
+    var html = '';
+    for(var a=0;a<3;a++){
+      html += '<div class="seat-cell"><div class="lab">' + AIRLINES[a] + '</div>' +
+              '<input id="inS_' + a + '" placeholder="如 85" inputmode="decimal"></div>';
+    }
+    row.innerHTML = html;
+  })();
+
+  // 读取一个区块 3x4
+  function readGrid(prefix, fields){
+    var g = [], bad = [];
+    for(var a=0;a<3;a++){
+      var row = [];
+      for(var f=0;f<4;f++){
+        var v = evalExpr(val(prefix + '_' + a + '_' + f));
+        if(isNaN(v)) bad.push(AIRLINES[a] + ' · ' + fields[f]);
+        row.push(v);
+      }
+      g.push(row);
+    }
+    return { grid:g, bad:bad };
+  }
+
+  function fmtNum(v){ return (Math.round(v)).toLocaleString('zh-CN'); }
+  function fmtSeat(v){ return v.toFixed(1) + '%'; }
+
+  // 组合成输出一行 [9列]
+  function compose(arrA, arrB, seatVal){
+    return [arrA[0], arrA[1], arrA[2], arrA[3], seatVal, arrB[0], arrB[1], arrB[2], arrB[3]];
+  }
+
+  var lastOut = null; // 供下载使用
+
+  document.getElementById('calcBtn').addEventListener('click', function(){
+    var eA = readGrid('inA', FIELDS_A);
+    var eB = readGrid('inB', FIELDS_B);
+    var seat = [], seatBad = [];
+    for(var a=0;a<3;a++){
+      var v = evalExpr(val('inS_' + a));
+      if(isNaN(v)) seatBad.push(AIRLINES[a] + ' · 出港客座率');
+      seat.push(v);
+    }
+    var bad = eA.bad.concat(eB.bad, seatBad);
+    var errBox = document.getElementById('errorBox');
+    if(bad.length){
+      errBox.innerHTML = '❌ 以下格子内容无法识别（请输入数字或加减乘除表达式）：<br>· ' + bad.join('<br>· ');
+      errBox.classList.add('show');
+      return;
+    }
+    errBox.classList.remove('show');
+
+    var A = eA.grid, B = eB.grid;
+    var eastSupA = A[0].map(function(v,f){ return v + A[1][f]; });
+    var eastSupB = B[0].map(function(v,f){ return v + B[1][f]; });
+    var lianA = A[2], lianB = B[2];
+    var totalA = eastSupA.map(function(v,f){ return v + lianA[f]; });
+    var totalB = eastSupB.map(function(v,f){ return v + lianB[f]; });
+
+    var eastSupSeat = (seat[0] + seat[1]) / 2;
+    var lianSeat = seat[2];
+    var totalSeat = (eastSupSeat + lianSeat) / 2;
+
+    var rows = [
+      { name:'东上航', cls:'eastsup', data: compose(eastSupA, eastSupB, eastSupSeat) },
+      { name:'联航',   cls:'',        data: compose(lianA, lianB, lianSeat) },
+      { name:'总计',   cls:'total',   data: compose(totalA, totalB, totalSeat) }
+    ];
+
+    // 渲染表格
+    var body = document.getElementById('outBody');
+    var html = '';
+    rows.forEach(function(r){
+      html += '<tr class="' + r.cls + '"><td class="rowname">' + r.name + '</td>';
+      r.data.forEach(function(v, i){
+        html += '<td>' + (i === 4 ? fmtSeat(v) : fmtNum(v)) + '</td>';
+      });
+      html += '</tr>';
+    });
+    body.innerHTML = html;
+
+    // 统计卡片（总计关键指标，summary-card 风格）
+    var cards = [
+      { ic:'🧍', lab:'总计·国内国际出港旅客', val: fmtNum(totalA[0]) },
+      { ic:'🌐', lab:'总计·国际出港旅客', val: fmtNum(totalA[1]) },
+      { ic:'💺', lab:'总计·出港客座率', val: fmtSeat(totalSeat) },
+      { ic:'🛬', lab:'总计·国内国际进港人数', val: fmtNum(totalB[0]) }
+    ];
+    document.getElementById('statCards').innerHTML = cards.map(function(c){
+      return '<div class="summary-card"><div class="card-top"><span class="card-ic">' + c.ic + '</span>' +
+             '<span class="label">' + c.lab + '</span></div><div class="value">' + c.val + '</div></div>';
+    }).join('');
+
+    lastOut = { rows: rows };
+    document.getElementById('outCard').classList.add('show');
+    document.getElementById('outCard').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
+  // 下载 Excel
+  document.getElementById('downloadBtn').addEventListener('click', function(){
+    if(!lastOut) return;
+    var aoa = [['航班运量汇总'], ['项目'].concat(COLS)];
+    lastOut.rows.forEach(function(r){
+      var line = [r.name];
+      r.data.forEach(function(v, i){
+        line.push(i === 4 ? fmtSeat(v) : Math.round(v));
+      });
+      aoa.push(line);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:10}].concat(COLS.map(function(){ return {wch:16}; }));
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '运量汇总');
+    XLSX.writeFile(wb, '航班运量汇总.xlsx');
+  });
+</script>
+</body>
+</html>

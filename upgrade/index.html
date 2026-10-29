@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>升舱金额计算器 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入 C2 升舱统计表，按 6 个岗位固定比例自动分配金额，生成人员×日期交叉汇总表。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="升舱金额计算器 · 航班工作工具集">
+<meta property="og:description" content="导入 C2 升舱统计表，按 6 个岗位固定比例自动分配金额，生成人员×日期交叉汇总表。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/upgrade/index.html">
+<meta name="theme-color" content="#ffffff">
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ upgrade · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+/* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============ People Tags ============ */
+  .people-tags {
+    background: var(--card); border-radius: var(--radius); padding: 20px 24px;
+    margin-bottom: 26px; box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+  }
+.people-tags .label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+.tag {
+    display: inline-block; background: var(--tool-light); color: var(--tool-dark);
+    padding: 5px 13px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    margin: 4px 5px 4px 0; border: 1px solid var(--tool-soft);
+    transition: transform 0.15s, background 0.15s;
+  }
+.tag:hover { transform: translateY(-1px); background: var(--tool-soft); }
+/* ============ Controls ============ */
+  .controls {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+.controls .info {
+    font-size: 13.5px; color: var(--muted); background: var(--card);
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  }
+.btn-success {
+    background: linear-gradient(135deg, var(--success), var(--success-dark)); color: #fff;
+    box-shadow: 0 8px 18px -6px rgba(0,0,0,.05);
+  }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(0,0,0,.06); }
+.btn-success:active { transform: translateY(0); }
+/* ============ Table ============ */
+  .table-wrapper {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 1px solid var(--line);
+  }
+.table-scroll { overflow-x: auto; max-height: 74vh; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+thead { position: sticky; top: 0; z-index: 2; }
+thead th {
+    background: #f5f5f7; color: var(--muted);
+    padding: 13px 14px; font-weight: 600; text-align: center;
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+thead th:first-child {
+    position: sticky; left: 0; z-index: 3;
+    background: #f5f5f7;
+    text-align: left;
+  }
+thead th.total-col { background: #eef6f1; color: var(--success-dark); }
+tbody td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+tbody td:first-child {
+    font-weight: 600; text-align: left; position: sticky; left: 0;
+    background: var(--card); z-index: 1; min-width: 108px; color: var(--ink);
+    border-right: 1px solid var(--line);
+  }
+tbody tr:nth-child(even) td { background: #fafafa; }
+tbody tr:nth-child(even) td:first-child { background: #fafafa; }
+tbody tr:hover td { background: var(--tool-light); }
+tbody tr:hover td:first-child { background: var(--tool-light); }
+tbody td.total-col { font-weight: 700; background: var(--success-light) !important; color: var(--success-dark); }
+td.empty { color: var(--line); text-align: center !important; }
+/* ============ Loading ============ */
+  .loading { display: none; text-align: center; padding: 56px; }
+.loading.active { display: block; }
+.spinner {
+    width: 46px; height: 46px; border: 4px solid var(--tool-soft);
+    border-top-color: var(--tool); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+  }
+.loading div:last-child { color: var(--muted); font-size: 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* ============ Error ============ */
+  .error-msg {
+    background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft)); color: var(--danger);
+    padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
+    display: none; border: 1px solid var(--danger-line); border-left: 4px solid var(--danger); font-size: 14px;
+  }
+.error-msg.active { display: block; }
+/* ============ Footer ============ */
+/* ============ Responsive ============ */
+  @media (max-width: 768px) {
+    .container { padding: 18px 14px 36px; }
+    .header { flex-direction: column; text-align: center; gap: 16px; padding: 32px 24px; }
+    .header p { margin-left: auto; margin-right: auto; }
+    .header h1 { font-size: 24px; }
+    .summary-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .summary-card .value { font-size: 23px; }
+    table { font-size: 12px; }
+  }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/02-upgrade.webp"); }
+</style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>02</b>升舱金额计算器</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">02</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>升舱金额计算器</h1>
+    <p class="lede">上传 C2 升舱统计 Excel，自动按岗位比例分钱。</p>
+  </section>
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">升舱金额计算器</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入数据</a>
+      <a href="#tableWrapper">汇总表</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
+<div class="container">
+
+
+  <!-- Upload Zone -->
+  <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
+    <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+    <div class="uz-body">
+      <div class="text">把 C2 升舱统计 Excel 拖进来</div>
+      <div class="hint">.xls / .xlsx ｜ 自动识别日期、金额与各岗位人员</div>
+    </div>
+    <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在解析和计算，请稍候…</div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-row" id="summaryRow" style="display:none"></div>
+
+  <!-- People Tags -->
+  <div class="people-tags" id="peopleTags" style="display:none">
+    <div class="label" id="peopleLabel">涉及人员</div>
+    <div id="tagContainer"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none">
+    <button class="btn btn-success" id="downloadBtn">下载 Excel 汇总表</button>
+    <span class="info" id="tableInfo"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper" id="tableWrapper" style="display:none">
+    <div class="table-scroll" id="tableScroll"></div>
+  </div>
+
+  <!-- Footer -->
+  <!-- Rules Panel（可点开查看分配规则）-->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">分配规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+      </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        每一笔升舱金额，都会按下面 <b>6 个岗位</b> 的固定比例拆分。系统读取 Excel 中每条记录各岗位的人员名单，
+        把该岗位对应的金额<b>平均分配</b>给名单中的每个人，最终汇总成「人员 × 日期」交叉表。
+      </div>
+      <div class="rules-grid" id="rulesGrid"></div>
+      <div class="rules-total" id="rulesTotal"></div>
+      <div class="rules-note">
+        <b>分配与计算细则</b><br>
+        • <b>比例固定：</b>主班 30% / 副班 20% / 运行协助人员 20% / 指挥长 10% / 当日班组其他人员 10% / 票台 10%，合计 100%。<br>
+        • <b>同岗位多人平分：</b>若某岗位在当条记录里填了多个人（用 <code>/</code>、<code>、</code>、<code>，</code> 分隔），该岗位金额在几人之间平均分配。<br>
+        • <b>岗位为空则跳过：</b>某岗位无人填写时，其对应比例的金额在这条记录中不分配，也不会摊给其它岗位。<br>
+        • <b>按日期归集：</b>同一人在同一天的多笔金额自动累加，最终按日期成列展示。<br>
+        • <b>金额精度：</b>每次分摊保留 4 位小数计算，最终汇总四舍五入到 2 位小数（元）。
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">航班工作工具集</footer>
+
+</div>
+
+<script>
+// ============================================================
+// 分配规则（与原 app.py 的 DIST_RULES 完全一致）
+// ============================================================
+const DIST_RULES = [
+  ['主班',             0.30],
+  ['副班',             0.20],
+  ['运行协助人员',     0.20],
+  ['指挥长',           0.10],
+  ['当日班组其他人员', 0.10],
+  ['票台',             0.10],
+];
+
+// ============================================================
+// 渲染分配规则面板（内容直接来自 DIST_RULES，保证与计算一致）
+// ============================================================
+function renderRulesPanel() {
+  const grid = document.getElementById('rulesGrid');
+  const maxRatio = Math.max(...DIST_RULES.map(([, r]) => r));
+  grid.innerHTML = DIST_RULES.map(([role, ratio]) => `
+    <div class="rule-item">
+      <span class="role">${role}</span>
+      <span class="ratio">${(ratio * 100).toFixed(0)}%</span>
+      <span class="bar" style="width:${(ratio / maxRatio * 100).toFixed(0)}%"></span>
+    </div>
+  `).join('');
+  const sum = DIST_RULES.reduce((s, [, r]) => s + r, 0);
+  document.getElementById('rulesTotal').textContent =
+    `合计 ${(sum * 100).toFixed(0)}% — 每笔金额 100% 分配完毕`;
+}
+renderRulesPanel();
+
+// 折叠面板开关
+const rulesPanel = document.getElementById('rulesPanel');
+document.getElementById('rulesHeader').addEventListener('click', () => {
+  rulesPanel.classList.toggle('open');
+});
+
+// ================ State ================
+let currentData = null;  // { pivot, dates, people, summary }
+
+// ================ DOM refs ================
+const uploadZone   = document.getElementById('uploadZone');
+const fileInput    = document.getElementById('fileInput');
+const loading      = document.getElementById('loading');
+const errorMsg     = document.getElementById('errorMsg');
+const summaryRow   = document.getElementById('summaryRow');
+const peopleTags   = document.getElementById('peopleTags');
+const peopleLabel  = document.getElementById('peopleLabel');
+const tagContainer = document.getElementById('tagContainer');
+const controls     = document.getElementById('controls');
+const downloadBtn  = document.getElementById('downloadBtn');
+const tableInfo    = document.getElementById('tableInfo');
+const tableWrapper = document.getElementById('tableWrapper');
+const tableScroll  = document.getElementById('tableScroll');
+
+// ============================================================
+// Excel 日期 → 'YYYY-MM-DD'（基准 1899-12-30，与原 Python 逻辑一致）
+//
+// ⚠️ 时区陷阱（2026-09-27 修复）：SheetJS 在 cellDates:true 下返回的是
+//    「**本地时区**午夜」的 Date。东八区下 2026-09-27 会得到
+//        Sun Sep 27 2026 00:00:00 GMT+0800   →   toISOString() = 2026-09-26T16:00:00Z
+//    此时若直接用 getUTC* 取值，就会读成 2026-09-26 —— **整体少一天**。
+//    所以先把任意来源的 Date 归一到 **UTC 午夜**，之后一律用 UTC 取值格式化。
+// ============================================================
+function toUTCMidnight(d) {
+  // 取「本地日历日」重建为 UTC 午夜：东八区 2026-09-27 00:00(+08) → 2026-09-27T00:00Z
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+function serialToDate(serial) {
+  const base = Date.UTC(1899, 11, 30); // 1899-12-30
+  return new Date(base + Math.floor(serial) * 86400000);
+}
+function fmtDate(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ============================================================
+// 姓名拆分（/ 、 ，, 统一为 /）
+// ============================================================
+function splitNames(text) {
+  if (!text || typeof text !== 'string') return [];
+  text = text.trim();
+  if (!text) return [];
+  text = text.replace(/[，,、]/g, '/');
+  return text.split('/').map(n => n.trim()).filter(n => n);
+}
+
+// ============================================================
+// 解析 Excel（复刻原 parse_excel）
+// 列索引：0=日期, 5=金额, 7=主班, 8=副班, 9=运行协助, 10=指挥长, 11=其他人员, 12=票台
+// ============================================================
+function parseExcel(data) {
+  const wb = XLSX.read(data, { type: 'array', cellDates: true, raw: true, defval: '' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  const records = [];
+  const errors = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+
+    // --- 日期 ---
+    let dateVal = row[0];
+    let dateObj = null;
+    if (dateVal instanceof Date) dateObj = toUTCMidnight(dateVal);  // SheetJS 给的是本地午夜，先归一
+    else if (typeof dateVal === 'number') dateObj = serialToDate(dateVal);
+    if (!dateObj) continue;
+
+    // --- 金额（必须 > 0）---
+    let amountVal = row[5];
+    let amount = 0;
+    if (typeof amountVal === 'number') amount = amountVal;
+    else if (typeof amountVal === 'string') amount = parseFloat(amountVal);
+    if (!(amount > 0)) continue;
+
+    const cell = (i) => (row.length > i && row[i] != null && row[i] !== '') ? String(row[i]).trim() : '';
+
+    records.push({
+      date: dateObj,
+      date_str: fmtDate(dateObj),
+      amount: amount,
+      主班:             cell(7),
+      副班:             cell(8),
+      运行协助人员:     cell(9),
+      指挥长:           cell(10),
+      当日班组其他人员: cell(11),
+      票台:             cell(12),
+    });
+  }
+  return { records, errors };
+}
+
+// ============================================================
+// 计算：人员 × 日期 交叉分配（复刻原 calculate）
+// ============================================================
+function calculate(records) {
+  const personDate = {};      // name -> { date: total }
+  const allDates = new Set();
+  const allPeople = new Set();
+
+  for (const rec of records) {
+    const ds = rec.date_str;
+    const amt = rec.amount;
+    allDates.add(ds);
+
+    for (const [field, ratio] of DIST_RULES) {
+      const names = splitNames(rec[field]);
+      if (!names.length) continue;
+      const share = Math.round(amt * ratio / names.length * 10000) / 10000;
+      for (const name of names) {
+        if (!personDate[name]) personDate[name] = {};
+        personDate[name][ds] = (personDate[name][ds] || 0) + share;
+        allPeople.add(name);
+      }
+    }
+  }
+
+  const sortedDates = [...allDates].sort();
+  const sortedPeople = [...allPeople].sort();
+
+  const pivot = [];
+  for (const person of sortedPeople) {
+    const row = { name: person };
+    let total = 0;
+    for (const d of sortedDates) {
+      const v = personDate[person][d] || 0;
+      row[d] = Math.round(v * 100) / 100;
+      total += v;
+    }
+    row['总计'] = Math.round(total * 100) / 100;
+    pivot.push(row);
+  }
+
+  const totalAmount = Math.round(records.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+  const summary = {
+    total_records: records.length,
+    total_amount: totalAmount,
+    date_range: sortedDates.length ? `${sortedDates[0]} ~ ${sortedDates[sortedDates.length - 1]}` : '',
+    unique_dates: sortedDates.length,
+    unique_people: sortedPeople.length,
+    people_list: sortedPeople,
+  };
+  return { pivot, dates: sortedDates, people: sortedPeople, summary };
+}
+
+// ============================================================
+// 生成并下载 Excel（复刻原 generate_excel，用 SheetJS）
+// ============================================================
+function generateExcel(pivot, dates, people) {
+  const header = ['姓名', ...dates, '总计'];
+  const aoa = [header];
+  for (const row of pivot) {
+    const out = [row.name];
+    for (const d of dates) {
+      const v = row[d] || 0;
+      out.push(v > 0 ? v : '-');
+    }
+    out.push(row['总计']);
+    aoa.push(out);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 14 }, ...dates.map(() => ({ wch: 13 })), { wch: 13 }];
+  ws['!freeze'] = { xSplit: 1, ySplit: 1 }; // 冻结首行首列
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '升舱金额分配');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '升舱金额分配结果.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ================ Upload handlers ================
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFile(files[0]);
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+});
+
+// ================ File processing（纯前端）================
+async function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['xls', 'xlsx'].includes(ext)) {
+    showError('请上传 .xls 或 .xlsx 格式的 Excel 文件');
+    return;
+  }
+
+  hideAllResults();
+  showLoading(true);
+  hideError();
+
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('SheetJS 未加载，请检查网络或本地库');
+    const buf = await file.arrayBuffer();
+    const { records, errors } = parseExcel(new Uint8Array(buf));
+    if (!records.length) {
+      showError('未能从文件中解析到有效升舱记录（请确认第 1 列为日期、第 6 列为金额）');
+      showLoading(false);
+      return;
+    }
+    currentData = calculate(records);
+    renderResults(currentData);
+  } catch (err) {
+    showError('解析失败: ' + err.message);
+  }
+  showLoading(false);
+}
+
+// ================ Render ================
+function renderResults(data) {
+  const { summary, pivot, dates, people } = data;
+  const totalDistributed = pivot.reduce((s, r) => s + (r['总计'] || 0), 0);
+
+  summaryRow.style.display = 'grid';
+  summaryRow.classList.add('anim');
+  summaryRow.innerHTML = `
+    <div class="summary-card">
+      <div class="card-top"><span class="label">记录总数</span></div>
+      <div class="value">${summary.total_records}</div>
+      <div class="sub">条有效升舱记录</div>
+    </div>
+    <div class="summary-card accent-green">
+      <div class="card-top"><span class="label">升舱总金额</span></div>
+      <div class="value">¥${fmt(summary.total_amount)}</div>
+      <div class="sub">已分配 ¥${fmt(totalDistributed)}（100%）</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="label">日期范围</span></div>
+      <div class="value">${summary.unique_dates}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 天</span></div>
+      <div class="sub">${summary.date_range}</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="label">涉及人员</span></div>
+      <div class="value">${summary.unique_people}<span style="font-size:15px;font-weight:600;color:var(--muted);"> 人</span></div>
+      <div class="sub">参与分配的员工</div>
+    </div>
+  `;
+
+  peopleTags.style.display = 'block';
+  peopleLabel.textContent = `涉及人员（${people.length} 人）`;
+  tagContainer.innerHTML = people.map(p => `<span class="tag">${esc(p)}</span>`).join('');
+
+  controls.style.display = 'flex';
+  tableInfo.textContent = `${people.length} 人 × ${dates.length} 个日期`;
+
+  tableWrapper.style.display = 'block';
+
+  let html = '<table><thead><tr><th>姓名</th>';
+  dates.forEach(d => { html += `<th>${esc(d)}</th>`; });
+  html += '<th class="total-col">总计</th></tr></thead><tbody>';
+
+  pivot.forEach(row => {
+    html += `<tr><td>${esc(row.name)}</td>`;
+    let total = 0;
+    dates.forEach(d => {
+      const val = row[d] || 0;
+      total += val;
+      if (val > 0) {
+        html += `<td>${fmt(val)}</td>`;
+      } else {
+        html += `<td class="empty">-</td>`;
+      }
+    });
+    html += `<td class="total-col">${fmt(total)}</td></tr>`;
+  });
+
+  html += '</tbody></table>';
+  tableScroll.innerHTML = html;
+}
+
+// ================ Download ================
+downloadBtn.addEventListener('click', () => {
+  if (!currentData) return;
+  try {
+    generateExcel(currentData.pivot, currentData.dates, currentData.people);
+  } catch (err) {
+    showError('下载失败: ' + err.message);
+  }
+});
+
+// ================ Utilities ================
+function fmt(n) {
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function showLoading(on) { loading.classList.toggle('active', on); }
+function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('active'); }
+function hideError() { errorMsg.classList.remove('active'); }
+function hideAllResults() {
+  summaryRow.style.display = 'none';
+  peopleTags.style.display = 'none';
+  controls.style.display = 'none';
+  tableWrapper.style.display = 'none';
+}
+</script>
+</body>
+</html>

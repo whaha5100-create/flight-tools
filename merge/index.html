@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>东上联日数据汇总 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="东上联日数据汇总 · 航班工作工具集">
+<meta property="og:description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/merge/index.html">
+<meta name="theme-color" content="#ffffff">
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ 东上联日数据汇总 · 页面特有 ============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+  /* PDF 导入提示（显隐由 JS 控制） */
+  .pdf-msg { margin-top: 14px; display: none; }
+  .pdf-msg.show { display: block; }
+  .pdf-msg b { color: inherit; }
+
+  /* 运量录入表（航司为行、指标为列，与步骤 3 导出表同向；航司品牌色：东上=藏青，中联航=青） */
+  table.airline-table { border-collapse: collapse; width: 100%; min-width: 920px; font-size: 12.5px; }
+  table.airline-table th, table.airline-table td { border: 1px solid #e5e5ea; padding: 5px 6px; text-align: center; vertical-align: middle; }
+  /* 表头：第 1 行分组、第 2 行指标 */
+  table.airline-table thead th { background: #f5f5f7; color: var(--muted); font-weight: 700;
+    padding: 7px 8px; line-height: 1.35; }
+  table.airline-table thead tr.al-grp th { background: #e8e8ed; color: var(--ink-2); font-size: 12px; letter-spacing: .3px; }
+  table.airline-table thead th.al-corner { font-size: 13px; color: var(--ink); }
+  table.airline-table thead th.al-seat-h { color: var(--tool-dark); }
+  /* 行首航司名 */
+  table.airline-table tbody th.rname { background: #fafafa; font-size: 13.5px; font-weight: 700;
+    padding: 10px 12px; text-align: left; white-space: nowrap; }
+  table.airline-table tbody tr.al-east th.rname { color: var(--brand-dark); box-shadow: inset 3px 0 0 var(--brand); }
+  table.airline-table tbody tr.al-lian th.rname { color: #0e7490; box-shadow: inset 3px 0 0 #0891b2; }
+  /* 输入格：沿用共享设计系统的白底 / 圆角 / 描边，本页只覆盖尺寸与航司分组底色。
+     这里的 !important 是**有意为之**：site.css 的 input:not([type]) 把输入框底色
+     固定成了 background:#fff !important，本页要按航司分组着色，必须同权重 + 更靠后声明才生效。
+     （注：原网格里 .grp-east / .grp-lian 的底色正因缺了这个 !important，一直是失效的。） */
+  table.airline-table input { width: 100%; min-width: 62px; padding: 8px 6px; font-size: 13.5px;
+    text-align: center; border: 1px solid var(--line); }
+  table.airline-table tr.al-east input { background: #f5f5f7 !important; }
+  table.airline-table tr.al-lian input { background: #eef8fa !important; }
+  table.airline-table input:focus::placeholder { color: transparent; }
+
+  /* 输出表 */
+  .date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .date-row label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .date-row input[type=date] { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); background: var(--card); }
+  .out-title { font-size: 14.5px; color: var(--ink); margin: 22px 0 8px; font-weight: 700; }
+  table.out { border-collapse: collapse; width: 100%; min-width: 1900px; font-size: 12.5px; }
+  table.out thead th .row-act { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
+  table.out thead th .row-act button { border: none; cursor: pointer; font-size: 11.5px; font-weight: 700;
+    padding: 4px 9px; border-radius: 6px; background: rgba(255,255,255,.92); color: var(--brand-deep);
+    transition: background var(--dur-fast) var(--ease-inout), box-shadow var(--dur) var(--ease-out),
+                transform var(--dur) var(--ease-spring); }
+  table.out thead th .row-act button:hover { background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.16); }
+  table.out thead th .row-act button:active { transform: scale(.94); transition-duration: .07s; }
+  /* 区块色：东上联=近黑，总表=品牌蓝（2026-10-02 全站统一配色，原「总表=金」已改为蓝）。
+     ⚠️ 这一行**故意不加** `!important`，也就是**有意让它继续失效**：
+        site.css 的 `table.out thead th { background:#f5f5f7 !important; }` 与它特异性相同
+        （都是 0-1-2）且带 `!important`，靠后的页面样式压不住 —— 所以总表表头实际渲染是灰的。
+        实测加 `!important` 后，总表表头会变成**一条整行饱和蓝的色带**，比东上联表的灰表头重得多，
+        既不统一也不像苹果。总表与东上联表靠标题旁那个蓝色 badge 区分就够了
+        （`.out-title .badge.total` 不带 `!important`，本来就是生效的）。 */
+  table.out.tbl-total thead th { background: var(--brand); }
+  table.out.tbl-total thead th .row-act button { color: var(--brand-dark); }
+  table.out.tbl-total thead th .row-act button:hover { background: var(--tool-line); }
+  .out-title .badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 2px 9px; border-radius: 999px; vertical-align: 2px; margin-left: 8px; }
+  .out-title .badge.east { background: var(--brand-deep); }
+  .out-title .badge.total { background: var(--brand); }
+  /* 🔥 这两条原先**也是死的**：site.css 的输入框墙
+        `input[type=text/number/date], input:not([type]) { border-color:#d2d2d7 !important; background:#fff !important }`
+        把底色和描边都钉死了 → 实测渲染是白底 + 灰边，而页面下方的图例却写着「淡色底 = 可编辑」。
+        补 `!important` 之后图例才不再骗人（底色改用品牌浅蓝）。 */
+  table.out td.editable input { width: 100%; min-width: 64px; padding: 6px 7px; border: 1px solid var(--brand) !important;
+    border-radius: 6px; font-size: 12.5px; text-align: center; color: var(--ink); background: var(--tool-light) !important; transition: border-color .15s, box-shadow .15s; }
+  table.out td.editable input:focus { outline: none; border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(0,113,227,.14) !important; }
+  .legend { font-size: 12.5px; color: var(--muted); margin-top: 12px; display: flex; gap: 18px; flex-wrap: wrap; }
+  .legend span b { color: var(--ink); }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .dot.auto { background: #fafafa; border: 1px solid var(--line); }
+  .dot.edit { background: var(--tool-light); border: 1px solid var(--brand); }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/06-merge.webp"); }
+  /* —— v3：区块标题 / 角标 / 航司分组（纯版式，不碰任何取值）—— */
+  .out-title { font-size: 15px; font-weight: 600; letter-spacing: -.014em; margin: 34px 0 10px; }
+  /* 角标原来是实心蓝胶囊（总表）/ 藏青胶囊（东上航）。两个区块本来就有标题，
+     角标只是重复提示 —— 改成中性细描边，蓝色不再用在非可点元素上。 */
+  .out-title .badge { font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 6px; background: #f5f5f7; color: var(--muted); border: 1px solid var(--line); }
+  .out-title .badge.east, .out-title .badge.total { background: #f5f5f7; color: var(--muted); }
+  .date-row { margin-bottom: 18px; }
+  .date-row label { font-size: 13px; font-weight: 400; color: var(--muted); }
+  /* 航司分组：去掉行名左侧那根 3px 色条（行名颜色本身已是数据含义，留着） */
+  table.airline-table tbody tr.al-east th.rname,
+  table.airline-table tbody tr.al-lian th.rname { box-shadow: none; }
+  table.airline-table th, table.airline-table td { border-color: #e8e8ed; }
+  table.airline-table thead tr.al-grp th { background: #f0f0f2; }
+  .legend { margin-top: 14px; }
+</style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>06</b>东上联日数据汇总</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">06</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>东上联日数据汇总</h1>
+    <p class="lede">导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表。</p>
+  </section>
+
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">东上联日数据汇总</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入 FIOS</a>
+      <a href="#airlineTable">录入运量</a>
+      <a href="#outTableEast">汇总结果</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
+<div class="container">
+
+
+    <!-- 步骤 1：导入 FIOS -->
+    <section class="panel">
+      <h2><span class="step">1</span> 导入 FIOS 航班表（自动算架次 / 特服 / 调时 / 取消）</h2>
+      <div class="sub">拖入或选择当日 FIOS 导出的 Excel，系统按航班号区分东上航司 / 中联航，统计各维度。</div>
+      <label class="upload-zone" id="uploadZone">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+        <div class="uz-body">
+          <div class="text">点击或拖入 FIOS 航班 Excel</div>
+          <div class="hint">支持 .xls / .xlsx（需无密码）</div>
+        </div>
+        <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+        <input type="file" id="fileInput" accept=".xls,.xlsx">
+      </label>
+      <div id="statsMsg"></div>
+    </section>
+
+    <!-- 步骤 1.5：导入指挥长周报 PDF -->
+    <section class="panel">
+      <h2><span class="step">+</span> 导入指挥长周报 PDF（自动读「起飞延误」表填延误架次与不正常原因）</h2>
+      <div class="sub">拖入或选择《生产情况汇总》PDF，系统读取「起飞延误明细」表，按航班号统计东上(FM/MU)与联航(KN)起飞延误架次，并把完整表格文本填入总表「不正常原因」列。表格跨多页会自动拼接。</div>
+      <label class="upload-zone" id="pdfUploadZone">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
+        <div class="uz-body">
+          <div class="text">点击或拖入指挥长周报 PDF</div>
+          <div class="hint">读取起飞延误明细，自动填入延误架次与不正常原因</div>
+        </div>
+        <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+        <input type="file" id="pdfInput" accept=".pdf">
+      </label>
+      <div id="pdfMsg" class="pdf-msg"></div>
+    </section>
+
+    <!-- 步骤 2：录入运量 -->
+    <section class="panel">
+      <h2><span class="step">2</span> 录入东航 / 上航 / 中联航运量（自动汇总旅客 / 行李 / 客座率）</h2>
+      <div class="sub">填写国际 + 国内合计值（与国际出港值分开填）。单元格支持四则运算，如 <code>11+65+231</code>、<code>16*78/15</code>；空值按 0 计。</div>
+      <div class="table-scroll">
+        <table class="airline-table" id="airlineTable">
+          <thead id="airlineHead"></thead>
+          <tbody id="airlineBody"></tbody>
+        </table>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="calcBtn">计算并生成汇总表</button>
+        <button class="btn ghost" id="clearInputBtn">清空录入</button>
+      </div>
+      <div id="inputMsg"></div>
+    </section>
+
+    <!-- 步骤 3：输出 -->
+    <section class="panel">
+      <h2><span class="step">3</span> 汇总结果（东上航 / 联航 一块，总表单独一块）</h2>
+      <div class="sub">东上航、联航共用 24 列表；总表列序不同，单独成块。自动列（白底）由上方数据计算；黄色底为需你手填的列，可直接在格内修改。完成后逐行复制到共享文档，或导出整合 Excel。</div>
+      <div class="date-row">
+        <label for="dataDate">数据日期：</label>
+        <input type="date" id="dataDate">
+      </div>
+
+      <h3 class="out-title">东上航 / 联航（24 列，对应东上航、联航 sheet）<span class="badge east">东上航司</span></h3>
+      <div class="table-scroll">
+        <table class="out tbl-east" id="outTableEast">
+          <thead id="outHeadEast"></thead>
+          <tbody id="outBodyEast"></tbody>
+        </table>
+      </div>
+
+      <h3 class="out-title">总表（23 列，对应总表 sheet）<span class="badge total">总表</span></h3>
+      <div class="table-scroll">
+        <table class="out tbl-total" id="outTableTotal">
+          <thead id="outHeadTotal"></thead>
+          <tbody id="outBodyTotal"></tbody>
+        </table>
+      </div>
+
+      <div class="legend">
+        <span><span class="dot auto"></span><b>自动列</b>（由导入/录入计算，勿改）</span>
+        <span><span class="dot edit"></span><b>手填列</b>（黄色，需你补录，可编辑）</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn green" id="copyAllBtn">复制东上联（东上航+联航）</button>
+        <button class="btn ghost" id="exportBtn">导出 Excel（整合两表）</button>
+        <button class="btn ghost" id="copyTotalOnlyBtn">仅复制总表行</button>
+      </div>
+    </section>
+
+    <details class="rules-panel" id="rulesPanel">
+      <summary>
+        <div class="title">
+          <span class="r-k">规则</span>
+          <span class="r-t">规则说明</span>
+          <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+        </div>
+        <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+      </summary>
+      <div class="r-body">
+        <ul>
+          <li><b>整合来源：</b>本页同时替代「航班数据统计」(stats) 与「航班运量汇总」(summary) 两个工具。东上航 / 联航共用 24 列表（放一块），总表列序不同单独成块；两者分别对应共享文档《2026东上联数据汇总（新）》的三个 sheet。<b>导出时整合到一个 Excel（两个 sheet）</b>。</li>
+          <li><b>自动列（来自航班数据统计）：</b>特服（轮椅 / 无陪）、进港架次（国内/国际）、出港架次（国内/国际）、总航班量、出港调时情况航班、计划性取消航班 —— 由导入的 FIOS Excel 自动计算。</li>
+          <li><b>自动列（来自航班运量汇总）：</b>国内国际 / 国际出港旅客总人数、国内国际 / 国际托运总件数、出港客座率、国内国际 / 国际进港人数、国内国际 / 国际进港行李 —— 由下方手录的东航 / 上航 / 中联航运量自动汇总（东上航 = 东航 + 上航，联航 = 中联航，总表 = 东上航 + 联航）。</li>
+          <li><b>手填列（黄色，需你补录）：</b>收费总数、出港保障延误架次、出港不正常航班架次、始发 / 起飞正常率、当天临时取消航班；<b>总表</b>额外有「不正常原因」。</li>
+          <li><b>总表差异：</b>总表 sheet 没有「特服」「出港调时情况航班」列，改为「不正常原因」「出港调时架次」（= 调时航班数）；正常率名为「分公司始发 / 起飞正常率」，取消名为「…架次」。复制总表行时自动按总表列序输出，无需你手动对齐。</li>
+          <li><b>逐行复制：</b>东上联表头有「复制东上航」「复制联航」，总表表头有「复制总表」，均按对应 sheet 的精确列序复制整行（Tab 分隔），粘到共享文档对应 sheet 的数据区（B 列起）即可。</li>
+        </ul>
+      </div>
+    </details>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+  <div class="copied-tip" id="copiedTip">已复制 ✓</div>
+
+<script>
+/* ============================================================
+   航班数据统计算法（来自 stats 工具）
+   ============================================================ */
+function detectColumns(headers) {
+  const map = {};
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').trim();
+    if (!h) continue;
+    if (/机号|机尾|aircraft/i.test(h)) map.机号 = i;
+    else if (/^(进港|进港航班|进港班机)$/i.test(h) || /^inbound/i.test(h)) map.进港航班 = i;
+    else if (/^(出港|出港航班|出港班机)$/i.test(h) || /^outbound/i.test(h)) map.出港航班 = i;
+    else if (/^(前站|前一站)$/i.test(h)) map.前站 = i;
+    else if (/^(到站|到达站)$/i.test(h)) map.到站 = i;
+    else if (/^(特服|特殊服务|special)$/i.test(h)) map.特服 = i;
+    else if (/^(备注|remark|备注说明)$/i.test(h)) map.备注 = i;
+  }
+  return map;
+}
+function classifyFlight(flightNo) {
+  const f = String(flightNo || '').replace(/[#&].*$/, '').trim();
+  if (/^(MU|FM|CES)/i.test(f)) return '东上航司';
+  if (/^KN/i.test(f)) return '中联航';
+  return '其他';
+}
+function isCancelled(jihao) {
+  const v = String(jihao || '').trim().toUpperCase();
+  return v === 'CNL' || v === 'DEL';
+}
+function parseSpecialService(tefu) {
+  const s = String(tefu || '');
+  const parts = s.split('|');
+  const outboundPart = parts.length > 1 ? parts[1] : parts[0];
+  if (parts.length > 1 && parts[1].trim() === '') return { 轮椅: 0, 无陪: 0 };
+  let 轮椅 = 0, 无陪 = 0;
+  const wc = outboundPart.match(/轮(\d+)/);
+  if (wc) 轮椅 += parseInt(wc[1], 10);
+  const ch = outboundPart.match(/童(\d+)/);
+  if (ch) 无陪 += parseInt(ch[1], 10);
+  return { 轮椅, 无陪 };
+}
+function processWorkbook(data) {
+  const wb = XLSX.read(data, { type: 'array', codepage: 936, defval: '' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (rows.length < 2) throw new Error('文件数据不足，至少需要标题行和1行数据');
+  const headers = rows[0];
+  const cols = detectColumns(headers);
+  const required = ['机号', '进港航班', '出港航班'];
+  for (const k of required) {
+    if (cols[k] === undefined) throw new Error('未找到列: ' + k + '，请确认文件包含该列');
+  }
+  const dataRows = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const 机号 = String(row[cols.机号] || '').trim();
+    const 进港航班 = String(row[cols.进港航班] || '').trim();
+    const 出港航班 = String(row[cols.出港航班] || '').trim();
+    if (!机号 && !进港航班 && !出港航班) continue;
+    dataRows.push({
+      机号,
+      进港航班,
+      出港航班,
+      前站: cols.前站 !== undefined ? String(row[cols.前站] || '').trim() : '',
+      到站: cols.到站 !== undefined ? String(row[cols.到站] || '').trim() : '',
+      特服: cols.特服 !== undefined ? String(row[cols.特服] || '').trim() : '',
+      备注: cols.备注 !== undefined ? String(row[cols.备注] || '').trim() : '',
+    });
+  }
+  const stats = {
+    '东上航司': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+    '中联航': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+  };
+  const 国际城市 = ['马德里', '罗马'];
+  for (const d of dataRows) {
+    const cancelled = isCancelled(d.机号);
+    if (cancelled) {
+      const catIn = d.进港航班 ? classifyFlight(d.进港航班) : null;
+      const catOut = d.出港航班 ? classifyFlight(d.出港航班) : null;
+      if (catIn === '东上航司' || catOut === '东上航司') stats['东上航司'].取消航班.push(d);
+      if (catIn === '中联航' || catOut === '中联航') stats['中联航'].取消航班.push(d);
+      continue;
+    }
+    if (d.进港航班) {
+      const cat = classifyFlight(d.进港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.前站)) stats[cat].进港国际++;
+        else stats[cat].进港国内++;
+      }
+    }
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.到站)) stats[cat].出港国际++;
+        else stats[cat].出港国内++;
+      }
+    }
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        const svc = parseSpecialService(d.特服);
+        stats[cat].特服轮椅 += svc.轮椅;
+        stats[cat].特服无陪 += svc.无陪;
+      }
+    }
+    if (d.出港航班 && /调时/.test(d.备注)) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) stats[cat].出港调时航班.push(d.出港航班.replace(/[#&]/g, ''));
+    }
+  }
+  for (const cat of ['东上航司', '中联航']) {
+    stats[cat].总航班量 = stats[cat].进港国内 + stats[cat].进港国际 + stats[cat].出港国内 + stats[cat].出港国际;
+  }
+  return { stats, 数据总行数: dataRows.length };
+}
+
+/* ============================================================
+   运量录入逻辑（来自 summary 工具）
+   ============================================================ */
+function evalExpr(s) {
+  s = String(s == null ? '' : s).trim();
+  if (s === '') return 0;
+  if (!/^[\d\s.+\-*/]+$/.test(s)) return NaN;
+  const raw = s.match(/(\d+\.?\d*|\.\d+|[+\-*/])/g);
+  if (!raw || raw.length === 0) return NaN;
+  let nums = [], ops = [], pendingSign = 1;
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i];
+    if (t === '*' || t === '/') ops.push(t);
+    else if (t === '+' || t === '-') {
+      if (nums.length === 0 || ops.length === nums.length) pendingSign *= (t === '-') ? -1 : 1;
+      else ops.push(t);
+    } else {
+      const v = parseFloat(t);
+      if (isNaN(v)) return NaN;
+      nums.push(v * pendingSign);
+      pendingSign = 1;
+    }
+  }
+  if (nums.length === 0 || ops.length !== nums.length - 1) return NaN;
+  const stack = [nums[0]], sop = [];
+  for (let j = 0; j < ops.length; j++) {
+    const op = ops[j], n = nums[j + 1];
+    if (op === '*') stack[stack.length - 1] *= n;
+    else if (op === '/') { if (n === 0) return NaN; stack[stack.length - 1] /= n; }
+    else { stack.push(n); sop.push(op); }
+  }
+  let total = stack[0];
+  for (let k = 0; k < sop.length; k++) total = (sop[k] === '+') ? total + stack[k + 1] : total - stack[k + 1];
+  return total;
+}
+
+/* ============================================================
+   列定义（对齐共享 Excel 三张 sheet）
+   ============================================================ */
+// 显示用列序（东上航 / 联航 sheet 的 24 个数据列）
+const COLS_EAST = [
+  { label: '收费总数', key: 'fee', editable: 'fee' },
+  { label: '国内国际出港旅客总人数', key: 'outPaxDI' },
+  { label: '国际出港旅客总人数', key: 'outPaxI' },
+  { label: '国内国际托运总件数', key: 'outBagDI' },
+  { label: '国际托运总件数', key: 'outBagI' },
+  { label: '出港客座率', key: 'seat', fmt: 'pct' },
+  { label: '国内国际进港人数', key: 'inPaxDI' },
+  { label: '国际进港人数', key: 'inPaxI' },
+  { label: '国内国际进港行李', key: 'inBagDI' },
+  { label: '国际进港行李', key: 'inBagI' },
+  { label: '特服（轮椅）', key: 'wheelchair', skipForTotal: true },
+  { label: '特服（无陪）', key: 'unaccomp', skipForTotal: true },
+  { label: '进港架次（国内）', key: 'inDom' },
+  { label: '进港架次（国际）', key: 'inInt' },
+  { label: '出港架次（国内）', key: 'outDom' },
+  { label: '出港架次（国际）', key: 'outInt' },
+  { label: '总航班量', key: 'totalFlights' },
+  { label: '出港保障延误架次', key: 'delayFlights', editable: 'delayFlights' },
+  { label: '出港不正常航班架次', key: 'abnormalFlights', editable: 'abnormalFlights' },
+  { label: '始发正常率', key: 'normRateDep', editable: 'normRateDep' },
+  { label: '起飞正常率', key: 'normRateTakeoff', editable: 'normRateTakeoff' },
+  { label: '出港调时情况航班', key: 'tuneList', text: true, skipForTotal: true },
+  { label: '计划性取消航班(进+出）', key: 'cancelFlights' },
+  { label: '当天临时取消航班(进+出）', key: 'tempCancel', editable: 'tempCancel' },
+];
+// 总表 sheet 列序（24 列，差异列已处理）
+const COLS_TOTAL = [
+  { label: '收费总数', key: 'fee', editable: 'fee' },
+  { label: '国内国际出港旅客总人数', key: 'outPaxDI' },
+  { label: '国际出港旅客总人数', key: 'outPaxI' },
+  { label: '国内国际托运总件数', key: 'outBagDI' },
+  { label: '国际托运总件数', key: 'outBagI' },
+  { label: '出港客座率', key: 'seat', fmt: 'pct' },
+  { label: '国内国际进港人数', key: 'inPaxDI' },
+  { label: '国际进港人数', key: 'inPaxI' },
+  { label: '国内国际进港行李', key: 'inBagDI' },
+  { label: '国际进港行李', key: 'inBagI' },
+  { label: '进港架次（国内）', key: 'inDom' },
+  { label: '进港架次（国际）', key: 'inInt' },
+  { label: '出港架次（国内）', key: 'outDom' },
+  { label: '出港架次（国际）', key: 'outInt' },
+  { label: '总航班量', key: 'totalFlights' },
+  { label: '出港保障延误架次', key: 'delayFlights', editable: 'delayFlights' },
+  { label: '出港不正常航班架次', key: 'abnormalFlights', editable: 'abnormalFlights' },
+  { label: '分公司始发正常率', key: 'normRateDep', editable: 'normRateDep' },
+  { label: '分公司起飞正常率', key: 'normRateTakeoff', editable: 'normRateTakeoff' },
+  { label: '不正常原因', key: 'abnormalReason', editable: 'abnormalReason', text: true },
+  { label: '出港调时架次', key: 'tuneCount' },
+  { label: '计划性取消航班架次(进+出）', key: 'cancelFlights' },
+  { label: '当天临时取消航班架次(进+出）', key: 'tempCancel', editable: 'tempCancel' },
+];
+
+/* ============================================================
+   状态
+   ============================================================ */
+const ROW_KEYS = ['east', 'lian', 'total'];
+const ROW_NAMES = { east: '东上航', lian: '联航', total: '总表' };
+// 每行数据对象（数值字段初值 0，文本字段空串）
+function emptyRow() {
+  return {
+    fee: '', outPaxDI: 0, outPaxI: 0, outBagDI: 0, outBagI: 0, seat: 0,
+    inPaxDI: 0, inPaxI: 0, inBagDI: 0, inBagI: 0,
+    wheelchair: 0, unaccomp: 0, inDom: 0, inInt: 0, outDom: 0, outInt: 0, totalFlights: 0,
+    delayFlights: '', abnormalFlights: '', normRateDep: '', normRateTakeoff: '',
+    tuneList: [], cancelFlights: 0, tempCancel: '',
+    abnormalReason: '',
+  };
+}
+const state = { east: emptyRow(), lian: emptyRow(), total: emptyRow() };
+
+/* ============================================================
+   运量录入表格构建（航司为行、指标为列）
+   ============================================================ */
+const AIRLINES = ['东航', '上航', '中联航'];
+const FIELDS_A = ['国内国际出港旅客总人数', '国际出港旅客总人数', '国内国际托运总件数', '国际托运总件数'];
+const FIELDS_B = ['国内国际进港人数', '国际进港人数', '国内国际进港行李', '国际进港行李'];
+(function buildAirlineTable() {
+  const grpOf = i => (i < 2 ? 'grp-east' : 'grp-lian');
+  const rowCls = i => (i < 2 ? 'al-east' : 'al-lian');
+  const inp = (id, ph, a) => '<td><input class="' + grpOf(a) + '" id="' + id + '" placeholder="' + ph + '" inputmode="decimal"></td>';
+  // 表头两行：第 1 行分组、第 2 行指标。列序 = 出港/托运 4 项 → 进港/行李 4 项 → 出港客座率
+  document.getElementById('airlineHead').innerHTML =
+    '<tr class="al-grp">' +
+      '<th class="al-corner" rowspan="2">航司</th>' +
+      '<th colspan="4">出港 / 托运</th>' +
+      '<th colspan="4">进港 / 行李</th>' +
+      '<th class="al-seat-h" rowspan="2">出港客座率<br>(%)</th>' +
+    '</tr>' +
+    '<tr>' + FIELDS_A.map(f => '<th>' + f + '</th>').join('') +
+             FIELDS_B.map(f => '<th>' + f + '</th>').join('') + '</tr>';
+  // 数据行：一行一个航司，列与上表头一一对应（东上航=藏青行，中联航=青行）
+  document.getElementById('airlineBody').innerHTML = AIRLINES.map((a, i) =>
+    '<tr class="' + rowCls(i) + '">' +
+      '<th class="rname">' + a + '</th>' +
+      FIELDS_A.map((_, k) => inp('inA_' + i + '_' + k, '0', i)).join('') +
+      FIELDS_B.map((_, k) => inp('inB_' + i + '_' + k, '0', i)).join('') +
+      inp('inS_' + i, '如 85', i) +
+    '</tr>').join('');
+})();
+function val(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function readGrid(prefix, fields) {
+  const g = [], bad = [];
+  for (let a = 0; a < 3; a++) {
+    const row = [];
+    for (let f = 0; f < 4; f++) {
+      const v = evalExpr(val(prefix + '_' + a + '_' + f));
+      if (isNaN(v)) bad.push(AIRLINES[a] + ' · ' + fields[f]);
+      row.push(v);
+    }
+    g.push(row);
+  }
+  return { grid: g, bad };
+}
+
+/* ============================================================
+   导入 FIOS
+   ============================================================ */
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const statsMsg = document.getElementById('statsMsg');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.background = 'var(--tool-light)'; });
+uploadZone.addEventListener('dragleave', () => { uploadZone.style.background = ''; });
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.style.background = '';
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+/* ============================================================
+   导入指挥长周报 PDF：读取「起飞延误」表
+   ============================================================ */
+function parseDelayTable(fullText) {
+  const startMarkers = ['起飞延误：', '航班延误明细'];
+  let start = -1;
+  for (const m of startMarkers) { const i = fullText.indexOf(m); if (i !== -1) { start = i; break; } }
+  if (start === -1) return { found: false, records: [], eastCount: 0, lianCount: 0, reasonText: '' };
+  let dataStart = fullText.indexOf('序号航班号', start);
+  if (dataStart === -1) dataStart = start;
+  else { const nl = fullText.indexOf('\n', dataStart); dataStart = nl === -1 ? dataStart : nl; }
+  const endMarkers = ['四、正常性提升', '不正常事件', '过站不足航班', '五、次日', '六、风险'];
+  let end = fullText.length;
+  for (const m of endMarkers) { const i = fullText.indexOf(m, dataStart); if (i !== -1 && i < end) end = i; }
+  let region = fullText.slice(dataStart, end);
+  region = region.replace(/浙江分公司地面服务部（运行指挥中心）第\s*\d+\s*页\s*联系方式：[\d-]*生产情况汇总/g, '');
+  const re = /(\d+)\s*((?:KN|FM|MU|HO|9C|CA|ZH|CZ|3U|EU|KY|GS|NS|DZ|PN|TV|JR|GT|JD|8L|SC|GJ|UQ)\s*\d+)([（(][^）)]*[）)])?\s*(\d+)\s*分钟\s*([^延误正常]+?)\s+(延误|正常)\s+(始发|过站)/g;
+  const records = [];
+  let m;
+  while ((m = re.exec(region)) !== null) {
+    const seq = m[1];
+    const flight = m[2].replace(/\s+/g, '');
+    const route = m[3] || '';
+    const minutes = m[4];
+    const reason = m[5].trim();
+    const landing = m[6];
+    const nature = m[7];
+    const airline = flight.slice(0, 2);
+    records.push({ seq, flight, route, minutes, reason, landing, nature, airline });
+  }
+  const eastCount = records.filter(r => r.airline === 'FM' || r.airline === 'MU').length;
+  const lianCount = records.filter(r => r.airline === 'KN').length;
+  const header = '序号 航班号 起飞 延误 延误原因 落地情况 性质';
+  const rows = records.map(r => r.seq + ' ' + r.flight + r.route + ' ' + r.minutes + ' 分钟 ' + r.reason + ' ' + r.landing + ' ' + r.nature);
+  const reasonText = [header, ...rows].join('\n');
+  return { found: true, records, eastCount, lianCount, reasonText };
+}
+
+async function parseCommanderPdf(file) {
+  const msg = document.getElementById('pdfMsg');
+  const showMsg = (cls, text) => { msg.className = 'pdf-msg show ' + cls; msg.innerHTML = text; };
+  showMsg('', '正在解析 PDF（读取起飞延误明细）…');
+  try {
+    const pdfjs = await import('./libs/pdfjs/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+    let all = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent();
+      all += tc.items.map(it => it.str).join('');
+    }
+    const r = parseDelayTable(all);
+    if (!r.found || r.records.length === 0) {
+      showMsg('warn', '未在 PDF 中找到「起飞延误」表格，请确认文件是否为《生产情况汇总》周报。');
+      return;
+    }
+    state.east.abnormalFlights = r.eastCount;
+    state.lian.abnormalFlights = r.lianCount;
+    state.total.abnormalFlights = r.eastCount + r.lianCount;
+    state.total.abnormalReason = r.reasonText;
+    rebuildTotalFromParts();
+    renderOutput();
+    showMsg('ok', '已读取 <b>' + r.records.length + '</b> 条起飞延误：东上(FM/MU) <b>' + r.eastCount + '</b> 架、联航(KN) <b>' + r.lianCount + '</b> 架；完整表格已填入总表「不正常原因」列。');
+  } catch (e) {
+    console.error(e);
+    showMsg('err', 'PDF 解析失败：' + (e && e.message ? e.message : e) + '（若以本地文件直接打开本页，浏览器可能禁止 PDF 解析；请改用在线版本）');
+  }
+}
+
+const pdfInput = document.getElementById('pdfInput');
+const pdfUploadZone = document.getElementById('pdfUploadZone');
+if (pdfUploadZone) {
+  ['dragover', 'dragenter'].forEach(ev => pdfUploadZone.addEventListener(ev, e => { e.preventDefault(); pdfUploadZone.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => pdfUploadZone.addEventListener(ev, e => { e.preventDefault(); pdfUploadZone.classList.remove('drag'); }));
+  pdfUploadZone.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f && /\.pdf$/i.test(f.name)) parseCommanderPdf(f);
+  });
+}
+if (pdfInput) pdfInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) parseCommanderPdf(f); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const res = processWorkbook(e.target.result);
+      const s = res.stats;
+      state.east.wheelchair = s['东上航司'].特服轮椅;
+      state.east.unaccomp = s['东上航司'].特服无陪;
+      state.east.inDom = s['东上航司'].进港国内;
+      state.east.inInt = s['东上航司'].进港国际;
+      state.east.outDom = s['东上航司'].出港国内;
+      state.east.outInt = s['东上航司'].出港国际;
+      state.east.totalFlights = s['东上航司'].总航班量;
+      state.east.tuneList = s['东上航司'].出港调时航班;
+      state.east.cancelFlights = s['东上航司'].取消航班.length;
+      state.lian.wheelchair = s['中联航'].特服轮椅;
+      state.lian.unaccomp = s['中联航'].特服无陪;
+      state.lian.inDom = s['中联航'].进港国内;
+      state.lian.inInt = s['中联航'].进港国际;
+      state.lian.outDom = s['中联航'].出港国内;
+      state.lian.outInt = s['中联航'].出港国际;
+      state.lian.totalFlights = s['中联航'].总航班量;
+      state.lian.tuneList = s['中联航'].出港调时航班;
+      state.lian.cancelFlights = s['中联航'].取消航班.length;
+      statsMsg.innerHTML = '<div class="hint-ok">✓ 已识别 ' + res.数据总行数 + ' 条航班，东上航司 / 中联航 架次与特服已自动填入步骤 3 表格。</div>';
+      rebuildTotalFromParts();
+      renderOutput();
+    } catch (err) {
+      statsMsg.innerHTML = '<div class="hint-err">✗ ' + err.message + '</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============================================================
+   计算运量 + 生成汇总
+   ============================================================ */
+document.getElementById('calcBtn').addEventListener('click', () => {
+  const eA = readGrid('inA', FIELDS_A);
+  const eB = readGrid('inB', FIELDS_B);
+  const seat = [], seatBad = [];
+  for (let a = 0; a < 3; a++) {
+    const v = evalExpr(val('inS_' + a));
+    if (isNaN(v)) seatBad.push(AIRLINES[a] + ' · 出港客座率');
+    seat.push(v);
+  }
+  const bad = eA.bad.concat(eB.bad, seatBad);
+  const msg = document.getElementById('inputMsg');
+  if (bad.length) {
+    msg.innerHTML = '❌ 以下格子无法识别（请输入数字或加减乘除表达式）：<br>· ' + bad.join('<br>· ');
+    msg.className = 'hint-err';
+    return;
+  }
+  msg.innerHTML = '';
+  const A = eA.grid, B = eB.grid;
+  // 东上航（东航+上航）
+  const sum = (arr) => arr[0].map((v, f) => v + arr[1][f]);
+  state.east.outPaxDI = sum(A)[0]; state.east.outPaxI = sum(A)[1];
+  state.east.outBagDI = sum(A)[2]; state.east.outBagI = sum(A)[3];
+  state.east.inPaxDI = sum(B)[0]; state.east.inPaxI = sum(B)[1];
+  state.east.inBagDI = sum(B)[2]; state.east.inBagI = sum(B)[3];
+  state.east.seat = (seat[0] + seat[1]) / 2;
+  // 联航（中联航）
+  state.lian.outPaxDI = A[2][0]; state.lian.outPaxI = A[2][1];
+  state.lian.outBagDI = A[2][2]; state.lian.outBagI = A[2][3];
+  state.lian.inPaxDI = B[2][0]; state.lian.inPaxI = B[2][1];
+  state.lian.inBagDI = B[2][2]; state.lian.inBagI = B[2][3];
+  state.lian.seat = seat[2];
+  msg.innerHTML = '<div class="hint-ok">✓ 运量已汇总，步骤 3 表格已更新。</div>';
+  rebuildTotalFromParts();
+  renderOutput();
+});
+document.getElementById('clearInputBtn').addEventListener('click', () => {
+  for (let a = 0; a < 3; a++) {
+    for (let f = 0; f < 4; f++) { const e = document.getElementById('inA_' + a + '_' + f); if (e) e.value = ''; }
+    for (let f = 0; f < 4; f++) { const e = document.getElementById('inB_' + a + '_' + f); if (e) e.value = ''; }
+    const es = document.getElementById('inS_' + a); if (es) es.value = '';
+  }
+});
+
+/* 由 east / lian 自动聚合 total 行的数值字段 */
+function rebuildTotalFromParts() {
+  const numKeys = ['outPaxDI', 'outPaxI', 'outBagDI', 'outBagI', 'inPaxDI', 'inPaxI', 'inBagDI', 'inBagI',
+    'wheelchair', 'unaccomp', 'inDom', 'inInt', 'outDom', 'outInt', 'totalFlights', 'cancelFlights'];
+  numKeys.forEach(k => { state.total[k] = (Number(state.east[k]) || 0) + (Number(state.lian[k]) || 0); });
+  state.total.seat = ((Number(state.east.seat) || 0) + (Number(state.lian.seat) || 0)) / 2;
+  // 总表调时架次 = 东上航 + 联航 调时航班数
+  state.total.tuneCount = (state.east.tuneList || []).length + (state.lian.tuneList || []).length;
+  // 总表无特服列 / 无调时航班串列
+  state.total.tuneList = [];
+}
+
+/* ============================================================
+   渲染输出表（统一用东上航列序显示）
+   ============================================================ */
+// 出港调时情况航班：多航班用「 / 」分隔，无则单一个「/」（与原卡片 stats 一致）
+function fmtTune(v) {
+  const arr = Array.isArray(v) ? v : (v ? [v] : []);
+  const list = arr.filter(x => x !== '' && x !== null && x !== undefined).map(String);
+  return list.length ? list.join(' / ') : '/';
+}
+function fmtVal(v, col) {
+  if (col.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+  if (col.text) return fmtTune(v);
+  return (v === '' || v === null || v === undefined) ? '' : (Number(v) || 0).toLocaleString('zh-CN');
+}
+function renderOutput() {
+  // ---- 东上联表（east + lian，COLS_EAST 24 列）----
+  const headE = document.getElementById('outHeadEast');
+  let hE = '<tr><th>项目 \\ 列<div class="row-act">' +
+    '<button data-row="east">复制东上航</button>' +
+    '<button data-row="lian">复制联航</button>' +
+    '</div></th>';
+  COLS_EAST.forEach(c => { hE += '<th>' + c.label + '</th>'; });
+  hE += '</tr>';
+  headE.innerHTML = hE;
+  const bodyE = document.getElementById('outBodyEast');
+  let bE = '';
+  ['east', 'lian'].forEach(rk => {
+    const r = state[rk];
+    bE += '<tr><th class="rname">' + ROW_NAMES[rk] + '</th>';
+    COLS_EAST.forEach(c => { bE += renderCell(rk, r, c); });
+    bE += '</tr>';
+  });
+  bodyE.innerHTML = bE;
+
+  // ---- 总表（COLS_TOTAL 23 列）----
+  const headT = document.getElementById('outHeadTotal');
+  let hT = '<tr><th>项目 \\ 列<div class="row-act">' +
+    '<button data-row="total">复制总表</button>' +
+    '</div></th>';
+  COLS_TOTAL.forEach(c => { hT += '<th>' + c.label + '</th>'; });
+  hT += '</tr>';
+  headT.innerHTML = hT;
+  const bodyT = document.getElementById('outBodyTotal');
+  let bT = '<tr class="total"><th class="rname">' + ROW_NAMES.total + '</th>';
+  COLS_TOTAL.forEach(c => { bT += renderCell('total', state.total, c); });
+  bT += '</tr>';
+  bodyT.innerHTML = bT;
+
+  // 绑定复制按钮
+  document.querySelectorAll('table.out thead button[data-row]').forEach(btn => {
+    btn.addEventListener('click', () => copyRow(btn.getAttribute('data-row')));
+  });
+  // 绑定手填编辑
+  document.querySelectorAll('table.out tbody input[data-key]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      state[inp.getAttribute('data-row')][inp.getAttribute('data-key')] = inp.value;
+    });
+  });
+}
+
+/* 渲染单个单元格（自动列 / 手填列 / 文本列） */
+function renderCell(rk, r, c) {
+  if (c.editable) {
+    return '<td class="editable"><input data-row="' + rk + '" data-key="' + c.editable + '" value="' +
+      (r[c.editable] === '' ? '' : r[c.editable]) + '" placeholder="填"></td>';
+  } else if (c.text) {
+    return '<td class="txt" title="' + fmtTune(r[c.key]) + '">' +
+      fmtVal(r[c.key], c) + '</td>';
+  }
+  return '<td class="auto">' + fmtVal(r[c.key], c) + '</td>';
+}
+
+/* ============================================================
+   逐行复制（按对应 sheet 列序）
+   ============================================================ */
+function rowToTsv(rowKey) {
+  const r = state[rowKey];
+  const cols = (rowKey === 'total') ? COLS_TOTAL : COLS_EAST;
+  const arr = cols.map(c => {
+    let v = r[c.key];
+    if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+    if (c.text) return String(fmtTune(v)).replace(/\n+/g, '；');
+    if (v === '' || v === null || v === undefined) return '';
+    return (Number(v) || 0).toLocaleString('zh-CN');
+  });
+  return arr.join('\t');
+}
+function copyText(text, tip) {
+  const tipEl = document.getElementById('copiedTip');
+  const done = () => { tipEl.textContent = tip + ' ✓'; tipEl.classList.add('show'); setTimeout(() => tipEl.classList.remove('show'), 1800); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function copyRow(rowKey) {
+  copyText(rowToTsv(rowKey), '已复制「' + ROW_NAMES[rowKey] + '」整行');
+}
+
+/* 复制整表（统一列序，3 行） */
+document.getElementById('copyAllBtn').addEventListener('click', () => {
+  const lines = ['east', 'lian'].map(rk => rowToTsv(rk));
+  copyText(lines.join('\n'), '已复制东上联（东上航+联航，24列）');
+});
+/* 仅复制总表行 */
+document.getElementById('copyTotalOnlyBtn').addEventListener('click', () => copyRow('total'));
+
+/* ============================================================
+   导出 Excel（3 行，统一列序）
+   ============================================================ */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const d = document.getElementById('dataDate').value || '';
+  const wb = XLSX.utils.book_new();
+  // sheet1：东上联（东上航 + 联航，24 列）
+  const aoaE = [['项目'].concat(COLS_EAST.map(c => c.label))];
+  ['east', 'lian'].forEach(rk => {
+    aoaE.push([ROW_NAMES[rk]].concat(COLS_EAST.map(c => cellVal(state[rk], c))));
+  });
+  const wsE = XLSX.utils.aoa_to_sheet(aoaE);
+  wsE['!cols'] = COLS_EAST.map(() => ({ wch: 16 }));
+  XLSX.utils.book_append_sheet(wb, wsE, '东上联');
+  // sheet2：总表（23 列）
+  const aoaT = [['项目'].concat(COLS_TOTAL.map(c => c.label))];
+  aoaT.push([ROW_NAMES.total].concat(COLS_TOTAL.map(c => cellVal(state.total, c))));
+  const wsT = XLSX.utils.aoa_to_sheet(aoaT);
+  wsT['!cols'] = COLS_TOTAL.map(() => ({ wch: 16 }));
+  XLSX.utils.book_append_sheet(wb, wsT, '总表');
+  XLSX.writeFile(wb, '东上联日数据汇总' + (d ? '_' + d : '') + '.xlsx');
+});
+// 单个单元格取值（用于导出 Excel）
+function cellVal(r, c) {
+  let v = r[c.key];
+  if (c.fmt === 'pct') return (Number(v) || 0).toFixed(1) + '%';
+  if (c.text) return fmtTune(v);
+  if (v === '' || v === null || v === undefined) return '';
+  return Number(v) || 0;
+}
+
+/* 初始化 */
+renderOutput();
+</script>
+</body>
+</html>

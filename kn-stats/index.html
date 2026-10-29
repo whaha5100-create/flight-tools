@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KN航班出港统计 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="KN航班出港统计 · 航班工作工具集">
+<meta property="og:description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/kn-stats/index.html">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ kn-stats · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+* { box-sizing:border-box; }
+.upload { margin-top:24px; border:2px dashed var(--line); border-radius:var(--radius); background:#fff;
+    transition:border-color .2s, background .2s; }
+.upload.drag { border-color:var(--tool); background:var(--tool-light); }
+.upload-inner { padding:42px 24px; text-align:center; }
+.up-ic { font-size:42px; }
+.upload-inner p { color:var(--muted); margin:12px 0 18px; font-size:15px; }
+#resultArea { margin-top:24px; }
+#resultArea table { width: 100%; table-layout: fixed; }
+.stats-bar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.stat-pill { background:#fff; border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:13.5px;
+    color:var(--muted); box-shadow:var(--shadow-sm); }
+.stat-pill b { color:var(--tool-dark); font-size:15px; }
+.stat-pill.warn b { color:var(--amber); }
+.table-wrap { background:#fff; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
+table { width:100%; border-collapse:collapse; font-size:16px; }
+thead th { background:#f5f5f7; color:var(--muted); font-weight:700; padding:12px 14px;
+    text-align:center; font-size:16px; letter-spacing:.5px; border-bottom:1px solid var(--line); }
+tbody td { padding:9px 14px; text-align:center; border-top:1px solid #e5e5ea; }
+tbody td:first-child { text-align:center; font-weight:700; color:var(--ink); }
+tbody tr:nth-child(even) { background:#fafafa; }
+.note-tag { display:inline-block; background:var(--amber-soft); color:var(--amber); font-weight:700; font-size:12.5px;
+    padding:3px 10px; border-radius:999px; border:1px solid var(--amber-line); }
+/* 早始发汇总行：紧跟早始发航班之后（表格内分组小计），背景必须整行撑满 */
+.early-summary-row td { background: #e8e8ed !important; color: var(--ink) !important; text-align: center !important;
+  font-weight: 700; font-size: 14.5px; padding: 14px 20px; letter-spacing: 0.3px; white-space: nowrap; }
+.empty { padding:40px; text-align:center; color:var(--muted); }
+
+/* ============ 导出配色（2026-10-25）============
+   只给「底色 / 字色」两个色板；表头、时间、分隔线、高客座圆点全部由这两个颜色推导
+   （见 JS 的 buildPalette）。默认值 = 纯白 + 近黑 ⇒ 页面和导出图跟以前一模一样。
+   ⚠️ 下面这批规则带 #resultArea 前缀，是为了压过 tool-page.css 里 .table-wrap 那套写死的白底。 */
+#resultArea { --kn-bg:#ffffff; --kn-ink:#1d1d1f; --kn-sec:#6e6e73;
+  --kn-rule:#e8e8ed; --kn-line:#d2d2d7; --kn-head:#fafafa; --kn-hover:#fbfcfd; --kn-sum:#e8e8ed;
+  --kn-tag:#b4610d; --kn-tag-bg:#fdf3e3; --kn-tag-line:#eed9b8; }
+#resultArea .table-wrap { background:var(--kn-bg); border-color:var(--kn-rule) !important; }
+#resultArea .table-wrap thead th { background:var(--kn-head); color:var(--kn-sec); border-bottom-color:var(--kn-rule); }
+#resultArea .table-wrap tbody td { color:var(--kn-ink); border-top-color:var(--kn-rule); }
+#resultArea .table-wrap tbody tr:hover { background:var(--kn-hover); }
+#resultArea .table-wrap tbody tr.early-summary-row td { background:var(--kn-sum) !important; color:var(--kn-ink) !important; }
+#resultArea .note-tag { color:var(--kn-tag); background:var(--kn-tag-bg); border-color:var(--kn-tag-line); }
+
+/* 配色控件：发丝描边 + 无底色，只有「可点」的东西用品牌蓝（选中环） */
+.color-ctl { display:inline-flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.cc-label { font-size:12.5px; color:var(--muted-2); letter-spacing:.02em; }
+.cc-field { display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--muted); }
+.cc-field input[type=color] {
+  -webkit-appearance:none; appearance:none; width:22px; height:22px; padding:0;
+  border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; overflow:hidden; }
+.cc-field input[type=color]::-webkit-color-swatch-wrapper { padding:0; }
+.cc-field input[type=color]::-webkit-color-swatch { border:0; border-radius:5px; }
+.cc-sep { width:1px; height:18px; background:var(--line); }
+.cc-presets { display:inline-flex; align-items:center; gap:9px; }
+.cc-dot { width:21px; height:21px; padding:0; border:1px solid var(--line); border-radius:50%;
+  background:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  transition:outline-color var(--dur-fast) var(--ease-inout); }
+.cc-dot > i { width:7px; height:7px; border-radius:50%; display:block; }
+.cc-dot:hover { outline:2px solid var(--line); outline-offset:2px; }
+.cc-dot[aria-pressed="true"] { outline:2px solid var(--brand); outline-offset:2px; }
+.cc-reset { background:none; border:0; padding:0; font-size:12.5px; color:var(--muted-2);
+  cursor:pointer; text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; }
+.cc-reset:hover { color:var(--ink); }
+.cc-warn { flex:0 0 100%; font-size:12.5px; color:var(--amber); }
+.cc-warn[hidden] { display:none; }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/05-kn-stats.webp"); }
+  /* 六列等分太浪费 —— 给每列一个符合内容量的宽度（仅版式） */
+  #tbl th:nth-child(1) { width: 15%; }
+  #tbl th:nth-child(2) { width: 15%; }
+  #tbl th:nth-child(3) { width: 12%; }
+  #tbl th:nth-child(4) { width: 14%; }
+  #tbl th:nth-child(5) { width: 14%; }
+  #tbl th:nth-child(6) { width: 30%; }
+</style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>05</b>KN航班出港统计</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">05</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>KN航班出港统计</h1>
+    <p class="lede">上传 FIOS 导出 Excel，自动筛出次日 KN 出港航班，算出截载时间与订座人数。</p>
+  </section>
+
+
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">KN航班出港统计</span>
+    <nav class="ln-links">
+      <a href="#uploadArea">导入数据</a>
+      <a href="#resultArea">统计结果</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
+  <div class="container">
+
+    <div class="upload-zone no-click" id="uploadArea">
+      <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+      <div class="uz-body">
+        <div class="text">把 FIOS 导出的 Excel 拖进来</div>
+        <div class="hint">.xls / .xlsx ｜ 自动筛出 KN 开头的出港航班</div>
+      </div>
+      <span class="uz-a" onclick="document.getElementById('fileInput').click()">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+      <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
+    </div>
+
+    <div id="resultArea" style="display:none">
+      <div class="stats-bar" id="statsBar"></div>
+      <div class="table-wrap">
+        <table id="tbl">
+          <thead><tr>
+            <th>出港航班</th><th>到站</th><th>计飞</th><th>截载时间</th><th>出港订座</th><th>备注</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="exportImage()">导出图片</button>
+        <div class="color-ctl" id="colorCtl">
+          <span class="cc-label">配色</span>
+          <label class="cc-field">底色<input type="color" id="ccBg" value="#ffffff" aria-label="导出图底色"></label>
+          <label class="cc-field">字色<input type="color" id="ccInk" value="#1d1d1f" aria-label="导出图字色"></label>
+          <span class="cc-sep" aria-hidden="true"></span>
+          <div class="cc-presets" id="ccPresets"></div>
+          <button class="cc-reset" type="button" id="ccReset">恢复默认</button>
+        </div>
+        <div class="cc-warn" id="ccWarn" hidden>底色和字色太接近，导出图上的字会看不清。</div>
+      </div>
+      <div class="hint">截载时间 = 计飞 − 35 分钟；订座 = 出港订座三舱位数相加；订座 &gt; 160 标注「高客座航班」。</div>
+    </div>
+
+    <!-- 规则说明面板 -->
+    <div class="rules-panel" id="rulesPanel">
+<div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">KN出港统计规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+      </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          系统读取 FIOS 导出的出港航班 Excel，按下列规则筛选与计算 KN 航班：
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>筛选 KN 出港：</b>仅保留航班号以 <code>KN</code> 开头的出港航班，并自动去除航班号中的 <code>#</code> 与 <code>&amp;</code> 符号。</li>
+            <li><b>排除取消：</b>机号 / 状态为 <code>CNL / DEL</code> 的航班不计入统计。</li>
+            <li><b>截载时间：</b>截载 = 计飞 − 35 分钟，便于安排值机截止时刻。</li>
+            <li><b>订座人数：</b>出港订座各舱位数相加，得到该航班总订座人数。</li>
+            <li><b>早始发汇总：</b>计飞在 <b>10:30（含）之前</b> 的航班，单独汇总其订座人数，便于早班保障排班。</li>
+            <li><b>高客座标注：</b>订座人数 <b>&gt; 160</b> 的航班标注「高客座航班」，提示重点保障。</li>
+            <li><b>排序与导出：</b>结果按计飞时间从早到晚排序；可一键导出图片，用于值机保障群发布。</li>
+            <li><b>导出配色：</b>默认纯白底 + 近黑字（与以往完全一致）。也可自选底色与字色，其余层级（表头、时间、分隔线、高客座圆点）由这两个颜色自动推导，保证任何配色下都读得清；所选配色会记住，下次打开仍生效。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+  <script src="libs/xlsx.full.min.js"></script>
+  <script>
+  var processed = [];   // [{flight,dest,dep,cut,sum,note,early}]
+  var earlyTotal = 0;
+
+  // ---------- 工具函数 ----------
+  function parseTime(t){
+    t = String(t||'').trim();
+    if(!/^\d{3,4}$/.test(t)) return null;
+    if(t.length===3) t='0'+t;
+    return parseInt(t.slice(0,2),10)*60 + parseInt(t.slice(2),10);
+  }
+  function fmtTime(m){
+    if(m==null) return '';
+    m = ((m%1440)+1440)%1440;
+    return String(Math.floor(m/60)).padStart(2,'0') + String(m%60).padStart(2,'0');
+  }
+  function bookingSum(s){
+    return String(s||'').split(/[|\/]/).map(function(x){ return parseInt(x.replace(/\D/g,''),10)||0; })
+            .reduce(function(a,b){ return a+b; },0);
+  }
+  function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
+
+  // ---------- 文件读取与解析 ----------
+  var fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', function(e){ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+  var uploadArea = document.getElementById('uploadArea');
+  ['dragenter','dragover'].forEach(function(ev){ uploadArea.addEventListener(ev, function(e){ e.preventDefault(); uploadArea.classList.add('drag'); }); });
+  ['dragleave','drop'].forEach(function(ev){ uploadArea.addEventListener(ev, function(e){ e.preventDefault(); uploadArea.classList.remove('drag'); }); });
+  uploadArea.addEventListener('drop', function(e){ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+  function handleFile(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        process(rows);
+      }catch(err){
+        alert('解析失败：' + err.message + '\n请确认是 FIOS 导出的 Excel 文件。');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // 根据表头文字定位列（适配不同日期 FIOS 导出列顺序差异）
+  function findCol(headers, names){
+    for(var n=0;n<names.length;n++){
+      for(var c=0;c<headers.length;c++){
+        if(String(headers[c]||'').trim().indexOf(names[n])>=0) return c;
+      }
+    }
+    return -1;
+  }
+
+  function process(rows){
+    processed = [];
+    if(!rows || !rows.length){ render(); return; }
+    // 定位表头行：前几行中找含「出港航班」的那一行
+    var hRow = 0;
+    for(var i=0;i<Math.min(rows.length,8);i++){
+      var found = rows[i].some(function(c){ return String(c||'').indexOf('出港航班')>=0; });
+      if(found){ hRow = i; break; }
+    }
+    var header = rows[hRow] || [];
+    var cFlight = findCol(header, ['出港航班','出港航班号']);
+    var cDest  = findCol(header, ['到站']);
+    var cDep   = findCol(header, ['计离']);          // 本场出发时间
+    var cAc    = findCol(header, ['机号']);
+    var cBook  = findCol(header, ['出港订座']);
+
+    var droppedCancel = 0, droppedNonKN = 0;
+    for(var j=hRow+1;j<rows.length;j++){
+      var r = rows[j];
+      if(cFlight<0) break;
+      var rawFlight = String(r[cFlight]||'').trim();
+      if(!rawFlight) continue;                                  // 非出港航班行（进港航班在此列通常为空）
+      var ac = (cAc>=0) ? String(r[cAc]||'').trim().toUpperCase() : '';
+      if(ac==='CNL' || ac==='DEL'){ droppedCancel++; continue; } // 取消航班
+      var flight = rawFlight.replace(/[#&]/g,'').trim();
+      if(flight.indexOf('KN')!==0){ droppedNonKN++; continue; }  // 仅保留 KN 开头
+      var dep = (cDep>=0) ? String(r[cDep]||'').trim() : '';
+      var depMin = parseTime(dep);
+      var sum = (cBook>=0) ? bookingSum(r[cBook]) : 0;
+      var cutMin = (depMin==null) ? null : depMin - 35;
+      processed.push({
+        flight: flight,
+        dest: (cDest>=0) ? String(r[cDest]||'').trim() : '',
+        dep: dep,
+        cut: fmtTime(cutMin),
+        sum: sum,
+        note: sum>160 ? '高客座航班' : '',
+        early: (depMin!=null && depMin <= 630)        // 10:30（含）之前
+      });
+    }
+    // 按计飞升序
+    processed.sort(function(a,b){ return (parseTime(a.dep)||9999) - (parseTime(b.dep)||9999); });
+    earlyTotal = processed.filter(function(x){return x.early;}).reduce(function(a,b){return a+b.sum;},0);
+    render();
+  }
+
+  // ---------- 渲染 ----------
+  function render(){
+    var earlyRows = processed.filter(function(x){ return x.early; });
+    var lateRows  = processed.filter(function(x){ return !x.early; });
+    var html = '';
+    earlyRows.forEach(function(x){ html += rowHtml(x); });
+    // 早始发汇总行：紧跟早始发航班之后（计飞 10:30 含之前），作为分组小计
+    if (earlyRows.length > 0) {
+      html += '<tr class="early-summary-row"><td colspan="6">早始发人数：' + earlyTotal +
+              '（' + earlyRows.length + ' 班，计飞 10:30（含）之前）</td></tr>';
+    }
+    lateRows.forEach(function(x){ html += rowHtml(x); });
+    if(!processed.length){
+      html = '<tr><td colspan="6" class="empty">未找到符合条件的 KN 出港航班，请检查文件。</td></tr>';
+    }
+    document.getElementById('tbody').innerHTML = html;
+
+    document.getElementById('statsBar').innerHTML =
+      '<span class="stat-pill">KN出港航班 <b>' + processed.length + '</b> 班</span>' +
+      '<span class="stat-pill">早始发人数 <b>' + earlyTotal + '</b></span>';
+
+    document.getElementById('resultArea').style.display = 'block';
+    uploadArea.style.display = 'none';
+  }
+
+  function rowHtml(x){
+    var note = x.note ? '<span class="note-tag">'+esc(x.note)+'</span>' : '';
+    return '<tr>' +
+      '<td>'+esc(x.flight)+'</td>' +
+      '<td>'+esc(x.dest)+'</td>' +
+      '<td>'+esc(x.dep)+'</td>' +
+      '<td>'+esc(x.cut)+'</td>' +
+      '<td><b>'+esc(x.sum)+'</b></td>' +
+      '<td>'+note+'</td>' +
+    '</tr>';
+  }
+
+  // ---------- 导出配色（2026-10-25）----------
+  // 只开放「底色 / 字色」两个色板。原因：整张图是「五级灰度 + 一条琥珀」建的层次，
+  // 5 个颜色全开放的话，深底一配就全糊 —— 所以其余层级由这两个颜色推导。
+  var KN_KEY = 'knExportColors.v1';
+  var KN_DEF = { bg:'#ffffff', ink:'#1d1d1f' };
+  var KN_PRESETS = [
+    { n:'纯白',   bg:'#ffffff', ink:'#1d1d1f' },
+    { n:'米白',   bg:'#faf7f2', ink:'#1d1d1f' },
+    { n:'浅灰',   bg:'#f1f1f4', ink:'#1d1d1f' },
+    { n:'深空灰', bg:'#1d1d1f', ink:'#f5f5f7' },
+    { n:'墨黑',   bg:'#000000', ink:'#ffffff' }
+  ];
+  var colorState = { bg: KN_DEF.bg, ink: KN_DEF.ink };
+
+  function hex2rgb(h){
+    h = String(h||'').replace('#','');
+    if(h.length===3) h = h.charAt(0)+h.charAt(0)+h.charAt(1)+h.charAt(1)+h.charAt(2)+h.charAt(2);
+    var n = parseInt(h,16);
+    return isNaN(n) ? [0,0,0] : [(n>>16)&255, (n>>8)&255, n&255];
+  }
+  function rgb2hex(a){
+    return '#' + a.map(function(v){
+      v = Math.max(0, Math.min(255, Math.round(v)));
+      return (v<16?'0':'') + v.toString(16);
+    }).join('');
+  }
+  function mixHex(a, b, t){                    // a 往 b 靠 t（0~1）
+    var A = hex2rgb(a), B = hex2rgb(b);
+    return rgb2hex([A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t]);
+  }
+  function relLum(hex){
+    var c = hex2rgb(hex).map(function(v){ v/=255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); });
+    return .2126*c[0] + .7152*c[1] + .0722*c[2];
+  }
+  function contrastRatio(a, b){
+    var la = relLum(a), lb = relLum(b), hi = Math.max(la,lb), lo = Math.min(la,lb);
+    return (hi+.05)/(lo+.05);
+  }
+  function isDefaultColor(){
+    return String(colorState.bg).toLowerCase()===KN_DEF.bg &&
+           String(colorState.ink).toLowerCase()===KN_DEF.ink;
+  }
+
+  // 🔥 默认配色走「原值直通」，不做近似推导 —— 保证不改色时页面与导出图跟旧版一模一样。
+  function buildPalette(bg, ink){
+    if(String(bg).toLowerCase()==='#ffffff' && String(ink).toLowerCase()==='#1d1d1f'){
+      return { bg:'#ffffff', ink:'#1d1d1f', time:'#424245', sec:'#6e6e73', ter:'#86868b',
+               rule:'#e5e5ea', ruleStrong:'#d2d2d7', dot:'#c07c21',
+               pageRule:'#e8e8ed', pageLine:'#d2d2d7', head:'#fafafa', hover:'#fbfcfd', sum:'#e8e8ed',
+               tag:'#b4610d', tagBg:'#fdf3e3', tagLine:'#eed9b8' };
+    }
+    // 高客座圆点：白底用深琥珀，深底换成亮琥珀，否则在深灰上会糊成一片
+    var dot = contrastRatio('#c07c21', bg) >= 2.4 ? '#c07c21' : '#f0b45a';
+    return {
+      bg: bg, ink: ink,
+      time: mixHex(bg, ink, .86),        // 计飞 / 截载时间
+      sec:  mixHex(bg, ink, .62),        // 表头 / 标签 / 单位
+      ter:  mixHex(bg, ink, .50),        // 日期 / 小计说明
+      rule: mixHex(bg, ink, .10),        // 发丝线
+      ruleStrong: mixHex(bg, ink, .18),  // 表头下线 / 小计上下线
+      pageRule: mixHex(bg, ink, .10),
+      pageLine: mixHex(bg, ink, .22),
+      head: mixHex(bg, ink, .035),       // 表头底色
+      hover: mixHex(bg, ink, .05),
+      sum: mixHex(bg, ink, .09),         // 早始发小计整行
+      dot: dot,
+      tag: dot,
+      tagBg: mixHex(bg, dot, .12),
+      tagLine: mixHex(bg, dot, .30)
+    };
+  }
+
+  function knApplyColors(){
+    var P = buildPalette(colorState.bg, colorState.ink);
+    var el = document.getElementById('resultArea');
+    if(el){
+      el.style.setProperty('--kn-bg', P.bg);
+      el.style.setProperty('--kn-ink', P.ink);
+      el.style.setProperty('--kn-sec', P.sec);
+      el.style.setProperty('--kn-rule', P.pageRule);
+      el.style.setProperty('--kn-line', P.pageLine);
+      el.style.setProperty('--kn-head', P.head);
+      el.style.setProperty('--kn-hover', P.hover);
+      el.style.setProperty('--kn-sum', P.sum);
+      el.style.setProperty('--kn-tag', P.tag);
+      el.style.setProperty('--kn-tag-bg', P.tagBg);
+      el.style.setProperty('--kn-tag-line', P.tagLine);
+    }
+    var bgIn = document.getElementById('ccBg'), inkIn = document.getElementById('ccInk');
+    if(bgIn)  bgIn.value  = colorState.bg;
+    if(inkIn) inkIn.value = colorState.ink;
+    var dots = document.querySelectorAll('.cc-dot');
+    for(var i=0;i<dots.length;i++){
+      var on = String(dots[i].getAttribute('data-bg')).toLowerCase()===String(colorState.bg).toLowerCase() &&
+               String(dots[i].getAttribute('data-ink')).toLowerCase()===String(colorState.ink).toLowerCase();
+      dots[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    var warn = document.getElementById('ccWarn');
+    if(warn) warn.hidden = contrastRatio(colorState.bg, colorState.ink) >= 3;
+  }
+
+  function knSaveColors(){
+    try{ localStorage.setItem(KN_KEY, JSON.stringify(colorState)); }catch(e){}
+  }
+
+  (function initColors(){
+    try{
+      var s = JSON.parse(localStorage.getItem(KN_KEY) || 'null');
+      if(s && /^#[0-9a-f]{6}$/i.test(s.bg) && /^#[0-9a-f]{6}$/i.test(s.ink)){
+        colorState.bg = s.bg.toLowerCase();
+        colorState.ink = s.ink.toLowerCase();
+      }
+    }catch(e){}
+
+    var box = document.getElementById('ccPresets');
+    if(box){
+      KN_PRESETS.forEach(function(p){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cc-dot';
+        b.title = p.n;
+        b.setAttribute('data-color-chip', '');   // 声明为色板：色板本来就该显示任意颜色
+        b.setAttribute('aria-label', '配色：' + p.n);
+        b.setAttribute('data-bg', p.bg);
+        b.setAttribute('data-ink', p.ink);
+        b.style.background = p.bg;
+        var i = document.createElement('i');
+        i.style.background = p.ink;
+        b.appendChild(i);
+        b.addEventListener('click', function(){
+          colorState.bg = p.bg; colorState.ink = p.ink;
+          knSaveColors(); knApplyColors();
+        });
+        box.appendChild(b);
+      });
+    }
+
+    var bgIn = document.getElementById('ccBg'), inkIn = document.getElementById('ccInk');
+    function onPick(){
+      colorState.bg = bgIn.value; colorState.ink = inkIn.value;
+      knSaveColors(); knApplyColors();
+    }
+    if(bgIn)  bgIn.addEventListener('input', onPick);
+    if(inkIn) inkIn.addEventListener('input', onPick);
+
+    var rst = document.getElementById('ccReset');
+    if(rst) rst.addEventListener('click', function(){
+      colorState.bg = KN_DEF.bg; colorState.ink = KN_DEF.ink;
+      knSaveColors(); knApplyColors();
+    });
+
+    knApplyColors();
+  })();
+
+  // ---------- 导出图片（Canvas 2x · 白底极简版 · 2026-10 改版） ----------
+  // 设计依据：苹果 HIG 的「字重 + 字号 + 颜色」三层建层级；Linear 的「只用发丝线、不用阴影填充」；
+  // Vercel 的「避开 60–80% 亮度的灰」。所以：白底、无卡片外壳、无整行灰底、无口径注释。
+  function exportImage(){
+    if(!processed.length){ alert('请先上传并生成统计表'); return; }
+
+    var F = '"PingFang SC","Microsoft YaHei",sans-serif';
+    var M = '"SF Mono","Menlo",ui-monospace';
+    // 配色由「底色 + 字色」推导（默认值时 buildPalette 直通旧版原值）
+    var PAL = buildPalette(colorState.bg, colorState.ink);
+    var BG=PAL.bg, INK=PAL.ink, SEC=PAL.sec, TIME=PAL.time, TER=PAL.ter,
+        RULE=PAL.rule, RULE_STRONG=PAL.ruleStrong, DOT=PAL.dot;
+
+    // 字距必须跟着字号走：大字收负字距，小字加正字距
+    function tracked(s,x,y,sp){
+      ctx.textAlign='left';
+      var chars=Array.from(s), sx=x;
+      for(var i=0;i<chars.length;i++){ ctx.fillText(chars[i],sx,y); sx+=ctx.measureText(chars[i]).width+sp; }
+    }
+    function tw(s,sp){
+      var chars=Array.from(s), w=0;
+      for(var i=0;i<chars.length;i++) w+=ctx.measureText(chars[i]).width+sp;
+      return w-sp;
+    }
+
+    var earlyRows = processed.filter(function(x){ return x.early; });
+    var lateRows  = processed.filter(function(x){ return !x.early; });
+    var hasGroup  = earlyRows.length > 0;
+    var earlyNum  = earlyRows.reduce(function(a,b){ return a + (Number(b.sum)||0); },0);
+    var highN     = processed.filter(function(x){ return (Number(x.sum)||0) > 160; }).length;
+
+    // GAP：右对齐列的表头与数字都要从列右边界内缩，否则「出港订座」会和「备注」表头挤成一串
+    var GAP = 12;
+    var cols = [
+      {t:'出港航班', w:136, a:'left',  pl:0},
+      {t:'到站',     w:152, a:'left',  pl:12},
+      {t:'计飞',     w:88,  a:'right'},
+      {t:'截载时间', w:104, a:'right'},
+      {t:'出港订座', w:104, a:'right'},
+      {t:'备注',     w:96,  a:'left',  pl:12}
+    ];
+    var tableW = cols.reduce(function(a,c){ return a+c.w; },0);
+    var pad = 56;
+    var W = tableW + pad*2;
+
+    var rowH = 56, headerH = 40, groupH = 72;
+    var headTop = pad + 48 + 40 + 34 + 48;   // 顶部留白 → 标题 → 数字标签 → 数字值 → 表头
+    var bodyH = headerH + rowH*processed.length + (hasGroup ? groupH : 0);
+    var H = headTop + bodyH + 56;
+
+    var scale = 2;
+    var canvas = document.createElement('canvas');
+    canvas.width = W*scale; canvas.height = H*scale;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(scale,scale);
+
+    ctx.fillStyle = BG; ctx.fillRect(0,0,W,H);
+    var x0 = pad, xw = tableW;
+
+    var now = new Date();
+    var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    var timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+    // ── 标题 ──
+    var y = pad + 48;
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillStyle = INK; ctx.font = '600 30px ' + F;
+    ctx.fillText('KN 航班出港统计', x0, y);
+    ctx.fillStyle = TER; ctx.font = '500 13px ' + M; ctx.textAlign = 'right';
+    ctx.fillText(dateStr + '  ' + timeStr, x0 + xw, y - 2);
+
+    // ── 三个数字：标签在上、数值在下，按实际宽度排（固定列宽会让后两块显得更挤） ──
+    y += 40;
+    var figs = [
+      {label:'出港航班',   v:String(processed.length), unit:'班'},
+      {label:'早始发人数', v:String(earlyNum),         unit:'人'},
+      {label:'高客座航班', v:String(highN),            unit:'班'}
+    ];
+    var FIG_GAP = 56;
+    var figW = figs.map(function(fg){
+      ctx.font = '500 12px ' + F; var lw = tw(fg.label, 1.0);
+      ctx.font = '600 30px ' + M; var vw = ctx.measureText(fg.v).width;
+      ctx.font = '400 13px ' + F; var uw = ctx.measureText(fg.unit).width;
+      return Math.max(lw, vw + 5 + uw);
+    });
+    var fx = x0;
+    figs.forEach(function(fg, i){
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.fillStyle = SEC; ctx.font = '500 12px ' + F;
+      tracked(fg.label, fx, y, 1.0);
+      ctx.fillStyle = INK; ctx.font = '600 30px ' + M;
+      var vw = ctx.measureText(fg.v).width;
+      ctx.fillText(fg.v, fx, y + 34);
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText(fg.unit, fx + vw + 5, y + 34);
+      fx += figW[i] + FIG_GAP;
+    });
+
+    // ── 表头：小字 + 微加字距，当"标签层"用，不铺灰底 ──
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = SEC; ctx.font = '500 12px ' + F;
+    var cx = x0;
+    cols.forEach(function(c){
+      var w = tw(c.t, 1.2);
+      var tx = c.a === 'right' ? cx + c.w - GAP - w : cx + (c.pl || 0);
+      tracked(c.t, tx, headTop + headerH/2 + 1, 1.2);
+      cx += c.w;
+    });
+    ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, headTop + headerH + .5); ctx.lineTo(x0 + xw, headTop + headerH + .5); ctx.stroke();
+
+    var ry = headTop + headerH;
+
+    function drawRow(x){
+      var base = ry + rowH/2;
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = INK; ctx.font = '600 16px ' + M; ctx.textAlign='left';
+      ctx.fillText(x.flight, x0, base + 1);
+
+      ctx.fillStyle = INK; ctx.font = '400 16px ' + F;
+      ctx.fillText(x.dest, x0 + cols[0].w + cols[1].pl, base + 1);
+
+      var px = x0 + cols[0].w + cols[1].w;
+      ctx.fillStyle = TIME; ctx.font = '500 15px ' + M; ctx.textAlign='right';
+      ctx.fillText(x.dep, px + cols[2].w - GAP, base + 1); px += cols[2].w;
+      ctx.fillText(x.cut, px + cols[3].w - GAP, base + 1); px += cols[3].w;
+
+      // 订座 = 这张表的主角：19px 600，可以放心压深
+      ctx.fillStyle = INK; ctx.font = '600 19px ' + M;
+      ctx.fillText(String(x.sum), px + cols[4].w - GAP, base + 1); px += cols[4].w;
+
+      // 高客座：圆点 + 文字（不单靠颜色传信息）。圆点必须离数字够远，贴着会被读成小数点
+      if ((Number(x.sum)||0) > 160){
+        ctx.fillStyle = DOT;
+        ctx.beginPath(); ctx.arc(px + 18, base - 4, 2.8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = SEC; ctx.font = '500 12px ' + F; ctx.textAlign='left';
+        ctx.fillText('高客座', px + 28, base + 1);
+      }
+
+      ctx.strokeStyle = RULE; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + rowH + .5); ctx.lineTo(x0 + xw, ry + rowH + .5); ctx.stroke();
+      ry += rowH;
+    }
+
+    earlyRows.forEach(drawRow);
+
+    // ── 早始发小计：不做整行灰底，用两条线收住，合计数落在「出港订座」列上 ──
+    if (hasGroup){
+      ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + .5); ctx.lineTo(x0 + xw, ry + .5); ctx.stroke();
+
+      var mid = ry + groupH/2;
+      ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+      ctx.fillStyle = TER; ctx.font = '500 12px ' + F;
+      tracked('早始发小计', x0, mid - 4, 1.2);
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText(earlyRows.length + ' 班 · 计飞 10:30（含）之前', x0, mid + 17);
+
+      var bigX = x0 + xw - cols[5].w - GAP;   // = 出港订座列右边界
+      ctx.textAlign='right';
+      ctx.fillStyle = INK; ctx.font = '600 24px ' + M;
+      ctx.fillText(String(earlyNum), bigX, mid + 8);
+      ctx.textAlign='left';
+      ctx.fillStyle = SEC; ctx.font = '400 13px ' + F;
+      ctx.fillText('人', bigX + 7, mid + 8);
+
+      ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, ry + groupH + .5); ctx.lineTo(x0 + xw, ry + groupH + .5); ctx.stroke();
+      ry += groupH;
+    }
+
+    lateRows.forEach(drawRow);
+
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'KN航班出港统计_' + dateStr + '.png';
+    a.click();
+  }
+
+  </script>
+</body>
+</html>

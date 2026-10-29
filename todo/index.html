@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日待办 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="按日期记录每日待办，自动保存，支持历史日历回看、跨日期搜索与固定事项模板。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="每日待办 · 航班工作工具集">
+<meta property="og:description" content="按日期记录每日待办，自动保存，支持历史日历回看、跨日期搜索与固定事项模板。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/todo/index.html">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ todo · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+a.back { display:inline-flex; align-items:center; gap:6px; color:var(--tool); text-decoration:none; font-weight:600; font-size:14px; margin: 0 0 16px 4px; }
+a.back:hover { text-decoration: underline; }
+/* ============ Toolbar ============ */
+  .toolbar { background: var(--card); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    padding: 16px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+.toolbar .date-wrap { display:flex; align-items:center; gap:8px; }
+.toolbar label { font-size:13px; color:var(--muted); font-weight:600; }
+.toolbar input[type=date] { font: inherit; font-size:14px; padding:8px 10px; border:1px solid var(--line); border-radius: var(--radius-sm); color:var(--ink); }
+.tabs { display:flex; background: var(--bg); border-radius: 999px; padding:4px; margin-left:auto; }
+/* 🔥 原先只写了 `transition:.18s` 却**没有任何 :hover 规则** —— 声明了过渡却永不触发。
+   分段控件（tabs/filter）是苹果「分段控制器」的典型形态，必须有点按反馈。 */
+.tabs button { border:0; background:transparent; font:inherit; font-size:13px; font-weight:600; color:var(--muted); padding:7px 16px; border-radius:999px; cursor:pointer;
+  transition: background var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout),
+              box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-spring); }
+.tabs button:hover { color: var(--ink); background: rgba(0,0,0,.05); }
+.tabs button:active { transform: scale(.96); transition-duration:.07s; }
+.tabs button.active { background: var(--tool); color:#fff; box-shadow: var(--shadow-sm); }
+.tabs button.active:hover { background: var(--tool-dark); color:#fff; }
+.tool-row { display:flex; flex-wrap:wrap; gap:8px; margin: 14px 0; }
+/* ============ Stats ============ */
+  .stats { background: var(--card); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding:18px 20px; margin-top:16px; }
+.stats .row { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.stat { text-align:center; min-width: 72px; }
+.stat .num { font-size: 26px; font-weight: 800; color: var(--ink); line-height:1.1; }
+.stat .lbl { font-size:12px; color: var(--muted); margin-top:2px; }
+.stat .num.ok { color: var(--ok); }
+.stat .num.fire { color: var(--warn); }
+.progress-wrap { flex:1; min-width: 200px; }
+.progress-top { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:6px; }
+.progress-top b { color: var(--ink); }
+.bar { height: 12px; background: var(--bg); border-radius: 999px; overflow:hidden; }
+.bar > i { display:block; height:100%; background: linear-gradient(90deg, var(--ok), var(--success)); border-radius:999px; transition: width .4s ease; }
+.streak-badge { display:inline-flex; align-items:center; gap:6px; background: var(--warn-light); color:var(--amber); font-weight:700; font-size:13px; padding:7px 12px; border-radius:999px; }
+/* ============ Add bar ============ */
+  .addbar { background: var(--card); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding:14px 16px; margin-top:16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.addbar input[type=text] { flex:1; min-width: 200px; font:inherit; font-size:14px; padding:11px 13px; border:1px solid var(--line); border-radius: var(--radius-sm); color:var(--ink); }
+.addbar input[type=text]:focus { outline:none; border-color: var(--tool); box-shadow:0 0 0 3px var(--tool-soft); }
+.addbar .btn-primary { padding:11px 18px; }
+/* ============ Filter ============ */
+  .filter { display:flex; gap:8px; margin:16px 0 0; flex-wrap:wrap; }
+.filter button { border:1px solid var(--line); background:#fff; font:inherit; font-size:13px; color:var(--muted); padding:6px 14px; border-radius:999px; cursor:pointer;
+  transition: background var(--dur-fast) var(--ease-inout), border-color var(--dur-fast) var(--ease-inout),
+              color var(--dur-fast) var(--ease-inout), box-shadow var(--dur) var(--ease-out),
+              transform var(--dur) var(--ease-spring); }
+.filter button:hover { border-color: var(--tool); color: var(--tool); background: var(--tool-light); box-shadow:0 2px 6px rgba(0,113,227,.12); transform: translateY(-1px); }
+.filter button:active { transform: scale(.96); transition-duration:.07s; }
+.filter button.active { background: var(--tool); border-color:var(--tool); color:#fff; font-weight:600; }
+.filter button.active:hover { background: var(--tool-dark); border-color: var(--tool-dark); color:#fff; }
+/* ============ List ============ */
+  .list { margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+.item { background: var(--card); border:1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
+    padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:.18s; }
+.item:hover { box-shadow: var(--shadow); }
+.item .chk { width:22px; height:22px; border-radius:7px; border:2px solid var(--muted-2); flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:.15s; color:#fff; font-size:14px; font-weight:700; }
+.item.done .chk { background: var(--ok); border-color: var(--ok); }
+.item .main { flex:1; min-width:0; }
+.item .txt { font-size:15px; color: var(--ink); word-break:break-word; }
+.item.done .txt { text-decoration: line-through; color: var(--muted-2); }
+.item .edit-input { font:inherit; font-size:15px; width:100%; padding:6px 8px; border:1px solid var(--tool); border-radius:8px; color:var(--ink); }
+.item .ops { display:flex; gap:6px; flex-shrink:0; }
+.icon-btn { border:0; background:transparent; cursor:pointer; font-size:15px; color:var(--muted-2); padding:4px 6px; border-radius:8px; line-height:1; transition:.15s; }
+.icon-btn:active { transform: scale(.88); }
+.icon-btn:hover { background: var(--bg); color: var(--ink); }
+.icon-btn.del:hover { background: var(--danger-light); color: var(--danger); }
+.empty { text-align:center; color:var(--muted); padding:40px 20px; background:var(--card); border:1px dashed var(--line); border-radius:var(--radius); margin-top:14px; }
+.empty .big { font-size:34px; margin-bottom:8px; }
+.panel h3 { font-size:15px; color:var(--ink); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.cal-head .ym { font-size:15px; font-weight:700; color:var(--ink); }
+.cal-nav { display:flex; gap:6px; }
+.cal-nav button { border:1px solid var(--line); background:#fff; width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:15px; color:var(--ink-2); }
+.cal-nav button:hover { background: var(--tool-soft); color:var(--tool-dark); }
+.cal-nav button:active { transform: scale(.9); }
+.cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; }
+.cal-grid .dow { text-align:center; font-size:12px; color:var(--muted); padding:4px 0; font-weight:600; }
+.cal-cell { aspect-ratio:1/1; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--ink-2); cursor:pointer; position:relative; border:1px solid transparent; transition:.15s; }
+.cal-cell:hover { background: var(--tool-soft); }
+.cal-cell:active { transform: scale(.92); }
+.cal-cell.muted { color: var(--muted-2); cursor:default; }
+.cal-cell.muted:hover { background:transparent; }
+.cal-cell.today { border-color: var(--tool); font-weight:700; color: var(--tool-dark); }
+.cal-cell.has { background: var(--tool-light); font-weight:700; color: var(--tool-dark); }
+.cal-cell.has::after { content:""; position:absolute; bottom:6px; width:5px; height:5px; border-radius:50%; background: var(--tool); }
+.cal-cell.has.all-done { background: var(--ok-light); color:var(--success-dark); }
+.cal-cell.has.all-done::after { background: var(--ok); }
+.cal-legend { display:flex; gap:16px; margin-top:12px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+.cal-legend span { display:inline-flex; align-items:center; gap:6px; }
+.lg-dot { width:10px; height:10px; border-radius:50%; }
+.search-box { width:100%; font:inherit; font-size:14px; padding:11px 13px; border:1px solid var(--line); border-radius: var(--radius-sm); color:var(--ink); }
+.search-box:focus { outline:none; border-color: var(--tool); box-shadow:0 0 0 3px var(--tool-soft); }
+.hist-day { margin-top:16px; }
+.hist-day .hd-date { font-size:14px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.hist-day .hd-date .rate { font-size:12px; font-weight:600; color:var(--ok); background: var(--ok-light); padding:2px 9px; border-radius:999px; }
+.hist-day .hd-date .rate.partial { color:var(--warn); background: var(--warn-light); }
+/* ============ Modal ============ */
+  .mask { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:50; padding:20px; }
+.mask.show { display:flex; }
+.modal { background:#fff; border-radius:var(--radius); max-width:380px; width:100%; padding:24px; box-shadow: var(--shadow-lg); animation: pop .2s ease; }
+@keyframes pop { from{opacity:0; transform:scale(.95);} to{opacity:1; transform:scale(1);} }
+.modal h4 { font-size:17px; color:var(--ink); margin-bottom:10px; }
+.modal p { font-size:14px; color:var(--ink-2); margin-bottom:20px; }
+.modal .acts { display:flex; gap:10px; justify-content:flex-end; }
+/* ============ 固定事项面板 ============ */
+  .tpl-item { display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line); }
+.tpl-item:last-child { border-bottom:0; }
+.tpl-item label { flex:1; display:flex; align-items:center; gap:10px; cursor:pointer; min-width:0; }
+.tpl-item label input[type=checkbox] { width:18px; height:18px; flex-shrink:0; cursor:pointer; }
+.tpl-item .txt { font-size:14px; color:var(--ink); word-break:break-word; }
+.tpl-add { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; }
+.tpl-add input[type=text] { flex:1; min-width:160px; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--ink); }
+.tpl-add input[type=text]:focus { outline:none; border-color:var(--tool); box-shadow:0 0 0 3px var(--tool-soft); }
+.tpl-tip { font-size:12.5px; color:var(--muted); margin-bottom:4px; }
+.hidden { display:none !important; }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/07-todo.webp"); }
+  /* —— v3：一摞卡片 → 发丝线分区（纯版式，一行逻辑没动）——
+     ⚠️ 下面三条必须带 !important：site.css 有一条
+        `.toolbar, .stats, .addbar { border-color / border-radius / box-shadow … !important }`
+        把这三块的「卡片外观」钉死了，不带 !important 只能改掉 background，圆角和投影会留一半。 */
+  /* 工具条：卡片 → 吸顶条。它承担「本地导航」的角色（本页没有规则面板可跳）。 */
+  .toolbar { background: rgba(245,245,247,.86) !important; border: 0 !important;
+    border-bottom: 1px solid var(--line-soft) !important;
+    border-radius: 0 !important; box-shadow: none !important; padding: 12px 0;
+    position: sticky; top: 48px; z-index: 90;
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+  .toolbar label { font-size: 13px; font-weight: 400; }
+  /* 分段控件：浅灰轨道 + 白底选中（原来选中是整块实心蓝） */
+  .tabs { background: #e8e8ed; border-radius: 10px; padding: 3px; }
+  .tabs button { border-radius: 8px; padding: 6px 15px; font-size: 13px; font-weight: 500; }
+  .tabs button.active { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.09); }
+  .tabs button.active:hover { background: #fff; color: var(--ink); }
+  .tool-row { margin: 18px 0 0; }
+  /* 「清空当天」：实心红 → 白底红字细描边（全页唯一一个危险操作，不该最响） */
+  .btn-danger { background: #fff !important; color: var(--danger) !important;
+    border: 1px solid var(--danger-line) !important; box-shadow: none !important; }
+  .btn-danger:hover { background: var(--danger-soft) !important; color: var(--danger) !important;
+    border-color: var(--danger) !important; box-shadow: none !important; }
+  /* 统计：卡片 → 上下两条发丝线夹住的数据行 */
+  .stats { background: none !important; border: 0 !important;
+    border-top: 1px solid var(--line-soft) !important;
+    border-bottom: 1px solid var(--line-soft) !important;
+    border-radius: 0 !important; box-shadow: none !important;
+    padding: 22px 0; margin-top: 22px; }
+  .stat .num { font-size: 24px; font-weight: 600; letter-spacing: -.024em; }
+  .stat .lbl { font-size: 12px; letter-spacing: .06em; }
+  .bar { height: 6px; background: #e8e8ed; }
+  .bar > i { background: var(--ok); }
+  .streak-badge { background: none; color: var(--muted-2); font-weight: 400;
+    font-size: 12.5px; padding: 0; }
+  .addbar { background: none !important; border: 0 !important;
+    border-radius: 0 !important; box-shadow: none !important;
+    padding: 0; margin-top: 26px; }
+  .filter { gap: 3px; padding: 3px; background: #e8e8ed; border-radius: 10px;
+    display: inline-flex; margin: 20px 0 0; }
+  .filter button { border: 0; background: transparent; border-radius: 8px;
+    padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .filter button:hover { background: rgba(0,0,0,.04); color: var(--ink);
+    box-shadow: none; transform: none; }
+  .filter button.active { background: #fff; color: var(--ink); font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,.09); }
+  .filter button.active:hover { background: #fff; color: var(--ink); }
+  /* 待办列表：一堆独立小卡 → 一张卡里用发丝线分行 */
+  .list { background: #fff; border: 1px solid var(--line-soft);
+    border-radius: var(--radius); overflow: hidden; gap: 0; margin-top: 18px; }
+  .item { background: transparent; border: 0; border-bottom: 1px solid var(--line-soft);
+    border-radius: 0; box-shadow: none; padding: 13px 16px; }
+  .item:last-child { border-bottom: 0; }
+  .item:hover { background: #fbfcfd; box-shadow: none; }
+  .icon-btn svg { width: 15px; height: 15px; display: block; }
+  .panel h3 { font-size: 15px; font-weight: 600; letter-spacing: -.012em; }
+  .cal-nav button { display: inline-flex; align-items: center; justify-content: center; }
+  .cal-nav button svg { width: 15px; height: 15px; display: block; }
+  /* 历史：每天一小组 → 每天一张发丝线卡 */
+  .hist-day { background: #fff; border: 1px solid var(--line-soft);
+    border-radius: var(--radius); overflow: hidden; margin-top: 18px; }
+  .hist-day .hd-date { padding: 13px 16px 11px; margin: 0;
+    border-bottom: 1px solid var(--line-soft); background: #fafafa;
+    font-size: 13px; font-weight: 590; }
+</style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>07</b>每日待办</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">07</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>每日待办</h1>
+    <p class="lede">按日期记录每天要做的事，勾掉即自动保存，可回看日历、跨日期搜索。</p>
+  </section>
+
+
+  <div class="container">
+
+    <!-- 工具条 -->
+    <div class="toolbar">
+      <div class="date-wrap">
+        <label for="datePick">日期</label>
+        <input type="date" id="datePick">
+      </div>
+      <div class="tabs">
+        <button id="tabToday" class="active" onclick="switchView('today')">当日待办</button>
+        <button id="tabHist" onclick="switchView('history')">历史记录</button>
+      </div>
+    </div>
+
+    <!-- 顶部操作 -->
+    <div class="tool-row">
+      <button class="btn btn-ghost" onclick="openTemplates()">固定事项</button>
+      <button class="btn btn-ghost" onclick="copyYesterday()">复制昨日待办</button>
+      <button class="btn btn-ghost" onclick="exportAll()">导出 Excel</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">导入 Excel</button>
+      <button class="btn btn-danger" onclick="clearToday()">清空当天</button>
+      <input type="file" id="importFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" onchange="importAll(this)">
+    </div>
+
+    <!-- ====== 当日视图 ====== -->
+    <section id="view-today">
+      <div class="stats">
+        <div class="row">
+          <div class="stat"><div class="num" id="stDone">0</div><div class="lbl">已完成</div></div>
+          <div class="stat"><div class="num" id="stTotal">0</div><div class="lbl">总事项</div></div>
+          <div class="progress-wrap">
+            <div class="progress-top"><span>当日完成率</span><b id="stRate">0%</b></div>
+            <div class="bar"><i id="stBar" style="width:0%"></i></div>
+          </div>
+          <div class="streak-badge" id="streakBadge">连续 0 天</div>
+        </div>
+      </div>
+
+      <div class="addbar">
+        <input type="text" id="addInput" placeholder="写点今天要做的事，回车添加…" onkeydown="if(event.key==='Enter')addItem()">
+        <button class="btn btn-primary" onclick="addItem()">添加</button>
+      </div>
+
+      <div class="filter">
+        <button class="active" data-f="all" onclick="setFilter('all',this)">全部</button>
+        <button data-f="undone" onclick="setFilter('undone',this)">未完成</button>
+        <button data-f="done" onclick="setFilter('done',this)">已完成</button>
+      </div>
+
+      <div class="list" id="list"></div>
+    </section>
+
+    <!-- ====== 历史视图 ====== -->
+    <section id="view-history" class="hidden">
+      <div class="panel">
+        <div class="cal-head">
+          <div class="ym" id="calYM"></div>
+          <div class="cal-nav">
+            <button onclick="calMove(-1)" aria-label="上一月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <button onclick="calMove(1)" aria-label="下一月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          </div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-legend">
+          <span><i class="lg-dot" style="background:var(--tool-light);border:1px solid var(--tool)"></i> 有记录（含未完）</span>
+          <span><i class="lg-dot" style="background:var(--ok-light);border:1px solid var(--ok)"></i> 当天全部完成</span>
+          <span><i class="lg-dot" style="background:var(--tool)"></i> 点击日期查看当天</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>搜索历史待办</h3>
+        <input type="text" class="search-box" id="searchBox" placeholder="输入关键词，跨所有日期搜索（如「周报」「升舱」）" oninput="renderHistory()">
+      </div>
+
+      <div id="historyList"></div>
+    </section>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+  <!-- 固定事项面板 -->
+  <div class="mask" id="tplMask">
+    <div class="modal" style="max-width:480px">
+      <h4>固定事项</h4>
+      <p class="tpl-tip">勾选今天要加入的事项，点「加入今日所选」；也可随时新增 / 删除固定事项。今天已加入的会自动勾上且不可重复添加。</p>
+      <div id="tplList"></div>
+      <div class="tpl-add">
+        <input type="text" id="tplInput" placeholder="新增一条固定事项…" onkeydown="if(event.key==='Enter')addTemplate()">
+        <button class="btn btn-primary" onclick="addTemplate()">新增</button>
+      </div>
+      <div class="acts" style="margin-top:18px">
+        <button class="btn btn-ghost" onclick="closeTemplates()">关闭</button>
+        <button class="btn btn-primary" onclick="addCheckedTemplates()">加入今日所选</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 确认弹窗 -->
+  <div class="mask" id="mask">
+    <div class="modal">
+      <h4 id="mTitle">确认操作</h4>
+      <p id="mText">确定要执行吗？</p>
+      <div class="acts">
+        <button class="btn btn-ghost" id="mCancel">取消</button>
+        <button class="btn btn-primary" id="mOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  /* ===================== 数据层 ===================== */
+  const KEY = 'flight-todo-v1';
+  let DB = load();
+  let currentView = 'today';
+  let filterMode = 'all';
+  let calYear, calMonth; // 当前日历显示的年月（month: 0-11）
+  let pendingOk = null;  // 确认弹窗回调
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function save() { localStorage.setItem(KEY, JSON.stringify(DB)); }
+  function todayStr() {
+    const d = new Date();
+    return fmt(d);
+  }
+  function fmt(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function getDay(ds) { return DB[ds] || []; }
+  function setDay(ds, list) { DB[ds] = list; save(); }
+  function uid() { return Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+  /* ===================== 固定事项（模板）===================== */
+  const TPL_KEY = 'flight-todo-templates';
+  let templates = loadTemplates();
+  function loadTemplates() {
+    try {
+      const d = JSON.parse(localStorage.getItem(TPL_KEY) || 'null');
+      if (Array.isArray(d)) return d;
+    } catch (e) {}
+    // 首次使用：预置用户给出的两条固定事项
+    const def = [
+      { id: uid(), text: '检查数字装载是否已经全部点击确认' },
+      { id: uid(), text: '是否已经更新下班打卡' }
+    ];
+    localStorage.setItem(TPL_KEY, JSON.stringify(def));
+    return def;
+  }
+  function saveTpl() { localStorage.setItem(TPL_KEY, JSON.stringify(templates)); }
+
+  function openTemplates() { renderTplList(); document.getElementById('tplMask').classList.add('show'); }
+  function closeTemplates() { document.getElementById('tplMask').classList.remove('show'); }
+
+  function renderTplList() {
+    const ds = datePick.value || todayStr();
+    const today = DB[ds] || [];
+    const box = document.getElementById('tplList');
+    if (templates.length === 0) {
+      box.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 2px">还没有固定事项，在下面加一条吧</div>';
+      return;
+    }
+    box.innerHTML = templates.map(t => {
+      const exists = today.some(x => x.text === t.text);
+      return `<div class="tpl-item">
+        <label>
+          <input type="checkbox" data-tpl="${t.id}" ${exists ? 'checked disabled' : ''}>
+          <span class="txt">${escHtml(t.text)}</span>
+        </label>
+        <button class="icon-btn del" title="删除固定事项" onclick="delTemplate('${t.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 12.5h9L17.5 7"/></svg></button>
+      </div>`;
+    }).join('');
+  }
+
+  function delTemplate(id) {
+    confirmAction('删除固定事项？', '该模板会从列表中移除，已经加入当天的待办不受影响。', () => {
+      templates = templates.filter(t => t.id !== id);
+      saveTpl(); renderTplList();
+    });
+  }
+
+  function addTemplate() {
+    const inp = document.getElementById('tplInput');
+    const text = inp.value.trim();
+    if (!text) { inp.focus(); return; }
+    templates.push({ id: uid(), text });
+    saveTpl(); inp.value = ''; renderTplList(); inp.focus();
+  }
+
+  function addCheckedTemplates() {
+    const ds = datePick.value || todayStr();
+    let list = (DB[ds] || []).slice();
+    let added = 0;
+    document.querySelectorAll('#tplList input[data-tpl]').forEach(cb => {
+      if (!cb.checked || cb.disabled) return;
+      const t = templates.find(x => x.id === cb.dataset.tpl);
+      if (!t) return;
+      if (list.some(x => x.text === t.text)) return; // 去重
+      list.push({ id: uid(), text: t.text, done: false, createdAt: Date.now(), doneAt: null });
+      added++;
+    });
+    DB[ds] = list; save(); closeTemplates(); render();
+    toast(added ? `已加入 ${added} 条固定事项` : '所选固定事项今天已存在，未重复添加');
+  }
+
+
+  /* ===================== 初始化 ===================== */
+  const datePick = document.getElementById('datePick');
+  datePick.value = todayStr();
+  datePick.max = todayStr(); // 不能选未来（避免"计划未来"混乱，可按需放开）
+  datePick.addEventListener('change', () => { render(); });
+
+  // 日历初始为所选日期所在月
+  const initD = new Date();
+  calYear = initD.getFullYear();
+  calMonth = initD.getMonth();
+
+  render();
+
+  /* ===================== 视图切换 ===================== */
+  function switchView(v) {
+    currentView = v;
+    document.getElementById('tabToday').classList.toggle('active', v === 'today');
+    document.getElementById('tabHist').classList.toggle('active', v === 'history');
+    document.getElementById('view-today').classList.toggle('hidden', v !== 'today');
+    document.getElementById('view-history').classList.toggle('hidden', v !== 'history');
+    render();
+  }
+
+  function setFilter(f, btn) {
+    filterMode = f;
+    document.querySelectorAll('.filter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderList();
+  }
+
+  /* ===================== 增删改 ===================== */
+  function addItem() {
+    const inp = document.getElementById('addInput');
+    const text = inp.value.trim();
+    if (!text) { inp.focus(); return; }
+    const ds = datePick.value || todayStr();
+    const list = getDay(ds);
+    list.push({
+      id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      text,
+      done: false,
+      createdAt: Date.now(),
+      doneAt: null
+    });
+    setDay(ds, list);
+    inp.value = '';
+    inp.focus();
+    render();
+  }
+
+  function toggleItem(id) {
+    const ds = datePick.value || todayStr();
+    const list = getDay(ds);
+    const it = list.find(x => x.id === id);
+    if (!it) return;
+    it.done = !it.done;
+    it.doneAt = it.done ? Date.now() : null;
+    setDay(ds, list);
+    render();
+  }
+
+  function deleteItem(id) {
+    confirmAction('删除这条待办？', '删除后无法恢复（当天的其它待办不受影响）。', () => {
+      const ds = datePick.value || todayStr();
+      let list = getDay(ds);
+      list = list.filter(x => x.id !== id);
+      setDay(ds, list);
+      render();
+    });
+  }
+
+  function startEdit(id) {
+    const el = document.querySelector(`[data-edit="${id}"]`);
+    if (!el) return;
+    const ds = datePick.value || todayStr();
+    const it = getDay(ds).find(x => x.id === id);
+    if (!it) return;
+    el.outerHTML = `<input class="edit-input" data-editing="${id}" value="${escAttr(it.text)}" onkeydown="if(event.key==='Enter')commitEdit('${id}')" onblur="commitEdit('${id}')">`;
+    const inp = document.querySelector(`[data-editing="${id}"]`);
+    inp.focus(); inp.select();
+  }
+  function commitEdit(id) {
+    const inp = document.querySelector(`[data-editing="${id}"]`);
+    if (!inp) return;
+    const text = inp.value.trim();
+    const ds = datePick.value || todayStr();
+    const list = getDay(ds);
+    const it = list.find(x => x.id === id);
+    if (it && text) { it.text = text; setDay(ds, list); }
+    render();
+  }
+
+  function clearToday() {
+    const ds = datePick.value || todayStr();
+    const list = getDay(ds);
+    if (list.length === 0) { toast('当天没有待办，无需清空'); return; }
+    confirmAction('清空当天的待办？', `将删除 ${ds} 的全部 ${list.length} 条待办，此操作不可恢复。`, () => {
+      delete DB[ds]; save(); render();
+    });
+  }
+
+  function copyYesterday() {
+    const ds = datePick.value || todayStr();
+    const y = new Date(ds); y.setDate(y.getDate() - 1);
+    const ys = fmt(y);
+    const src = getDay(ys);
+    if (src.length === 0) { toast(`${ys} 没有待办可复制`); return; }
+    const dst = getDay(ds).slice();
+    let added = 0;
+    src.forEach(s => {
+      dst.push({
+        id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        text: s.text, done: false,
+        createdAt: Date.now(), doneAt: null
+      });
+      added++;
+    });
+    setDay(ds, dst);
+    toast(`已从 ${ys} 复制 ${added} 条待办到 ${ds}`);
+    render();
+  }
+
+  /* ===================== 渲染 ===================== */
+  function render() {
+    if (currentView === 'today') renderToday();
+    else renderHistory();
+  }
+
+  function renderToday() {
+    const ds = datePick.value || todayStr();
+    const list = getDay(ds);
+    const done = list.filter(x => x.done).length;
+    const total = list.length;
+    const rate = total ? Math.round(done / total * 100) : 0;
+    document.getElementById('stDone').textContent = done;
+    document.getElementById('stTotal').textContent = total;
+    document.getElementById('stRate').textContent = rate + '%';
+    document.getElementById('stBar').style.width = rate + '%';
+
+    // 连续打卡
+    const si = streakInfo();
+    const badge = document.getElementById('streakBadge');
+    if (si.todayComplete) badge.textContent = `连续 ${si.streak + 1} 天全完成`;
+    else if (si.streak > 0) badge.textContent = `今天进行中 · 已连续 ${si.streak} 天`;
+    else badge.textContent = `今天开始记录吧`;
+
+    renderList();
+  }
+
+  function renderList() {
+    const ds = datePick.value || todayStr();
+    let list = getDay(ds).slice();
+    if (filterMode === 'undone') list = list.filter(x => !x.done);
+    else if (filterMode === 'done') list = list.filter(x => x.done);
+    // 排序：未完成在前，同状态保持原顺序
+    list.sort((a, b) => (a.done === b.done ? 0 : (a.done ? 1 : -1)));
+
+    const box = document.getElementById('list');
+    if (list.length === 0) {
+      const msg = getDay(ds).length === 0
+        ? '这一天还没有待办，先在上面加一条吧'
+        : '没有符合筛选条件的待办';
+      box.innerHTML = `<div class="empty">${msg}</div>`;
+      return;
+    }
+    box.innerHTML = list.map(it => itemHTML(it)).join('');
+  }
+
+  function itemHTML(it) {
+    return `<div class="item ${it.done ? 'done' : ''}">
+      <div class="chk" onclick="toggleItem('${it.id}')">${it.done ? '✓' : ''}</div>
+      <div class="main">
+        <div class="txt" data-edit="${it.id}" ondblclick="startEdit('${it.id}')">${escHtml(it.text)}</div>
+      </div>
+      <div class="ops">
+        <button class="icon-btn" title="编辑" onclick="startEdit('${it.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="icon-btn del" title="删除" onclick="deleteItem('${it.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 12.5h9L17.5 7"/></svg></button>
+      </div>
+    </div>`;
+  }
+
+  function streakInfo() {
+    const today = todayStr();
+    const tList = getDay(today);
+    const todayComplete = tList.length > 0 && tList.every(x => x.done);
+    let streak = 0;
+    const d = new Date(today);
+    d.setDate(d.getDate() - 1);
+    while (true) {
+      const ds = fmt(d);
+      const list = getDay(ds);
+      if (list.length === 0) break;
+      if (list.every(x => x.done)) { streak++; d.setDate(d.getDate() - 1); }
+      else break;
+    }
+    return { streak, todayComplete };
+  }
+
+  /* ===================== 历史 / 日历 ===================== */
+  function renderHistory() {
+    renderCalendar();
+    renderHistoryList();
+  }
+
+  function renderCalendar() {
+    const grid = document.getElementById('calGrid');
+    const ym = document.getElementById('calYM');
+    ym.textContent = `${calYear} 年 ${calMonth + 1} 月`;
+    const first = new Date(calYear, calMonth, 1).getDay(); // 0=周日
+    const days = new Date(calYear, calMonth + 1, 0).getDate();
+    const dows = ['日', '一', '二', '三', '四', '五', '六'];
+    let html = dows.map(d => `<div class="dow">${d}</div>`).join('');
+    for (let i = 0; i < first; i++) html += `<div class="cal-cell muted"></div>`;
+    const tStr = todayStr();
+    for (let d = 1; d <= days; d++) {
+      const ds = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const list = getDay(ds);
+      let cls = 'cal-cell';
+      if (ds === tStr) cls += ' today';
+      if (list.length > 0) {
+        cls += ' has';
+        if (list.every(x => x.done)) cls += ' all-done';
+      }
+      const title = list.length ? `title="${ds}：${list.length} 条，已完成 ${list.filter(x=>x.done).length}"` : '';
+      html += `<div class="${cls}" ${title} onclick="gotoDate('${ds}')">${d}</div>`;
+    }
+    grid.innerHTML = html;
+  }
+
+  function calMove(delta) {
+    calMonth += delta;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    renderCalendar();
+  }
+
+  function gotoDate(ds) {
+    datePick.value = ds;
+    switchView('today');
+  }
+
+  function renderHistoryList() {
+    const box = document.getElementById('historyList');
+    const kw = (document.getElementById('searchBox').value || '').trim().toLowerCase();
+    const dates = Object.keys(DB).filter(ds => DB[ds] && DB[ds].length > 0).sort().reverse();
+
+    if (dates.length === 0) {
+      box.innerHTML = `<div class="empty">还没有任何历史记录</div>`;
+      return;
+    }
+
+    let html = '';
+    for (const ds of dates) {
+      let items = DB[ds];
+      if (kw) items = items.filter(it => it.text.toLowerCase().includes(kw));
+      if (items.length === 0) continue;
+      const done = items.filter(x => x.done).length;
+      const total = items.length;
+      const allDone = done === total;
+      html += `<div class="hist-day">
+        <div class="hd-date">${ds}
+          <span class="rate ${allDone ? '' : 'partial'}">${done}/${total} 完成</span>
+        </div>`;
+      html += items.map(it => {
+        return `<div class="item ${it.done ? 'done' : ''}" style="cursor:default">
+          <div class="chk" style="cursor:default">${it.done ? '✓' : ''}</div>
+          <div class="main">
+            <div class="txt">${escHtml(it.text)}</div>
+          </div>
+        </div>`;
+      }).join('');
+      html += `</div>`;
+    }
+
+    if (!html) box.innerHTML = `<div class="empty">没找到包含「${escHtml(kw)}」的待办</div>`;
+    else box.innerHTML = html;
+  }
+
+  /* ===================== 导入 / 导出（Excel）===================== */
+  function exportAll() {
+    const rows = [];
+    const dates = Object.keys(DB).filter(ds => DB[ds] && DB[ds].length).sort();
+    for (const ds of dates) {
+      DB[ds].forEach((it, i) => {
+        rows.push({ '日期': ds, '序号': i + 1, '内容': it.text, '状态': it.done ? '已完成' : '未完成' });
+      });
+    }
+    if (rows.length === 0) { toast('还没有任何待办可导出'); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '待办备份');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `每日待办备份_${todayStr().replace(/-/g, '')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('已导出 Excel 备份');
+  }
+
+  function importAll(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!rows.length) throw new Error('表格是空的');
+        // 识别列（按表头关键词，兼容你改过列名）
+        const headers = Object.keys(rows[0]);
+        const findKey = (...kws) => headers.find(h => kws.some(k => String(h).includes(k)));
+        const dateKey = findKey('日期', '时间');
+        const textKey = findKey('内容', '待办', '事项');
+        const statusKey = findKey('状态', '完成');
+        if (!textKey) throw new Error('找不到「内容」列');
+        const newDB = {};
+        let count = 0;
+        for (const r of rows) {
+          const text = String(r[textKey] || '').trim();
+          if (!text) continue;
+          const ds = dateKey ? String(r[dateKey] || '').trim() : '';
+          if (!ds) continue;
+          const st = statusKey ? String(r[statusKey] || '') : '';
+          const done = /完成|是|1/.test(st) && !/未/.test(st);
+          if (!newDB[ds]) newDB[ds] = [];
+          newDB[ds].push({ id: uid(), text, done, createdAt: Date.now(), doneAt: done ? Date.now() : null });
+          count++;
+        }
+        if (!count) throw new Error('没有有效数据');
+        const dayN = Object.keys(newDB).length;
+        confirmAction('导入 Excel 备份？', `将用该文件覆盖当前所有待办（共 ${dayN} 天、${count} 条）。建议先导出当前数据再操作。`, () => {
+          DB = newDB; save(); render(); toast('导入成功');
+        });
+      } catch (err) {
+        toast('导入失败：' + err.message);
+      }
+      input.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ===================== 工具 ===================== */
+  function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function escAttr(s) { return escHtml(s).replace(/"/g, '&quot;'); }
+
+  let toastTimer;
+  function toast(msg) {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = 'position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;box-shadow:var(--shadow-lg);z-index:99;opacity:0;transition:opacity .25s;pointer-events:none;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 1600);
+  }
+
+  function confirmAction(title, text, onOk) {
+    document.getElementById('mTitle').textContent = title;
+    document.getElementById('mText').textContent = text;
+    document.getElementById('mask').classList.add('show');
+    pendingOk = onOk;
+  }
+  document.getElementById('mCancel').onclick = () => {
+    document.getElementById('mask').classList.remove('show');
+    pendingOk = null;
+  };
+  document.getElementById('mOk').onclick = () => {
+    const fn = pendingOk;
+    document.getElementById('mask').classList.remove('show');
+    pendingOk = null;
+    if (fn) fn();
+  };
+  document.getElementById('mask').addEventListener('click', (e) => {
+    if (e.target.id === 'mask') { document.getElementById('mask').classList.remove('show'); pendingOk = null; }
+  });
+  document.getElementById('tplMask').addEventListener('click', (e) => {
+    if (e.target.id === 'tplMask') closeTemplates();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>国际名单转化 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="国际航班旅客名单转海关上传模板：自动转换国籍/性别/证件代码，判定出入境与往来机场，导出可直接上传的 Excel。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="国际名单转化 · 航班工作工具集">
+<meta property="og:description" content="国际航班旅客名单转海关上传模板：自动转换国籍/性别/证件代码，判定出入境与往来机场，导出可直接上传的 Excel。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/manifest/index.html">
+<meta name="theme-color" content="#ffffff">
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="stylesheet" href="../assets/tool-page.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* 工具页的视觉全部搬到 ../assets/tool-page.css（2026-10-23 v3）。
+     本页只留「主视觉配图」这一条 —— CSS 的 url() 相对**样式表**解析，
+     写进 assets/ 下的文件会指到 assets/assets/… 去，所以图必须由页面自己给。 */
+  .hero { background-image: url("../assets/tools/01-manifest.webp"); }
+</style>
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>01</b>国际名单转化</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">01</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>航班名单转换工具</h1>
+    <p class="lede">上传系统导出的名单，自动转成海关上传模板。</p>
+  </section>
+
+<!-- 本地导航：吸在 48px 页眉下面。原来要滚到页面最底部才能点到「规则说明」。 -->
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">国际名单转化</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入数据</a>
+      <a href="#previewWrapper">数据表</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
+
+<div class="container">
+
+
+  <!-- 导入区：单行条，左对齐。
+       ⚠️ 整块可点 —— JS 在 #uploadZone 上绑了 click → fileInput.click()，
+          「选择文件」只是视觉提示，不要给它单独绑事件（会重复弹框）。 -->
+  <div class="sec-h">
+    <span class="k">第一步</span>
+    <span class="t">导入名单</span>
+  </div>
+
+  <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/>
+        <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/>
+      </svg>
+    </span>
+    <div class="uz-body">
+      <div class="text">把系统导出的名单 Excel 拖进来</div>
+      <div class="hint">.xls / .xlsx ｜ 加密的也能读，密码在下面填</div>
+      <div class="filename" id="filename"></div>
+    </div>
+    <span class="uz-a">选择文件
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </span>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+  </div>
+
+  <!-- 文件密码：系统导出的名单是加密的，在这里填密码即可直接转换（留空 = 按未加密文件读）
+       放在「开始转换」按钮之前 —— 阅读顺序是 选文件 → 填密码 → 点转换 -->
+  <div class="pwd-row anim" id="pwdRow" style="animation-delay:0.1s">
+    <label class="pwd-label" for="pwdInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="10.5" width="16" height="9.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+      </svg>
+      文件密码
+    </label>
+    <input type="password" id="pwdInput" placeholder="文件没有密码就留空" autocomplete="off" spellcheck="false">
+    <span class="pwd-hint" id="pwdHint">加密的名单直接在这里填密码，不用先手工去密码</span>
+  </div>
+
+  <!-- 显式开始转换按钮（选文件后出现） -->
+  <div class="controls" id="convertRow" style="display:none">
+    <button class="btn btn-success" id="convertBtn">开始转换</button>
+    <span class="info" id="convertInfo">已选择文件，点击开始转换</span>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在解析与转换，请稍候…</div>
+  </div>
+
+  <!-- 结果区小节标题：默认隐藏，renderSummary() 里打开（见 hideResult 同步关掉） -->
+  <div class="sec-h" id="resultHead" style="display:none">
+    <span class="k">第二步</span>
+    <span class="t">转换结果</span>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-row" id="summaryRow" style="display:none">
+    <div class="summary-card">
+      <div class="card-top"><span class="label">航班号</span></div>
+      <div class="value" id="sumFlight">—</div>
+      <div class="sub" id="sumDate">—</div>
+    </div>
+    <div class="summary-card accent-green">
+      <div class="card-top"><span class="label">出入境</span></div>
+      <div class="value" id="sumDir">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="label">旅客数</span></div>
+      <div class="value" id="sumPax">—</div>
+      <div class="sub">条记录已写入</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="label">往来机场</span></div>
+      <div class="value" id="sumCp">—</div>
+    </div>
+  </div>
+
+  <!-- Preview（生成的 Excel 预览）-->
+  <div class="table-wrapper anim" id="previewWrapper" style="display:none">
+    <div class="preview-head">
+      <span class="p-k">预览</span>
+      <span class="label">生成的 Excel</span>
+      <span class="pinfo" id="previewInfo"></span>
+    </div>
+    <div class="table-scroll" id="previewBody"></div>
+  </div>
+
+  <!-- Skipped：不完整 + 国籍无法识别（整行删除）—— 这是页面上**唯一**的提示列表。
+       国籍的别名 / 中文名 / 二字转三字都不再单独提示（2026-10-23 用户：「都不列」）。 -->
+  <div class="people-tags" id="skipBox" style="display:none">
+    <div class="label" id="skipLabel">已删除的记录</div>
+    <div class="ltable ltable-skip">
+      <div class="lt-head">
+        <span class="lt-c">姓名</span>
+        <span class="lt-c">原因</span>
+      </div>
+      <div class="tag-list" id="skipTags"></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none">
+    <button class="btn btn-success" id="downloadBtn" onclick="downloadResult()">下载 Excel</button>
+    <span class="info" id="downloadInfo">点击下载完整的海关上传模板</span>
+  </div>
+
+  <!-- Footer -->
+  <!-- Rules Panel -->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">转换规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+      </div>
+      <div class="arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        系统按表头名称自动识别各列，将原始名单清洗、映射为标准「海关旅客订票数据上传模板」。下方为关键处理规则：
+      </div>
+      <div class="rules-inner">
+        <ul>
+          <li><b>自动识别列：</b>按表头名称匹配 <code>航班日期 / 实际承运人 / 实际航班号 / 起飞地 / 目的地 / 名称 / 性别 / 生日 / 国籍 / 证件号码</code> 等字段，列序不同也能正确解析。</li>
+          <li><b>国籍代码：</b>以海关模板「国籍地区代码」全表（305 条）为准：二字码按 ISO 转三字码（<code>PE→PER</code>、<code>CN→CHN</code>、<code>US→USA</code>），也认中文名（<code>秘鲁→PER</code>）和常见错拼（<code>UK→GBR</code>、<code>SP→ESP</code>）。这些换算<b>不再逐条提示</b>；<b>认不出来的国籍不会硬猜——整行删除</b>，并在「已删除的记录」里写明原因和原值。</li>
+          <li><b>性别代码：</b><code>1→M</code>、<code>2→F</code>，也直接支持 M / F。</li>
+          <li><b>证件号码：</b>去除开头的多余符号（<code>- ,</code> 等），并按 <code>/</code> 取第一段。</li>
+          <li><b>出生日期：</b>统一清洗为标准 <code>YYYY-MM-DD</code> 格式。</li>
+          <li><b>出入境判定：</b>依据航班号——<b>单号出境、双号入境</b>：<code>MU261 / MU751</code> 记为<b>出境</b>，<code>MU262 / MU752</code> 记为<b>入境</b>；<code>FM883</code> 记为<b>出境</b>，<code>FM884</code> 记为<b>入境</b>。</li>
+          <li><b>往来机场代码：</b>输出<b>英文 IATA 三字码</b>——<code>MU261 / MU262</code> 为 <code>MAD</code>（马德里），<code>MU751 / MU752</code> 为 <code>FCO</code>（罗马），<code>FM883 / FM884</code> 为 <code>BKK</code>（曼谷）；其它航班取非温州那一端的机场代码。</li>
+          <li><b>上报口岸：</b>固定写入 <code>050-温州机场</code>。</li>
+          <li><b>不完整记录：</b>姓名 / 证件号 / 国籍 / 性别 / 生日 任一缺失，或国籍填了但认不出来的旅客行，<b>都会被整行删除</b>，并在「已删除的记录」中单独列出，方便你补录后重传。</li>
+          <li><b>输出文件：</b>生成「航班订票数据上传模板」格式 .xlsx（标题行 + 15 列表头 + 旅客数据行），可直接下载上传。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">航班工作工具集</footer>
+
+</div>
+
+<script src="convert.js"></script>
+<script>
+// ================ DOM refs ================
+const fileInput   = document.getElementById('fileInput');
+const uploadZone  = document.getElementById('uploadZone');
+const convertBtn  = document.getElementById('convertBtn'); // 兼容历史 id（本页直接用上传区触发）
+const filenameEl  = document.getElementById('filename');
+const loading     = document.getElementById('loading');
+const errorMsg    = document.getElementById('errorMsg');
+const summaryRow  = document.getElementById('summaryRow');
+const previewWrap = document.getElementById('previewWrapper');
+const previewBody = document.getElementById('previewBody');
+const previewInfo = document.getElementById('previewInfo');
+const skipBox     = document.getElementById('skipBox');
+const controls    = document.getElementById('controls');
+const downloadBtn = document.getElementById('downloadBtn');
+const pwdRow      = document.getElementById('pwdRow');
+const pwdInput    = document.getElementById('pwdInput');
+const pwdHint     = document.getElementById('pwdHint');
+
+// 折叠规则面板
+const rulesPanel = document.getElementById('rulesPanel');
+document.getElementById('rulesHeader').addEventListener('click', () => {
+  rulesPanel.classList.toggle('open');
+});
+
+// ================ File select / drag ================
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    filenameEl.textContent = '已选择：' + fileInput.files[0].name;
+    document.getElementById('convertRow').style.display = 'flex';
+    document.getElementById('convertInfo').textContent = '已选择 ' + fileInput.files[0].name + '，点击开始转换';
+    resetPwdState();
+  }
+});
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    fileInput.files = e.dataTransfer.files;
+    filenameEl.textContent = '已选择：' + f.name;
+    document.getElementById('convertRow').style.display = 'flex';
+    document.getElementById('convertInfo').textContent = '已选择 ' + f.name + '，点击开始转换';
+    resetPwdState();
+  }
+});
+
+// 点击「开始转换」按钮触发转换
+convertBtn.addEventListener('click', doConvert);
+
+// ================ Helpers ================
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+function showError(msg) {
+  errorMsg.innerHTML = msg;
+  errorMsg.classList.add('active');
+}
+function hideResult() {
+  errorMsg.classList.remove('active');
+  summaryRow.style.display = 'none';
+  document.getElementById('resultHead').style.display = 'none';
+  previewWrap.style.display = 'none';
+  skipBox.style.display = 'none';
+  controls.style.display = 'none';
+  previewBody.innerHTML = '';
+  // 换文件时把上一份导出一并作废，免得下到旧数据
+  window.__lastBlob = null;
+  window.__lastBlobPending = null;
+  window.__lastOut = null;
+}
+
+// ================ Render: Summary ================
+function renderSummary(m) {
+  document.getElementById('sumFlight').textContent = m.flight_code || '—';
+  document.getElementById('sumDate').textContent  = m.flight_date ? '航班日期 ' + m.flight_date : '—';
+  document.getElementById('sumDir').textContent   = m.direction || '—';
+  document.getElementById('sumPax').textContent   = m.passengers;
+  document.getElementById('sumCp').textContent    = m.counterpart || '—';
+  summaryRow.style.display = 'grid';
+  document.getElementById('resultHead').style.display = 'flex';
+}
+
+// ================ Render: Excel 预览 ================
+function renderPreview(outRows) {
+  if (!outRows || outRows.length < 2) { previewBody.innerHTML = ''; return; }
+  const title   = outRows[0][0] || '';
+  const headers = outRows[1];
+  const rows    = outRows.slice(2);
+  const ncols   = headers.length;
+
+  let html = '<table><thead><tr>';
+  headers.forEach((h) => {
+    const t = String(h == null ? '' : h).replace(/\n/g, '<br>');
+    html += '<th>' + t + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach((r) => {
+    html += '<tr>';
+    for (let i = 0; i < ncols; i++) {
+      const v = (r[i] == null) ? '' : r[i];
+      html += '<td>' + escapeHtml(v) + '</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  previewBody.innerHTML = html;
+  previewInfo.textContent = (title ? title + ' · ' : '') + rows.length + ' 条旅客记录';
+  previewWrap.style.display = 'block';
+}
+
+// ================ Render: 已删除的记录 ================
+// 页面上只保留这一张提示表（2026-10-23 用户：「国籍自动修正的都不列」）。
+// 把 convert.js 产出的删除原因拆成表格列；格式不认识时返回 null，退回整行显示（不丢信息）。
+//   「张三: 缺少 姓名、证件号」      → 小标签：缺少 姓名 / 缺少 证件号
+//   「李四: 国籍 QQ9 无法识别」      → 小标签：国籍 QQ9 无法识别
+function parseSkipItem(s) {
+  // 统一按「姓名: 原因」拆，再按「、」切成小标签。
+  // ⚠️ 「缺少」只写在第一个字段前面（convert.js 就是这么拼的）→ 这里给每一项补上，
+  //    否则标签只剩「证件号」，用户分不清是没填还是填错了。
+  const m = /^(.*?)\s*[:：]\s*(.+)$/.exec(String(s));
+  if (!m) return null;
+  let miss = m[2];
+  if (/^缺少\s*/.test(miss)) {
+    miss = miss.replace(/^缺少\s*/, '').split('、').map((x) => '缺少 ' + x).join('、');
+  }
+  return { name: m[1] || '（无姓名）', miss: miss };
+}
+function renderSkipped(list) {
+  const box = skipBox, tags = document.getElementById('skipTags');
+  if (list && list.length) {
+    box.style.display = 'block';
+    document.getElementById('skipLabel').textContent = '已删除的记录（' + list.length + ' 条）';
+    // ⚠️ 每条固定只产出一个 .lt-row（直接子元素个数 = 条目数，探针依赖这一点）
+    tags.innerHTML = list.map((w) => {
+      const p = parseSkipItem(w);
+      if (!p) return '<div class="lt-row lt-fallback">' + escapeHtml(w) + '</div>';
+      const chips = p.miss.split('、').map((x) =>
+        '<span class="lt-chip">' + escapeHtml(x) + '</span>').join('');
+      return '<div class="lt-row">'
+        + '<span class="lt-c lt-name">' + escapeHtml(p.name) + '</span>'
+        + '<span class="lt-c lt-miss">' + chips + '</span>'
+        + '</div>';
+    }).join('');
+  } else {
+    // 连内容一起清掉：只隐藏的话，DOM 里会留着上一次的行（隐藏着看不见，
+    // 但属于残留状态，读 children 的探针/后续改动容易被它带偏）。
+    tags.innerHTML = '';
+    box.style.display = 'none';
+  }
+}
+
+// ================ Build workbook (download) ================
+// 🔥 2026-10-23：导出改成「拿海关官方模板当母版填数」。
+//   以前是 aoa_to_sheet 凭空造表 —— 只有一个 sheet、没有合并的标题行、
+//   没有红字必填表头、没有行高，更没有第二个 sheet「国籍地区代码」（305 条）。
+//   母版 = 官方模板剥掉真旅客数据后的骨架，由 .workbuddy-ai/tools/build-master.py 产出。
+//   SheetJS 社区版写不了单元格样式（字体色/填充/对齐），所以填充用 xlsx-populate
+//   —— 这个库本来就在包里（解密用），只是改成导出时也加载。
+const TEMPLATE_SRC = 'template/hg-upload-template.b64.js';
+
+// 母版里预置了多少行「有格式无值」的空行（build-master.py 的第 3 个参数）。
+// 正常航班不会超过它；超了才由代码补样式（见 buildFromTemplate 的兜底分支）。
+const PRESET_ROWS = 350;
+
+// 补样式用的逐列数字格式，与官方模板逐格比对过。
+// ⚠️ 反斜杠要保留：官方文件里存的就是 `yyyy\-mm\-dd;@` 这一串。
+const DATA_NUMFMT = {
+  1: '0_ ',
+  4: 'yyyy\\-mm\\-dd;@',
+  5: '@',
+  8: '[$-409]yyyy\\-mm\\-dd;@'
+};
+
+let tplLibPromise = null;
+function loadTemplateLib() {
+  if (window.HG_TEMPLATE_B64) return Promise.resolve();
+  if (tplLibPromise) return tplLibPromise;
+  tplLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = TEMPLATE_SRC;
+    s.onload = () => (window.HG_TEMPLATE_B64 ? resolve() : reject(new Error('模板未初始化')));
+    s.onerror = () => { tplLibPromise = null; reject(new Error('模板加载失败')); };
+    document.head.appendChild(s);
+  });
+  return tplLibPromise;
+}
+
+// Excel 日期序列值（1899-12-30 起算，1900 闰年 bug 之后的标准算法）。
+// 🔥 绝不写 new Date()：JS 的 Date 带时区，交给库转序列值时会整天偏移
+//   （历史上踩过 —— 2026-04-08 写进去变 04-07）。直接算数字最稳，也跟官方
+//   模板里的存法完全一致（官方 D 列就是 46120 这种数字 + 日期格式）。
+function excelSerial(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd == null ? '' : ymd).trim());
+  if (!m) return null;
+  const utc = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
+}
+
+// 用母版生成导出文件，返回 Blob
+async function buildFromTemplate(res) {
+  await loadTemplateLib();
+  await loadDecryptLib();               // 同一个库：XlsxPopulate
+  const bin = atob(window.HG_TEMPLATE_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+  const wb = await XlsxPopulate.fromDataAsync(bytes);
+  const ws = wb.sheet('Sheet1');
+
+  // outRows 前两行是「标题 + 表头」，母版里已经有了 → 只取数据行
+  const body = res.outRows.slice(2);
+  let last = 2;                       // 最后一行数据的行号（无数据时 = 表头行）
+  if (body.length) {
+    last = body.length + 2;
+    const rows = body.map((r) => [
+      r[0], r[1], r[2],
+      excelSerial(r[3]),              // D 航班日期 → 序列值
+      r[4], r[5], r[6],
+      excelSerial(r[7]),              // H 出生日期 → 序列值
+      r[8], r[9], r[10]
+    ]);
+    // 🔥 只写 A–K。L–O 官方模板里一直是空，**不要往里写 null** ——
+    //   实测往空单元格写 null 会让 xlsx-populate 把它的格式改掉
+    //   （L3 从 General 变成 @、垂直对齐变成 center）。
+    //   不碰它，母版里的样式就原样保留。
+    // 🔥 而且只写值、**绝不调 .style()**：xlsx-populate 不去重样式，逐格套样式会让
+    //   styles.xml 从 33 条 fills 涨到 4000+ 条、文件里塞满空 <fill/>。
+    ws.range('A3:K' + last).value(rows);
+
+    // 兜底：万一超过母版预置的行数（350），超出的部分只能现补样式
+    if (last > PRESET_ROWS + 2) {
+      const from = PRESET_ROWS + 3;
+      ws.range('A' + from + ':K' + last).style({
+        fontFamily: '宋体', fontSize: 11,
+        horizontalAlignment: 'center', verticalAlignment: 'center',
+        border: true, borderStyle: 'thin'
+      });
+      ws.range('L' + from + ':O' + last).style({ fontFamily: '宋体', fontSize: 11 });
+      Object.keys(DATA_NUMFMT).forEach((k) => {
+        const col = String.fromCharCode(64 + Number(k));
+        ws.range(col + from + ':' + col + last).style('numberFormat', DATA_NUMFMT[k]);
+      });
+      ws.range('J' + from + ':J' + last).style('numberFormat', '@');
+    }
+  }
+
+  const blob = await wb.outputAsync();   // 浏览器里返回 Blob
+  try {
+    const fixed = await postProcessXlsx(await blob.arrayBuffer(), last);
+    if (fixed) return new Blob([fixed], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+  } catch (e) {
+    console.warn('导出后处理跳过（不影响下载）：', e);
+  }
+  return blob;
+}
+
+// ============ 导出后处理（三处小修补，都是 xlsx-populate 的锅）============
+// 1) 它序列化 styles.xml 时会把 fill[0] 写成 `<patternFill/>`（丢了 patternType="none"）。
+//    这个写法本身合 schema，Excel / WPS / LibreOffice 都照开，但 openpyxl（Python 侧
+//    最常用的库，pandas.read_excel 也用它）会直接抛 TypeError 读不了。
+//    海关那边的系统万一是 Python 写的就废了 —— 所以把这一处改回去。
+// 2) 母版预置了 350 行「有格式无值」的空行（见 build-master.py）。导出只有 N 行数据时，
+//    后面那些空行要剪掉，不然打开一看是一大片空网格。
+// 3) 表头富文本：母版被 openpyxl 拍平后整行表头都是红的，这里补回「`*` 红 + 其余黑」。
+// 做法：只重写 zip 里的 xl/styles.xml、xl/sharedStrings.xml、xl/worksheets/sheet1.xml，
+// 其余原样搬。任何一步不对就返回 null，退回未处理的 Blob（宁可有点小毛病，不能导不出来）。
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function inflateRaw(u8) {
+  if (typeof DecompressionStream === 'undefined') throw new Error('浏览器不支持 DecompressionStream');
+  const ds = new DecompressionStream('deflate-raw');
+  const stream = new Blob([u8]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// 改写过的条目要重新压一下：sheet1.xml 裸着有 150KB+，压完才 20KB
+async function deflateRaw(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  const cs = new CompressionStream('deflate-raw');
+  const stream = new Blob([u8]).stream().pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function postProcessXlsx(buf, lastDataRow) {
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  // 1) 找 EOCD
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('找不到 zip 目录');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+
+  // 2) 读中央目录
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('中央目录损坏');
+    const nameLen = dv.getUint16(p + 28, true);
+    const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+    entries.push({
+      name,
+      flags: dv.getUint16(p + 8, true),
+      method: dv.getUint16(p + 10, true),
+      time: dv.getUint16(p + 12, true),
+      date: dv.getUint16(p + 14, true),
+      crc: dv.getUint32(p + 16, true),
+      csize: dv.getUint32(p + 20, true),
+      usize: dv.getUint32(p + 24, true),
+      offset: dv.getUint32(p + 42, true)
+    });
+    p += 46 + nameLen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  }
+
+  // 3) 需要改写哪几个条目
+  const transforms = {};
+  // 3a) styles.xml：把丢掉的 patternType="none" 补回去
+  transforms['xl/styles.xml'] = (xml) => (xml.indexOf('<patternFill/>') < 0
+    ? null
+    : xml.replace(/<patternFill\/>/g, '<patternFill patternType="none"/>'));
+  // 3b) 表头富文本：官方模板的表头是**两段 run** —— 只有 `*` 是红的，其余是黑的。
+  //     母版经 openpyxl 重存后被拍平成一整段纯文本，而单元格样式本身是红字（fontId=2）
+  //     ⇒ 导出后整行表头全红，跟官方对不上（2026-10-23 用户指出）。
+  //     这里在导出后处理里补回两段 run，效果与官方模板逐字一致。
+  const RPR_RED = '<rPr><sz val="11"/><color rgb="FFFF0000"/><rFont val="微软雅黑"/><charset val="134"/></rPr>';
+  const RPR_INK = '<rPr><sz val="11"/><color theme="1"/><rFont val="微软雅黑"/><charset val="134"/></rPr>';
+  const richRuns = (txt) => '<r>' + RPR_RED + '<t>*</t></r><r>' + RPR_INK
+    + '<t xml:space="preserve">' + txt.slice(1) + '</t></r>';
+  // 只处理「以 * 开头的单元格文本」，数据区不会命中（姓名/证件号不会以 * 打头）
+  const patchRich = (xml) => {
+    if (xml.indexOf('<r>') >= 0) return xml;      // 已经是富文本了，别重复包
+    return xml
+      .replace(/<si><t[^>]*>(\*[^<]*)<\/t><\/si>/g, (m, t) => '<si>' + richRuns(t) + '</si>')
+      .replace(/<is><t[^>]*>(\*[^<]*)<\/t><\/is>/g, (m, t) => '<is>' + richRuns(t) + '</is>');
+  };
+  transforms['xl/sharedStrings.xml'] = (xml) => {
+    const out = patchRich(xml);
+    return out === xml ? null : out;
+  };
+  // 3c) sheet1.xml：剪掉数据行之后的空模板行（母版预置了 350 行）+ 内联字符串兜底
+  if (lastDataRow) {
+    transforms['xl/worksheets/sheet1.xml'] = (xml) => {
+      const cut = xml.indexOf('<row r="' + (lastDataRow + 1) + '"');
+      const end = xml.indexOf('</sheetData>');
+      if (cut < 0 || end < 0 || cut > end) return null;
+      const trimmed = xml.slice(0, cut) + xml.slice(end)
+        .replace(/<dimension ref="[^"]*"/, '<dimension ref="A1:O' + lastDataRow + '"');
+      return patchRich(trimmed);
+    };
+  } else {
+    transforms['xl/worksheets/sheet1.xml'] = (xml) => {
+      const out = patchRich(xml);
+      return out === xml ? null : out;
+    };
+  }
+
+  // 4) 逐个解压 → 改写 → 压回去（压不了就裸存，只是文件大点，不影响打开）
+  const replaced = new Map();
+  for (const e of entries) {
+    const fn = transforms[e.name];
+    if (!fn) continue;
+    const lo = e.offset;
+    if (dv.getUint32(lo, true) !== 0x04034b50) throw new Error('本地文件头损坏');
+    const dataStart = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true);
+    const raw = u8.subarray(dataStart, dataStart + e.csize);
+    const plain = e.method === 0 ? raw : await inflateRaw(raw);
+    const out = fn(new TextDecoder().decode(plain));
+    if (out === null) continue;
+    const bytes = new TextEncoder().encode(out);
+    const packed = await deflateRaw(bytes);
+    // ⚠️ CRC 必须按**未压缩**的字节算（按压缩后的算 → zip 自检报 Bad CRC-32）
+    replaced.set(e.name, packed
+      ? { data: packed, method: 8, crc: crc32(bytes), usize: bytes.length }
+      : { data: bytes, method: 0, crc: crc32(bytes), usize: bytes.length });
+  }
+  if (!replaced.size) return null;      // 没有要改的，原样返回
+
+  // 5) 重新拼 zip：改写过的条目不压缩存，其余原样搬（连压缩数据都不解）
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let pos = 0;
+  const push = (arr) => { parts.push(arr); pos += arr.length; };
+
+  for (const e of entries) {
+    const nameBytes = enc.encode(e.name);
+    const newData = replaced.get(e.name);
+    let payload, method, crc, csize, usize;
+    if (newData) {
+      payload = newData.data; method = newData.method; crc = newData.crc;
+      csize = newData.data.length; usize = newData.usize;
+    } else {
+      const ds2 = e.offset + 30 + dv.getUint16(e.offset + 26, true) + dv.getUint16(e.offset + 28, true);
+      payload = u8.subarray(ds2, ds2 + e.csize);
+      method = e.method; crc = e.crc; csize = e.csize; usize = e.usize;
+    }
+    const start = pos;
+    const lh = new Uint8Array(30);
+    const ldv = new DataView(lh.buffer);
+    ldv.setUint32(0, 0x04034b50, true);
+    ldv.setUint16(4, 20, true);
+    ldv.setUint16(6, e.flags & 0x0800, true);   // 只保留 UTF-8 名标志，清掉 data descriptor
+    ldv.setUint16(8, method, true);
+    ldv.setUint16(10, e.time, true);
+    ldv.setUint16(12, e.date, true);
+    ldv.setUint32(14, crc, true);
+    ldv.setUint32(18, csize, true);
+    ldv.setUint32(22, usize, true);
+    ldv.setUint16(26, nameBytes.length, true);
+    ldv.setUint16(28, 0, true);
+    push(lh); push(nameBytes); push(payload);
+
+    const ch = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(ch.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint16(8, e.flags & 0x0800, true);
+    cdv.setUint16(10, method, true);
+    cdv.setUint16(12, e.time, true);
+    cdv.setUint16(14, e.date, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, csize, true);
+    cdv.setUint32(24, usize, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint32(42, start, true);
+    ch.set(nameBytes, 46);
+    central.push(ch);
+  }
+
+  const cdStart = pos;
+  central.forEach(push);
+  const cdSize = pos - cdStart;
+  const eo = new Uint8Array(22);
+  const edv = new DataView(eo.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(8, entries.length, true);
+  edv.setUint16(10, entries.length, true);
+  edv.setUint32(12, cdSize, true);
+  edv.setUint32(16, cdStart, true);
+  push(eo);
+
+  const out = new Uint8Array(pos);
+  let off = 0;
+  for (const part of parts) { out.set(part, off); off += part.length; }
+  return out;
+}
+
+// 兜底：模板路径失败时还能下载（旧的单 sheet 版），不至于点了没反应
+function buildWorkbook(res) {
+  const ws = XLSX.utils.aoa_to_sheet(res.outRows);
+  const widths = (window.MANIFEST_META && window.MANIFEST_META.COL_WIDTHS) || null;
+  if (widths) ws['!cols'] = widths.map((w) => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return wb;
+}
+// ================ 导出文件名 ================
+// 海关要的命名格式：「航班订票数据上传模板」+ 航班日期 + 航班号
+// 例：航班订票数据上传模板2025-04-27MU262.xlsx
+// 日期或航班号缺失时退回「原文件名_海关上传.xlsx」，免得导出个半截名字。
+function buildOutName(meta, file) {
+  const date = (meta && meta.flight_date) ? String(meta.flight_date).trim() : '';
+  const code = (meta && meta.flight_code) ? String(meta.flight_code).trim() : '';
+  if (date && code) return '航班订票数据上传模板' + date + code + '.xlsx';
+  return file.name.replace(/\.[^.]+$/, '') + '_海关上传.xlsx';
+}
+// 下载：优先用母版生成的 Blob；还没生成完就等一下；真失败了退回旧路径。
+// 行为对用户没变 —— 还是点一下就下载，文件名还是那个。
+async function downloadResult() {
+  if (window.__dlBusy) return;
+  window.__dlBusy = true;
+  const oldLabel = downloadBtn.textContent;
+  try {
+    if (!window.__lastBlob && window.__lastBlobPending) {
+      downloadBtn.textContent = '正在生成…';
+      try { await window.__lastBlobPending; } catch (e) { console.warn(e); }
+    }
+    if (window.__lastBlob) {
+      const url = URL.createObjectURL(window.__lastBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = window.__lastName || 'download.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return;
+    }
+    if (window.__lastOut) XLSX.writeFile(window.__lastOut, window.__lastName);
+  } finally {
+    downloadBtn.textContent = oldLabel;
+    window.__dlBusy = false;
+  }
+}
+
+// ================ 加密名单解密（xlsx-populate，按需加载）================
+// SheetJS 本身不能解密：碰到加密文件会抛 "File is password-protected"。
+// 这里用 xlsx-populate 的**带加密**浏览器包（libs/xlsx-populate.min.js），
+// 靠浏览器自带的 WebCrypto 在本地完成 ECMA-376 Agile 解密，不需要后端。
+// 这 642KB 只在**真的遇到加密文件**时才加载 —— 未加密文件走的还是原来那条路。
+let decryptLibPromise = null;
+function loadDecryptLib() {
+  if (window.XlsxPopulate) return Promise.resolve();
+  if (decryptLibPromise) return decryptLibPromise;
+  decryptLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'libs/xlsx-populate.min.js';
+    s.onload = () => (window.XlsxPopulate ? resolve() : reject(new Error('解密组件未初始化')));
+    s.onerror = () => { decryptLibPromise = null; reject(new Error('解密组件加载失败')); };
+    document.head.appendChild(s);
+  });
+  return decryptLibPromise;
+}
+async function decryptWorkbook(arrayBuffer, password) {
+  await loadDecryptLib();
+  const wb = await XlsxPopulate.fromDataAsync(new Uint8Array(arrayBuffer), { password: password });
+  const blob = await wb.outputAsync();          // 浏览器环境下返回 Blob
+  return await blob.arrayBuffer();
+}
+const PWD_HINT_DEFAULT = '加密的名单直接在这里填密码，不用先手工去密码';
+// 换文件时把密码行的提示状态复位（不清空已输入的密码）
+function resetPwdState() {
+  pwdRow.classList.remove('needed');
+  pwdHint.textContent = PWD_HINT_DEFAULT;
+}
+// 文件确实加密、但还没填密码（或密码不对）时，把密码行标红并聚焦
+function promptPassword(msg) {
+  pwdRow.classList.add('needed');
+  pwdHint.textContent = '这个文件是加密的，请在这里填入密码';
+  showError(msg);
+  pwdInput.focus();
+}
+
+// ================ Main ================
+async function doConvert() {
+  const file = fileInput.files[0];
+  if (!file) return;
+  if (!window.XLSX) { showError('表格解析库未能加载，请检查网络后刷新重试。'); return; }
+
+  loading.classList.add('active');
+  hideResult();
+
+  try {
+    const buf = await file.arrayBuffer();
+    let wb;
+    try {
+      // 未加密的文件走这条老路 —— 行为与加密码功能之前完全一致
+      wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    } catch (e) {
+      const msg = (e && e.message) ? e.message : ('' + e);
+      if (!/password/i.test(msg)) {          // 不是加密问题 → 维持原来的报错
+        loading.classList.remove('active');
+        showError('读取文件失败：' + msg + '。');
+        return;
+      }
+      // 文件是加密的 → 需要密码
+      const pwd = pwdInput.value;
+      if (!pwd) {
+        loading.classList.remove('active');
+        promptPassword('这个文件已加密，请在上方「文件密码」里填入密码，再点一次「开始转换」。');
+        return;
+      }
+      let plain;
+      try {
+        plain = await decryptWorkbook(buf, pwd);
+      } catch (de) {
+        loading.classList.remove('active');
+        const dmsg = (de && de.message) ? de.message : ('' + de);
+        // 「组件没加载出来」和「密码不对」必须分开报，否则会把人往密码上带
+        if (/加载失败|未初始化/.test(dmsg)) {
+          showError('解密组件未能加载，请刷新页面后重试。');
+        } else {
+          promptPassword('解密失败：请确认密码是否正确（区分大小写）。若密码无误仍失败，'
+            + '说明该文件的加密方式本页暂不支持，需要先转成无密码版再上传。');
+        }
+        return;
+      }
+      try {
+        wb = XLSX.read(plain, { type: 'array', cellDates: true });
+      } catch (e2) {
+        loading.classList.remove('active');
+        showError('解密后仍无法读取：' + ((e2 && e2.message) || e2) + '。');
+        return;
+      }
+      pwdRow.classList.remove('needed');
+      pwdHint.textContent = '已用密码解密';
+    }
+
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+    const res = convertManifest(rows);
+
+    loading.classList.remove('active');
+
+    if (!res.ok) { showError('' + res.error); return; }
+
+    renderSummary(res.meta);
+    renderPreview(res.outRows);
+    renderSkipped(res.skipped);
+
+    controls.style.display = 'flex';
+    const outName = buildOutName(res.meta, file);
+    downloadBtn.textContent = '下载转换结果（' + outName + '）';
+
+    window.__lastOut = buildWorkbook(res);
+    window.__lastName = outName;
+    // 母版导出在后台做（要加载 642KB 的 xlsx-populate + 21KB 模板），
+    // 不挡住结果展示；用户点下载时若还没好，downloadResult 会等一下。
+    window.__lastBlob = null;
+    window.__lastBlobPending = buildFromTemplate(res)
+      .then((b) => { window.__lastBlob = b; return b; })
+      .catch((e) => { console.warn('模板导出失败，退回基础导出：', e); return null; });
+  } catch (e) {
+    loading.classList.remove('active');
+    showError('转换出错：' + ((e && e.message) || e));
+  }
+}
+
+// 说明：现由显式「开始转换」按钮触发转换（选文件后显示按钮），行为更清晰可控。
+</script>
+</body>
+</html>

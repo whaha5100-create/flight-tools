@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航班数据统计 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入当日航班 Excel，自动区分东上航/中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="航班数据统计 · 航班工作工具集">
+<meta property="og:description" content="导入当日航班 Excel，自动区分东上航/中联航，统计国际航班、计划取消、轮椅与无陪儿童等特服数量。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/stats/index.html">
+<meta name="theme-color" content="#ffffff">
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* ============ stats · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+/* ============ Reset & Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============ Controls ============ */
+  .controls {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+.controls .info {
+    font-size: 13.5px; color: var(--muted); background: var(--card);
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  }
+.btn-success {
+    background: linear-gradient(135deg, var(--success), var(--success-dark)); color: #fff;
+    box-shadow: 0 8px 18px -6px rgba(0,0,0,.05);
+  }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(0,0,0,.06); }
+.btn-success:active { transform: translateY(0); }
+/* ============ Table ============ */
+  .table-wrapper {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 1px solid var(--line);
+  }
+.table-scroll { overflow-x: auto; max-height: 74vh; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+thead { position: sticky; top: 0; z-index: 2; }
+thead th {
+    background: #f5f5f7; color: var(--muted);
+    padding: 13px 14px; font-weight: 600; text-align: center;
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+thead th:first-child {
+    position: sticky; left: 0; z-index: 3;
+    background: #f5f5f7;
+    text-align: left;
+  }
+thead th.total-col { background: #eef6f1; color: var(--success-dark); }
+tbody td { padding: 10px 14px; text-align: center; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+tbody td:first-child {
+    font-weight: 600; text-align: left; position: sticky; left: 0;
+    background: var(--card); z-index: 1; min-width: 108px; color: var(--ink);
+    border-right: 1px solid var(--line);
+  }
+tbody tr:nth-child(even) td { background: #fafafa; }
+tbody tr:nth-child(even) td:first-child { background: #fafafa; }
+tbody tr:hover td { background: var(--tool-light); }
+tbody tr:hover td:first-child { background: var(--tool-light); }
+tbody td.total-col { font-weight: 700; background: var(--success-light) !important; color: var(--success-dark); }
+tbody tr.total-row td { background: #f5f5f7 !important; font-weight: 700; color: var(--ink); }
+tbody tr.total-row td:first-child { background: #f5f5f7 !important; }
+td.flight-list { text-align: left !important; white-space: normal; min-width: 180px; line-height: 1.6; color: var(--ink-2); }
+td.empty { color: var(--line); }
+/* ============ Loading ============ */
+  .loading { display: none; text-align: center; padding: 56px; }
+.loading.active { display: block; }
+.spinner {
+    width: 46px; height: 46px; border: 4px solid var(--tool-soft);
+    border-top-color: var(--tool); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+  }
+.loading div:last-child { color: var(--muted); font-size: 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* ============ Error ============ */
+  .error-msg {
+    background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft)); color: var(--danger);
+    padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 24px;
+    display: none; border: 1px solid var(--danger-line); border-left: 4px solid var(--danger); font-size: 14px;
+  }
+.error-msg.active { display: block; }
+/* ============ Footer ============ */
+/* ============ Responsive ============ */
+  @media (max-width: 768px) {
+    .container { padding: 18px 14px 36px; }
+    .header { flex-direction: column; text-align: center; gap: 16px; padding: 32px 24px; }
+    .header p { margin-left: auto; margin-right: auto; }
+    .header h1 { font-size: 24px; }
+    .summary-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .summary-card .value { font-size: 23px; }
+    table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<a class="back-home" href="../index.html"><span class="ic">←</span> 回到导航页</a>
+<div class="container">
+
+  <!-- Header -->
+<header class="header">
+    <div class="header-main">
+      <p class="eyebrow"><span class="no">03</span>航班工作工具集 · FLIGHT TOOLS</p>
+      <h1>航班数据统计表格生成系统</h1>
+      <p>上传航班 Excel 模板，系统自动按航司分类统计架次、特服、调时与取消航班，并生成可下载的统计表格。</p>
+    </div>
+  </header>
+
+
+  <!-- Upload Zone -->
+  <div class="upload-zone anim" id="uploadZone" style="animation-delay:0.1s">
+    <div class="icon">📁</div>
+    <div class="text">点击选择 Excel 文件，或拖拽文件到此处</div>
+    <div class="hint">系统将自动识别机号、进出港航班等列</div>
+    <div class="formats"><span>.xls</span><span>.xlsx</span></div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在解析和统计，请稍候…</div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-row" id="summaryRow" style="display:none"></div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none">
+    <button class="btn btn-success" id="downloadBtn">📥 下载统计表格 (Excel)</button>
+    <span class="info" id="tableInfo"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper" id="tableWrapper" style="display:none">
+    <div class="table-scroll" id="tableScroll"></div>
+  </div>
+
+  <!-- Footer -->
+  <!-- Rules Panel（可点开查看统计规则）-->
+  <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+    <div class="rules-header" id="rulesHeader">
+      <div class="title">
+        <span class="ic">📋</span>
+        统计规则说明
+        <span class="hint">点击展开查看</span>
+      </div>
+      <div class="arrow">▼</div>
+    </div>
+    <div class="rules-body">
+      <div class="rules-intro">
+        系统读取 Excel 中的 <b>机号 / 进港航班 / 出港航班 / 前站 / 到站 / 特服 / 备注</b> 等列，按下面规则自动统计与分类。
+      </div>
+      <div class="rules-grid" id="rulesGrid"></div>
+      <div class="rules-note">
+        <b>💡 统计细则</b><br>
+        • <b>航司分类：</b>航班号以 <code>MU / FM / CES</code> 开头计为<b>东上航司</b>，以 <code>KN</code> 开头计为<b>中联航</b>；其余航司归入「其他」，不计入东上航 / 联航统计。<br>
+        • <b>国内 / 国际：</b>进港的「前站」或出港的「到站」为 <code>马德里 / 罗马</code> 时记为<b>国际航班</b>，否则为国内航班。<br>
+        • <b>特服统计（仅出港）：</b>读取特服列中分隔符 <code>|</code> 之后的内容，<code>轮N</code>=轮椅数量、<code>童N</code>=无陪儿童数量。<br>
+        • <b>出港调时：</b>备注列含「调时」字样时，记录对应的出港航班号，便于跟踪延误调整。<br>
+        • <b>计划性取消：</b>机号列为 <code>CNL / DEL</code> 时判定为取消航班，不计入正常架次统计。
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">航班工作工具集</footer>
+
+</div>
+
+<script>
+// ============================================================
+// 统计规则（展示用，与计算逻辑保持一致）
+// ============================================================
+const RULE_ITEMS = [
+  ['东上航司',   'MU / FM / CES'],
+  ['中联航',     'KN'],
+  ['国际城市',   '马德里 / 罗马'],
+  ['取消标记',   'CNL / DEL'],
+];
+function renderRulesPanel() {
+  const grid = document.getElementById('rulesGrid');
+  grid.innerHTML = RULE_ITEMS.map(([role, val]) => `
+    <div class="rule-item">
+      <span class="role">${role}</span>
+      <span class="val">${val}</span>
+      <span class="bar"></span>
+    </div>
+  `).join('');
+}
+renderRulesPanel();
+
+// 折叠面板开关
+const rulesPanel = document.getElementById('rulesPanel');
+document.getElementById('rulesHeader').addEventListener('click', () => {
+  rulesPanel.classList.toggle('open');
+});
+
+// ================ State ================
+let currentData = null;  // { stats, 合计, 数据总行数, cols, fileName, fileSize }
+
+// ================ DOM refs ================
+const uploadZone   = document.getElementById('uploadZone');
+const fileInput    = document.getElementById('fileInput');
+const loading      = document.getElementById('loading');
+const errorMsg     = document.getElementById('errorMsg');
+const summaryRow   = document.getElementById('summaryRow');
+const controls     = document.getElementById('controls');
+const downloadBtn  = document.getElementById('downloadBtn');
+const tableInfo    = document.getElementById('tableInfo');
+const tableWrapper = document.getElementById('tableWrapper');
+const tableScroll  = document.getElementById('tableScroll');
+
+// ============================================================
+// 列名模糊匹配
+// ============================================================
+function detectColumns(headers) {
+  const map = {};
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i]).trim();
+    if (!h) continue;
+    if (/机号|机尾|aircraft/i.test(h)) map.机号 = i;
+    else if (/^(进港|进港航班|进港班机)$/i.test(h) || /^inbound/i.test(h)) map.进港航班 = i;
+    else if (/^(出港|出港航班|出港班机)$/i.test(h) || /^outbound/i.test(h)) map.出港航班 = i;
+    else if (/^(前站|前一站)$/i.test(h)) map.前站 = i;
+    else if (/^(到站|到达站)$/i.test(h)) map.到站 = i;
+    else if (/^(特服|特殊服务|special)$/i.test(h)) map.特服 = i;
+    else if (/^(备注|remark|备注说明)$/i.test(h)) map.备注 = i;
+  }
+  return map;
+}
+
+// ============================================================
+// 航班分类
+// ============================================================
+function classifyFlight(flightNo) {
+  const f = String(flightNo || '').replace(/[#&].*$/, '').trim();
+  if (/^(MU|FM|CES)/i.test(f)) return '东上航司';
+  if (/^KN/i.test(f)) return '中联航';
+  return '其他';
+}
+
+function isCancelled(jihao) {
+  const v = String(jihao || '').trim().toUpperCase();
+  return v === 'CNL' || v === 'DEL';
+}
+
+// ============================================================
+// 解析特服数据 — 出港方向（| 后的内容）
+// ============================================================
+function parseSpecialService(tefu) {
+  const s = String(tefu || '');
+  const parts = s.split('|');
+  const outboundPart = parts.length > 1 ? parts[1] : parts[0];
+  if (parts.length > 1 && parts[1].trim() === '') return { 轮椅: 0, 无陪: 0 };
+
+  let 轮椅 = 0, 无陪 = 0;
+  const wheelChair = outboundPart.match(/轮(\d+)/);
+  if (wheelChair) 轮椅 += parseInt(wheelChair[1], 10);
+  const child = outboundPart.match(/童(\d+)/);
+  if (child) 无陪 += parseInt(child[1], 10);
+  return { 轮椅, 无陪 };
+}
+
+// ============================================================
+// 主处理函数
+// ============================================================
+function processWorkbook(data) {
+  const wb = XLSX.read(data, { type: 'array', codepage: 936, defval: '' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (rows.length < 2) throw new Error('文件数据不足，至少需要标题行和1行数据');
+
+  const headers = rows[0];
+  const cols = detectColumns(headers);
+
+  const required = ['机号', '进港航班', '出港航班'];
+  for (const k of required) {
+    if (cols[k] === undefined) throw new Error('未找到列: ' + k + '，请确认文件包含该列');
+  }
+
+  const dataRows = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const 机号 = String(row[cols.机号] || '').trim();
+    const 进港航班 = String(row[cols.进港航班] || '').trim();
+    const 出港航班 = String(row[cols.出港航班] || '').trim();
+    if (!机号 && !进港航班 && !出港航班) continue;
+    dataRows.push({
+      row,
+      机号,
+      进港航班,
+      出港航班,
+      前站: cols.前站 !== undefined ? String(row[cols.前站] || '').trim() : '',
+      到站: cols.到站 !== undefined ? String(row[cols.到站] || '').trim() : '',
+      特服: cols.特服 !== undefined ? String(row[cols.特服] || '').trim() : '',
+      备注: cols.备注 !== undefined ? String(row[cols.备注] || '').trim() : '',
+    });
+  }
+
+  const stats = {
+    '东上航司': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+    '中联航': { 特服轮椅: 0, 特服无陪: 0, 进港国内: 0, 进港国际: 0, 出港国内: 0, 出港国际: 0, 总航班量: 0, 出港调时航班: [], 取消航班: [] },
+  };
+  const 国际城市 = ['马德里', '罗马'];
+
+  for (const d of dataRows) {
+    const cancelled = isCancelled(d.机号);
+    if (cancelled) {
+      const catIn = d.进港航班 ? classifyFlight(d.进港航班) : null;
+      const catOut = d.出港航班 ? classifyFlight(d.出港航班) : null;
+      if (catIn === '东上航司' || catOut === '东上航司') stats['东上航司'].取消航班.push(d);
+      if (catIn === '中联航' || catOut === '中联航') stats['中联航'].取消航班.push(d);
+      continue;
+    }
+
+    if (d.进港航班) {
+      const cat = classifyFlight(d.进港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.前站)) stats[cat].进港国际++;
+        else stats[cat].进港国内++;
+      }
+    }
+
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        if (国际城市.includes(d.到站)) stats[cat].出港国际++;
+        else stats[cat].出港国内++;
+      }
+    }
+
+    if (d.出港航班) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        const svc = parseSpecialService(d.特服);
+        stats[cat].特服轮椅 += svc.轮椅;
+        stats[cat].特服无陪 += svc.无陪;
+      }
+    }
+
+    if (d.出港航班 && /调时/.test(d.备注)) {
+      const cat = classifyFlight(d.出港航班);
+      if (stats[cat]) {
+        stats[cat].出港调时航班.push(d.出港航班.replace(/[#&]/g, ''));
+      }
+    }
+  }
+
+  const 合计 = {};
+  for (const key of ['特服轮椅', '特服无陪', '进港国内', '进港国际', '出港国内', '出港国际']) {
+    合计[key] = stats['东上航司'][key] + stats['中联航'][key];
+  }
+  合计.总航班量 = 合计.进港国内 + 合计.进港国际 + 合计.出港国内 + 合计.出港国际;
+  合计.出港调时航班 = [...stats['东上航司'].出港调时航班, ...stats['中联航'].出港调时航班];
+  合计.取消航班数 = stats['东上航司'].取消航班.length + stats['中联航'].取消航班.length;
+
+  for (const cat of ['东上航司', '中联航']) {
+    stats[cat].总航班量 = stats[cat].进港国内 + stats[cat].进港国际 + stats[cat].出港国内 + stats[cat].出港国际;
+  }
+
+  return { stats, 合计, 数据总行数: dataRows.length, cols };
+}
+
+// ============================================================
+// 渲染统计表格
+// ============================================================
+function renderTable(stats, 合计) {
+  const labels = ['东上航司', '中联航', '合计'];
+  const rows = [];
+
+  for (const label of labels) {
+    const isTotal = label === '合计';
+    const s = isTotal ? 合计 : stats[label];
+    const 调时航班 = s.出港调时航班 || [];
+    const 调时显示 = isTotal ? String(调时航班.length) : (调时航班.length > 0 ? 调时航班.join(' / ') : '/');
+    const 取消显示 = String(s.取消航班?.length || s.取消航班数 || 0);
+
+    rows.push({
+      label, isTotal,
+      特服轮椅: s.特服轮椅 || 0, 特服无陪: s.特服无陪 || 0,
+      进港国内: s.进港国内 || 0, 进港国际: s.进港国际 || 0,
+      出港国内: s.出港国内 || 0, 出港国际: s.出港国际 || 0,
+      总航班量: s.总航班量 || 0, 出港调时: 调时显示, 取消航班: 取消显示,
+    });
+  }
+
+  let html = `<table>
+<thead><tr>
+  <th>航司分类</th>
+  <th>特服<br>(轮椅)</th>
+  <th>特服<br>(无陪)</th>
+  <th>进港架次<br>(国内)</th>
+  <th>进港架次<br>(国际)</th>
+  <th>出港架次<br>(国内)</th>
+  <th>出港架次<br>(国际)</th>
+  <th class="total-col">总航班量</th>
+  <th>出港调时情况航班</th>
+  <th>计划性取消航班<br>(进+出)</th>
+</tr></thead>
+<tbody>`;
+  for (const r of rows) {
+    const cls = r.isTotal ? ' class="total-row"' : '';
+    const 调时 = r.出港调时 === '/' ? '<span class="empty">/</span>' : r.出港调时;
+    html += `<tr${cls}>
+      <td>${r.label}</td>
+      <td>${r.特服轮椅}</td>
+      <td>${r.特服无陪}</td>
+      <td>${r.进港国内}</td>
+      <td>${r.进港国际}</td>
+      <td>${r.出港国内}</td>
+      <td>${r.出港国际}</td>
+      <td class="total-col">${r.总航班量}</td>
+      <td class="flight-list">${调时}</td>
+      <td class="flight-list">${r.取消航班}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+// ============================================================
+// 生成下载 Excel
+// ============================================================
+function generateExcel(stats, 合计, fileName) {
+  const labels = ['东上航司', '中联航', '合计'];
+  const data = [['航司分类', '特服(轮椅)', '特服(无陪)', '进港架次(国内)', '进港架次(国际)', '出港架次(国内)', '出港架次(国际)', '总航班量', '出港调时情况航班', '计划性取消航班(进+出)']];
+
+  for (const label of labels) {
+    const isTotal = label === '合计';
+    const s = isTotal ? 合计 : stats[label];
+    const 调时航班 = s.出港调时航班 || [];
+    const 调时显示 = isTotal ? String(调时航班.length) : (调时航班.length > 0 ? 调时航班.join(' / ') : '/');
+    const 取消显示 = String(s.取消航班?.length || s.取消航班数 || 0);
+    data.push([
+      label,
+      s.特服轮椅 || 0, s.特服无陪 || 0,
+      s.进港国内 || 0, s.进港国际 || 0,
+      s.出港国内 || 0, s.出港国际 || 0,
+      s.总航班量 || 0, 调时显示, 取消显示,
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 30 }, { wch: 30 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, '航班统计');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName.replace(/\.[^.]+$/, '') + '_统计表格.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ================ Upload handlers ================
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFile(files[0]);
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+});
+
+// ================ File processing（纯前端）================
+async function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['xls', 'xlsx'].includes(ext)) {
+    showError('请上传 .xls 或 .xlsx 格式的 Excel 文件');
+    return;
+  }
+
+  hideAllResults();
+  showLoading(true);
+  hideError();
+
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('SheetJS 未加载，请检查网络或本地库');
+    const buf = await file.arrayBuffer();
+    const result = processWorkbook(new Uint8Array(buf));
+    const { stats, 合计, 数据总行数, cols } = result;
+
+    currentData = { stats, 合计, fileName: file.name };
+    renderResults(result, file);
+  } catch (err) {
+    showError('处理出错：' + err.message);
+  }
+  showLoading(false);
+}
+
+// ================ Render ================
+function renderResults(result, file) {
+  const { stats, 合计, 数据总行数, cols } = result;
+
+  // ---- 统计卡片 ----
+  const 国际航班 = 合计.进港国际 + 合计.出港国际;
+  const 特服总 = 合计.特服轮椅 + 合计.特服无陪;
+  summaryRow.style.display = 'grid';
+  summaryRow.classList.add('anim');
+  summaryRow.innerHTML = `
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🛬</span><span class="label">总航班量</span></div>
+      <div class="value">${合计.总航班量}</div>
+      <div class="sub">进港 ${合计.进港国内 + 合计.进港国际} · 出港 ${合计.出港国内 + 合计.出港国际}</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🟦</span><span class="label">东上航司</span></div>
+      <div class="value">${stats['东上航司'].总航班量}</div>
+      <div class="sub">MU / FM / CES</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🟧</span><span class="label">中联航</span></div>
+      <div class="value">${stats['中联航'].总航班量}</div>
+      <div class="sub">KN</div>
+    </div>
+    <div class="summary-card accent-amber">
+      <div class="card-top"><span class="card-ic">🚫</span><span class="label">取消航班</span></div>
+      <div class="value">${合计.取消航班数}</div>
+      <div class="sub">CNL / DEL（不计入架次）</div>
+    </div>
+    <div class="summary-card accent-green">
+      <div class="card-top"><span class="card-ic">🌍</span><span class="label">国际航班</span></div>
+      <div class="value">${国际航班}</div>
+      <div class="sub">马德里 / 罗马 方向</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-top"><span class="card-ic">🦽</span><span class="label">特服（轮椅+无陪）</span></div>
+      <div class="value">${特服总}</div>
+      <div class="sub">轮椅 ${合计.特服轮椅} · 无陪 ${合计.特服无陪}</div>
+    </div>
+  `;
+
+  // ---- 控制条 + 文件信息 ----
+  const colNames = Object.entries(cols).map(([k, v]) => `${k}(第${v + 1}列)`).join('，');
+  controls.style.display = 'flex';
+  tableInfo.innerHTML = `📌 已上传 <b>${esc(file.name)}</b>（${fmtSize(file.size)}） · 数据行数 <b>${数据总行数}</b> · 列匹配：${esc(colNames)}`;
+
+  // ---- 表格 ----
+  tableWrapper.style.display = 'block';
+  tableScroll.innerHTML = renderTable(stats, 合计);
+}
+
+// ================ Download ================
+downloadBtn.addEventListener('click', () => {
+  if (!currentData) return;
+  try {
+    generateExcel(currentData.stats, currentData.合计, currentData.fileName);
+  } catch (err) {
+    showError('下载失败: ' + err.message);
+  }
+});
+
+// ================ Utilities ================
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1024 / 1024).toFixed(2) + ' MB';
+}
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function showLoading(on) { loading.classList.toggle('active', on); }
+function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('active'); }
+function hideError() { errorMsg.classList.remove('active'); }
+function hideAllResults() {
+  summaryRow.style.display = 'none';
+  controls.style.display = 'none';
+  tableWrapper.style.display = 'none';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经营月报生成 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="上传东上联数据汇总表，选好月份，自动填好东上航与联航两份生产经营月报的表格数字，直接下载 Word。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="经营月报生成 · 航班工作工具集">
+<meta property="og:description" content="上传东上联数据汇总表，选好月份，自动填好东上航与联航两份生产经营月报的表格数字，直接下载 Word。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/monthly/index.html">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="stylesheet" href="../assets/tool-page.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ 月报生成 · 页面特有样式（通用样式见 site.css / tool-page.css）============ */
+
+  /* 主视觉配图（相对样式表解析，必须写在本页） */
+  .hero { background-image: url("../assets/tools/10-monthly.webp"); }
+
+  /* ---- 上传区之后的月份选择 ---- */
+  .pick-row {
+    margin-top: 20px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px;
+  }
+  .pick-cell { background: #fafafa; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 15px; }
+  .pick-cell .lab { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  .pick-cell select { width: 100%; padding: 9px 10px; font-size: 15px; text-align: center; font-family: inherit; }
+  .pick-cell .unit { font-size: 12px; color: var(--muted-2); margin-top: 7px; text-align: center; }
+  .pick-cell.ro { background: var(--tool-soft); border-color: var(--tool-line); }
+  .pick-cell.ro .roval { text-align: center; font-size: 19px; font-weight: 700; color: var(--tool); line-height: 1.2; }
+  .pick-cell.ro .ro-num { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted-2); margin-top: 3px; }
+
+  /* ---- 预览表 ----
+     ⚠️ 表格类名用 .mt（不用 .out）、容器 id 用 #mrPreview（不用 #previewBody）：
+     那两个名字被 01 manifest 占用，assets/tool-page.css 里有 #previewBody tbody td:first-child
+     { text-align:center; position:sticky } 这种 ID 级规则，本页会跟着变形（首列被撑宽 + 居中）。
+     2026-10-26 就是这么发现的 —— 别再改回去。 */
+  .tbl-wrap { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .tbl-wrap + .tbl-title { margin-top: 26px; }
+  .tbl-title { font-size: 14px; font-weight: 700; color: var(--ink); margin: 22px 0 10px; }
+  .tbl-title span { font-weight: 400; color: var(--muted-2); font-size: 12.5px; margin-left: 8px; }
+  table.mt { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  table.mt col.c-lab { width: auto; }
+  table.mt col.c-num { width: 116px; }
+  table.mt col.c-mom { width: 92px; }
+  table.mt th {
+    background: #f5f5f7; color: var(--muted); font-weight: 600; font-size: 12.5px;
+    padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--line);
+  }
+  table.mt th.h-lab { text-align: left; }
+  table.mt td {
+    padding: 9px 12px; text-align: center; border-top: 1px solid var(--line-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  table.mt td.lab { text-align: left; font-weight: 600; color: var(--ink); }
+  table.mt td.muted { color: var(--muted-2); }
+  table.mt tr.blank td { background: #fcfcfd; color: var(--muted-2); font-size: 12.5px; }
+  table.mt td.v { font-weight: 600; color: var(--ink); }
+  table.mt th .th-sub {
+    display: block; font-weight: 400; font-size: 11.5px; color: var(--muted-2); margin-top: 2px;
+  }
+  .tbl-note {
+    margin: 0; padding: 9px 14px; font-size: 12.5px; line-height: 1.65;
+    color: var(--muted); background: #fafafa; border-top: 1px solid var(--line-soft);
+  }
+  .tbl-note b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---- 数据完整度体检 ---- */
+  .audit {
+    margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: #fff; overflow: hidden;
+  }
+  .audit-h {
+    padding: 9px 15px; font-size: 12px; font-weight: 600; color: var(--muted);
+    background: #fafafa; border-bottom: 1px solid var(--line-soft);
+  }
+  .audit-list { list-style: none; margin: 0; padding: 0; }
+  .audit-list li {
+    display: grid; grid-template-columns: 58px 82px 1fr; gap: 10px; align-items: baseline;
+    padding: 10px 15px; font-size: 13px; border-top: 1px solid var(--line-soft);
+  }
+  .audit-list li:first-child { border-top: 0; }
+  .audit-list li b { font-weight: 600; color: var(--ink); }
+  .audit-list li .ad { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .audit-list li .ai { color: var(--muted-2); line-height: 1.6; }
+  .audit-list li .ai i { font-style: normal; color: var(--line); margin: 0 6px; }
+  .audit-list li.bad .ad { color: #b25000; font-weight: 600; }
+  .audit-list li.bad .ai { color: #8a3f00; }
+  .audit-list li.warn .ad { color: #7a4a0c; font-weight: 600; }
+
+  /* ---- 导出区 ---- */
+  .dl-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .dl-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 44px; padding: 0 22px; border-radius: 980px; border: 0;
+    background: var(--brand); color: #fff; font-family: inherit; font-size: 15px; font-weight: 500;
+    cursor: pointer; transition: background var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+  }
+  .dl-btn:hover { background: var(--brand-dark); }
+  .dl-btn:active { transform: scale(.98); }
+  .dl-btn[disabled] { background: var(--line); color: var(--muted-2); cursor: not-allowed; }
+  .dl-btn svg { width: 15px; height: 15px; }
+  .dl-name { font-size: 12.5px; color: var(--muted-2); margin-top: 12px; }
+  .dl-name b { color: var(--muted); font-weight: 500; }
+
+  /* ---- 模板（可选，想保留正文时用）---- */
+  .tpl-box { margin-top: 26px; border-top: 1px solid var(--line-soft); padding-top: 20px; }
+  .tpl-box summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink); list-style: none; }
+  .tpl-box summary::-webkit-details-marker { display: none; }
+  .tpl-box summary::before {
+    content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+    border-right: 1.6px solid var(--muted-2); border-bottom: 1.6px solid var(--muted-2);
+    transform: rotate(-45deg) translateY(-2px); transition: transform var(--dur) var(--ease-out);
+  }
+  .tpl-box[open] summary::before { transform: rotate(45deg) translateX(-2px); }
+  .tpl-grid { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .tpl-cell { background: #fafafa; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 15px; }
+  .tpl-cell .lab { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 9px; }
+  .tpl-cell .state { font-size: 12.5px; color: var(--ink-2); margin-top: 9px; word-break: break-all; }
+  .tpl-cell .state.builtin { color: var(--muted-2); }
+  .mini-btn {
+    font: inherit; font-size: 12.5px; padding: 6px 14px; border-radius: 980px;
+    border: 1px solid var(--line); background: #fff; color: var(--brand); cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout);
+  }
+  .mini-btn:hover { border-color: var(--brand); background: var(--tool-light); }
+  .tpl-tip { margin-top: 14px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+  .tpl-tip code { font-family: var(--mono); font-size: 11.5px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+  /* 空状态 */
+  .empty-tip { padding: 34px 20px; text-align: center; color: var(--muted); font-size: 14px; }
+  .empty-tip b { color: var(--ink); }
+  .warn-tip {
+    margin-top: 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+    background: var(--amber-soft); border: 1px solid #f0dcbc; color: #7a4a0c; font-size: 13px; line-height: 1.7;
+  }
+  @media (max-width: 719px) {
+    .pick-row, .tpl-grid { grid-template-columns: 1fr; }
+    table.mt { font-size: 13px; }
+    table.mt th, table.mt td { padding: 8px 6px; }
+    .audit-list li { grid-template-columns: 52px 1fr; }
+    .audit-list li .ai { grid-column: 1 / -1; margin-top: 1px; }
+    table.mt col.c-num { width: 84px; }
+    table.mt col.c-mom { width: 66px; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>10</b>经营月报生成</span>
+    </div>
+  </header>
+
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">10</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>经营月报生成</h1>
+    <p class="lede">上传东上联数据汇总，选好月份，两份月报的表格数字自动填好。</p>
+  </section>
+
+  <div class="localnav">
+    <div class="localnav-inner">
+      <span class="ln-t">经营月报生成</span>
+      <nav class="ln-links">
+        <a href="#uploadArea">数据表</a>
+        <a href="#previewPanel">填数预览</a>
+        <a href="#exportPanel">下载月报</a>
+        <a href="#rulesPanel">规则说明</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="anim">
+
+      <!-- ① 数据表 + 月份 -->
+      <div class="panel">
+        <h2><span class="dot"></span>① 数据表与月份</h2>
+        <div class="upload-zone no-click" id="uploadArea">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+          <div class="uz-body">
+            <div class="text">把「2026东上联数据汇总」拖进来</div>
+            <div class="hint">.xls / .xlsx ｜ 表里要有「东上航」「联航」两个 sheet</div>
+          </div>
+          <span class="uz-a" id="pickBtn">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+          <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
+        </div>
+
+        <div class="pick-row" id="pickRow" style="display:none">
+          <div class="pick-cell">
+            <div class="lab">要填哪个月</div>
+            <select id="monthSel"></select>
+            <div class="unit">只汇总这个月 1 号到月底</div>
+          </div>
+          <div class="pick-cell ro">
+            <div class="lab">数据覆盖</div>
+            <div class="roval" id="rangeText">—</div>
+            <div class="ro-num" id="rangeSub">导入后自动识别</div>
+          </div>
+          <div class="pick-cell">
+            <div class="lab">数据表</div>
+            <div class="roval" id="fileText" style="font-size:13.5px;color:var(--ink-2);word-break:break-all">未导入</div>
+            <div class="ro-num">换文件直接再拖一次</div>
+          </div>
+        </div>
+        <div class="audit" id="audit" style="display:none">
+          <div class="audit-h">数据完整度 · 按天体检</div>
+          <ul class="audit-list" id="auditList"></ul>
+        </div>
+        <div class="warn-tip" id="warnTip" style="display:none"></div>
+      </div>
+
+      <!-- ② 填数预览 -->
+      <div class="panel" id="previewPanel">
+        <h2><span class="dot"></span>② 填数预览</h2>
+        <p class="sub">这是要写进 Word 表格的数字。核对没问题再下载。</p>
+        <div id="mrPreview">
+          <div class="empty-tip">还没导入数据表 —— 先把上面那个 Excel 拖进来。</div>
+        </div>
+      </div>
+
+      <!-- ③ 下载 -->
+      <div class="panel" id="exportPanel">
+        <h2><span class="dot"></span>③ 下载月报</h2>
+        <p class="sub">两份都是 .docx，格式与公司模板一致，打开即可继续写正文。</p>
+        <div class="dl-row">
+          <button type="button" class="dl-btn" id="dlMu" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            下载 东上航月报
+          </button>
+          <button type="button" class="dl-btn" id="dlKn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            下载 联航月报
+          </button>
+        </div>
+        <div class="dl-name" id="dlName"></div>
+
+        <details class="tpl-box" id="tplBox">
+          <summary>用上月月报当模板（想保留正文时用）</summary>
+          <div class="tpl-grid">
+            <div class="tpl-cell">
+              <div class="lab">东上航模板</div>
+              <button type="button" class="mini-btn" id="tplMuPick">选择 .docx</button>
+              <input type="file" id="tplMuFile" accept=".docx" hidden>
+              <div class="state builtin" id="tplMuState">内置空白模板</div>
+            </div>
+            <div class="tpl-cell">
+              <div class="lab">联航模板</div>
+              <button type="button" class="mini-btn" id="tplKnPick">选择 .docx</button>
+              <input type="file" id="tplKnFile" accept=".docx" hidden>
+              <div class="state builtin" id="tplKnState">内置空白模板</div>
+            </div>
+            <div class="tpl-cell">
+              <div class="lab">恢复</div>
+              <button type="button" class="mini-btn" id="tplReset">恢复内置模板</button>
+              <div class="state" style="margin-top:9px">只清掉浏览器里记的模板</div>
+            </div>
+          </div>
+          <p class="tpl-tip">
+            内置模板只保留<b>标题和表格</b>（没有正文）。想要带着上个月的正文一起生成，就把上个月的月报
+            <code>.docx</code> 选进来 —— 文件<b>不会上传</b>，只存在你这台电脑的浏览器里，下个月打开还在。
+          </p>
+        </details>
+      </div>
+
+      <!-- 规则说明 -->
+      <div class="rules-panel" id="rulesPanel">
+        <div class="rules-header" id="rulesHeader">
+          <div class="title">
+            <span class="r-k">规则</span>
+            <span class="r-t">填数规则说明</span>
+            <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+          </div>
+          <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+        <div class="rules-body">
+          <div class="rules-inner">
+            <ul>
+              <li><b>填哪一列</b>：月报表头是 1 月到 12 月横向排开，选 <b>N 月</b> 就只写第 <b>N + 2</b> 列（1 月是第 3 列，9 月是第 11 列），不会串行。</li>
+              <li><b>数据来源</b>：只读数据表的 <b>「东上航」</b> 和 <b>「联航」</b> 两个 sheet，各自生成一份月报。「总表」不用。</li>
+              <li><b>进出港架次</b>：进港 = 进港架次（国内）+（国际）；出港 = 出港架次（国内）+（国际）。</li>
+              <li><b>旅客运输量</b>：直接取「国内国际进港人数」「国内国际出港旅客总人数」—— 这两列<b>已经包含国际</b>，不再单独加国际人数。</li>
+              <li><b>行李运输量</b>：进港取「国内国际进港行李」，出港取「国内国际托运总件数」。</li>
+              <li><b>「三小」运输量</b> = 特服（轮椅）+ 特服（无陪老人+儿童）。数据表里无陪偶尔写成 <code>0+1</code> 这种，会先拆开再加。</li>
+              <li><b>汇总列</b> = 1 月到所选月份的累加；<b>环比</b> = 与上月比，写成 <code>+3.2%</code> / <code>-1.8%</code>。表头会标出「这个月有几天有数 / 汇总一共含几天」，方便你判断这份数全不全。</li>
+              <li><b>缺数据会提醒</b>：导入后按天体检，把 <b>缺整行</b>（那一天表里根本没有）、<b>没填</b>（行在、格子全空）、<b>只填了一半</b>、<b>全天为 0</b>（多半是停场）四类分开报，并列出<b>具体日期</b>。出现前三种时，点下载会先弹一句确认，不会闷头生成。</li>
+              <li><b>环比打星号</b>：上月本身就没填全时，环比后面加 <code>*</code>，表下注明月只有几天 —— 天数不对等的环比只能参考。</li>
+              <li><b>「暂无数据」的月份</b>：11、12 月这种，行和日期已经在表里铺好了，只是运量还没填，所以标成「暂无数据」。数据表更新后<b>重新导入</b>即可，标签自动消失，不用改任何设置。</li>
+              <li><b>同比去年</b>留空 —— 数据表里没有去年同期的数。</li>
+              <li><b>这些行留空，自己填</b>：货邮运输重量、不正常航班费用、行李赔偿费、行李破损率、行李类投诉量、民航局投诉量、全渠道投诉量、遣返旅客 —— 数据表里没有对应列。</li>
+              <li><b>标题会跟着改</b>：「浙江分公司地面服务部生产经营月报（东上航）2026 年 X 月」里的年月按所选月份写；<b>正文里</b>提到月份的句子不动。</li>
+              <li><b>数字对不上</b>：航信的数每天都在变，往月的数可能和当时填的不一致。以数据表当前值为准，页面预览就是最终写进 Word 的值。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <footer class="site-footer">航班工作工具集</footer>
+    </div>
+  </div>
+
+<script src="libs/xlsx.full.min.js"></script>
+<script src="libs/jszip.min.js"></script>
+<script src="monthly.js"></script>
+</body>
+</html>

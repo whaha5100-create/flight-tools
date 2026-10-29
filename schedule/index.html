@@ -1,0 +1,2588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出港排班表 · 航班工作工具集</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="description" content="导入出港航班 Excel，按计离分段生成可编辑排班表：分配登机口、指定负责人、记录特服与调时。支持第一天 / 第二天两班次、早中晚分界自定义、负责人配色自选与撤回。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="出港排班表 · 航班工作工具集">
+<meta property="og:description" content="导入出港航班 Excel，按计离分段生成可编辑排班表：分配登机口、指定负责人、记录特服与调时。">
+<meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/schedule/index.html">
+<meta name="theme-color" content="#ffffff">
+<!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
+<script src="libs/xlsx.full.min.js"></script>
+<script>
+  if (typeof XLSX === 'undefined') {
+    document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
+  }
+</script>
+<!-- JSZip：导出 Excel 时把样式表塞进 xlsx 内部（SheetJS 免费版不写单元格样式） -->
+<script src="libs/jszip.min.js"></script>
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/nav-scroll.js" defer></script>
+<style>
+  /* ============ schedule · 页面特有样式（通用样式见 ../assets/site.css）============ */
+  /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
+     --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ============ 排班表：v3 语言（2026-10-25 重做）============
+   去掉密集四边框与整行灰底：只用横向发丝线分「行」，不给「列」画线。
+   列靠对齐方式和字重区分，不靠线。 */
+/* ============ 表格配色（2026-10-26）============
+   照 05 KN 出港统计那套：只开放「底色 / 字色」两个色板，表头、发丝线、悬停、输入框边框
+   全部由这两个颜色推导（见 JS 的 schBuildPalette）。
+   🔥 默认值 = 纯白 + 近黑 ⇒ 不选色时页面与导出图跟改版前逐像素一致。
+
+   🔥 为什么全都带 `#resultArea` 前缀 + 两处 `!important`：这页的 <style> 在
+      assets/tool-page.css **之前**，同特异性时后者赢：
+        · tool-page.css:474  `.table-wrap{background:#fff}`        → 压掉底色
+        · tool-page.css:470  `.table-wrap{border-color:…!important}` → 压掉描边
+        · tool-page.css:478  `.table-wrap thead th{background:#fafafa}` → 压掉表头
+        · site.css:687       `input[type=text]{background:#fff!important}` → 压掉输入框
+      加 ID 前缀把特异性抬到 (1,1,x) 即可；只有两处对方也带 !important，必须跟。
+      见 REF-traps「共享层的 !important 还压各页内联 style」。 */
+#resultArea .table-wrap {
+  --sch-bg:#ffffff; --sch-ink:#1d1d1f; --sch-ink2:#424245; --sch-sec:#6e6e73;
+  --sch-rule:#e8e8ed; --sch-line:#d2d2d7; --sch-head:#fafafa; --sch-hover:#fbfcfd;
+  /* 白点轮廓 + 整表字体：默认值写在这里（JS 会用同名变量覆盖），
+     这样「不碰控件 = 和上一版一模一样」，validate-site 也能查到声明。 */
+  --sch-dot-ring: rgba(0,0,0,.22);
+  --sch-k: 1;                 /* 字号倍数（相对 13.5px） */
+  --sch-ff: inherit;          /* 字体 */
+  --sch-fw: 400;              /* 正文字重 */
+  --sch-th-fw: 590;           /* 表头字重 */
+  --resp-fw: 640;             /* 负责人名字字重（比正文重一档） */
+  overflow-x: auto; border-radius: var(--radius-sm);
+  border: 1px solid var(--sch-rule) !important;
+  background: var(--sch-bg);
+}
+/* 🔥 整表字号 / 字体 / 加粗（2026-10-27 用户：「作用于整张吧字体大小」）。
+   --sch-k 是「相对 13.5px 的倍数」，JS 只改这一个数，全表所有字号 + 所有列宽一起等比放大，
+   所以放大后不会串列、不会把「北京首都」再截成三个字。
+   --sch-ff 字体（空 = 继承页面）、--sch-fw 正文字重、--sch-th-fw 表头字重。 */
+table.sch-table { width: 100%; border-collapse: collapse;
+  font-size: calc(13.5px * var(--sch-k, 1));
+  font-family: var(--sch-ff, inherit);
+  font-weight: var(--sch-fw, 400);
+  min-width: 1100px; }
+#resultArea table.sch-table th {
+  background: var(--sch-head); color: var(--sch-sec); font-weight: var(--sch-th-fw, 590); padding: 11px 12px;
+  text-align: center; white-space: nowrap; font-size: calc(12px * var(--sch-k, 1)); letter-spacing: .02em;
+  border-bottom: 1px solid var(--sch-rule);
+}
+#resultArea table.sch-table td {
+  border: 0; border-top: 1px solid var(--sch-rule); padding: 11px 12px;
+  text-align: center; vertical-align: middle; white-space: nowrap;
+  font-size: calc(13.5px * var(--sch-k, 1)); line-height: 1.5;
+  color: var(--sch-ink2);
+}
+#resultArea table.sch-table tbody tr:first-child td { border-top: 0; }
+#resultArea table.sch-table tbody tr:hover td { background: var(--sch-hover); }
+#resultArea table.sch-table td.flight-num { font-weight: 600; color: var(--sch-ink);
+  font-size: calc(14px * var(--sch-k, 1));
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+#resultArea table.sch-table td.dep-cell { font-variant-numeric: tabular-nums; color: var(--sch-ink); font-weight: 500; }
+#resultArea table.sch-table td.note-cell { font-size: calc(12.5px * var(--sch-k, 1)); line-height: 1.6; text-align: left; white-space: normal;
+  max-width: 260px; color: var(--sch-sec); }
+/* 备注列最宽，表头居中会和左对齐的正文错开 → 单独左对齐 */
+table.sch-table th.th-note { text-align: left; }
+table.sch-table td.empty-cell { padding: 44px 20px; color: var(--muted-2); font-size: calc(13.5px * var(--sch-k, 1)); }
+
+/* 可编辑单元格 —— 底色走 transparent，这样选了深底色时输入框不会留一块白。
+   ⚠️ 这里必须带 !important：assets/site.css:687 用
+      `input[type=text]{background:#fff !important; border-color:#d2d2d7 !important}`
+      把输入框钉死了（那是共享层，不能动）。 */
+#resultArea table.sch-table input.cell-input {
+  width: 100%; min-width: 60px; padding: 5px 8px; border: 1px solid var(--sch-line); border-radius: 7px;
+  font-size: calc(13px * var(--sch-k, 1)); font-family: inherit; text-align: center; outline: none;
+  transition: border-color var(--dur-fast) var(--ease-inout);
+  background: transparent !important; color: var(--sch-ink);
+  border-color: var(--sch-line) !important;
+}
+#resultArea table.sch-table input.cell-input:focus { border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(0,113,227,.12); }
+#resultArea table.sch-table input.cell-input.note-input { text-align: left; }
+
+/* 操作列：钉在右边 —— 表格横向滚动时也能点到「插入 / 删除」 */
+#resultArea table.sch-table th:last-child { position: sticky; right: 0; z-index: 2; background: var(--sch-head); }
+#resultArea table.sch-table td.op-cell { white-space: nowrap; position: sticky; right: 0; z-index: 1;
+  background: var(--sch-bg); box-shadow: -10px 0 14px -12px rgba(0,0,0,.22); }
+#resultArea table.sch-table tbody tr:hover td.op-cell { background: var(--sch-hover); }
+.row-btn {
+  display: inline-flex; align-items: center; gap: 3px; margin: 1px;
+  padding: 4px 9px; border: 1px solid transparent; border-radius: 7px;
+  font-size: 11.5px; font-weight: 500; cursor: pointer; background: transparent; color: var(--sch-sec);
+}
+.row-btn:hover { border-color: var(--sch-line); color: var(--sch-ink); background: var(--sch-bg); }
+.row-btn.danger:hover { border-color: var(--danger-line); color: var(--danger); background: var(--danger-soft); }
+
+/* ============ 负责人：色点 + 名字（2026-10-26 重做）============
+   旧版是「浅底 + 深字 + 同色描边」的胶囊，三个毛病：
+     ① 宽度随名字长短变 → 整列没有一条边对齐；
+     ② 两个人时 flex-wrap 上下堆叠 → 行高撑成两倍，跟隔壁行不齐；
+     ③ 12 个彩色块挤在一屏里，密度过高（用户：「还是不美观」）。
+   现在：颜色只留一个圆点，名字统一走 --sch-ink；多人挤在同一行用「·」分隔，
+   行高恒定、边缘自然对齐；「+」从名字后面挪到列最右边单独站位（用户：「加号做到边上去」）。
+   🔥 2026-10-26 晚二次调：用户「前面一个点不是很明显，建议字体大点加粗」
+      → 圆点 8 → 11px，名字 12.5px/560 → 13.5px/640，中间分隔点也跟着放大。
+      ⚠️ 放大后仍必须满足三条不变式：负责格等高 / 行等高 / 「+」同一 x（schedule-probe `[L 版式]`）。 */
+.resp-cell { display: flex; align-items: center; gap: 6px; min-height: 28px; }
+.resp-list { flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+  min-width: 0; white-space: nowrap; overflow: hidden; }
+/* 字号跟随整表（td 已经把 --sch-k 算进去了），只有字重单独留一个变量 ——
+   名字比正文重一档是有意的（一眼认出人名）。 */
+.resp-item { display: inline-flex; align-items: center; gap: 6px;
+  font-size: inherit;
+  font-weight: var(--resp-fw, 640);
+  font-family: inherit;
+  letter-spacing: .01em; color: var(--sch-ink); user-select: none; }
+/* 出厂状态 = 白点（2026-10-27 用户：「每个人的名字前面的那个色块点变成都变成白色」）。
+   白点落在白底上会看不见 → 用 inset 描边勾出轮廓；尺寸不变，所以行高不变。 */
+.resp-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--sch-dot-ring, rgba(0,0,0,.22)); }
+.resp-dot.has-color { box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.resp-sep { color: var(--sch-sec); opacity: .45; margin: 0 8px; font-size: inherit; line-height: 1; }
+.resp-empty { color: var(--sch-sec); opacity: .38; font-size: inherit; }
+.resp-item .rm-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%; font-size: 11px; line-height: 1;
+  color: inherit; opacity: .3; cursor: pointer; transition: opacity var(--dur-fast);
+}
+.resp-item .rm-btn:hover { opacity: 1; }
+
+/* 「+」钉在列最右：一行一个，形成整齐的竖向节奏；平时很淡，指上去才变蓝 */
+.resp-add {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--sch-sec); opacity: .4; cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout),
+              background var(--dur-fast) var(--ease-inout);
+}
+.resp-add:hover { opacity: 1; color: var(--brand); background: var(--tool-light); }
+
+/* ============ 登机口选择器（2026-10-26）============
+   201–224 共 24 个值，正好 6 列 × 4 行一屏看完。点格子填值，底部留手输兜底。
+   🔥 弹层必须 position:fixed 挂到 body 上 —— .table-wrap 带 overflow-x:auto，
+      按规范 overflow-y 会一起变成 auto，绝对定位的弹层会被裁掉（负责人那个菜单也改成 fixed 了）。 */
+.gate-trigger {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 62px; padding: 4px 8px; border: 1px solid var(--sch-line); border-radius: 7px;
+  background: transparent; color: var(--sch-ink); font-size: 13px;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout);
+}
+.gate-trigger:hover { border-color: var(--brand); color: var(--brand); }
+.gate-trigger.is-empty { color: var(--sch-sec); opacity: .5; }
+.gate-trigger .gt-chev { opacity: .5; }
+
+#gatePop {
+  position: fixed; z-index: 300; display: none; padding: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+#gatePop.open { display: block; animation: fadeUp .16s ease both; }
+.gp-grid { display: grid; grid-template-columns: repeat(6, 36px); gap: 5px; }
+.gp-cell {
+  height: 30px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent;
+  color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.gp-cell:hover { background: var(--tool-light); color: var(--brand); }
+.gp-cell[aria-pressed="true"] { background: var(--brand); color: #fff; }
+.gp-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px;
+  padding-top: 9px; border-top: 1px solid var(--line-soft); }
+.gp-foot input {
+  flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px;
+  font-size: 12.5px; outline: none; text-align: center; font-variant-numeric: tabular-nums;
+}
+.gp-foot input:focus { border-color: var(--brand); }
+.gp-clear { border: 0; background: transparent; color: var(--muted-2); font-size: 12px;
+  cursor: pointer; white-space: nowrap; padding: 4px 6px; border-radius: 6px; }
+.gp-clear:hover { color: var(--danger); background: var(--danger-soft); }
+
+/* 负责人下拉选择器：无负责人时只给一个很轻的「添加」，不再用蓝色虚线长条
+   （8 行 8 个蓝框太吵，跟「高调简约」冲突） */
+.picker-wrap { position: static; display: inline-block; }
+.picker-trigger {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 8px; border: 1px solid transparent; border-radius: 7px;
+  font-size: 12px; color: var(--muted-2); cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout);
+  background: transparent; user-select: none;
+}
+.picker-trigger:hover { color: var(--brand); background: var(--tool-light); }
+/* 🔥 position:fixed + JS 算坐标 —— 原来 absolute + top:100% 会被 .table-wrap 的
+   overflow-x:auto（连带 overflow-y:auto）裁掉，最后几行的菜单根本看不见。
+   fixed 不受祖先 overflow 裁剪（只要祖先没有 transform/filter 建包含块）。 */
+.picker-menu {
+  display: none; position: fixed; top: 0; left: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg); padding: 12px; z-index: 300; width: 260px;
+  /* 🔥 必须限高 + 内部滚动（2026-10-27）：名字一多（12 个名字 ≈ 448px）弹层就比屏幕还高，
+     JS 无论怎么算都只能把它顶到屏幕最上面 —— 用户原话「飞到天上去了，不在加号边上」。
+     限高之后「装不下」这件事从定位问题变成滚动问题，永远装得下。 */
+  max-height: min(52vh, 380px); overflow-y: auto; overscroll-behavior: contain;
+}
+.picker-menu.open { display: block; animation: fadeUp .2s ease both; }
+/* 勾完名字后重开的这一次不要再淡入一遍（否则每勾一个人面板就闪一下） */
+.picker-menu.open.no-anim { animation: none; }
+.picker-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+  cursor: pointer; transition: background var(--dur-fast); }
+.picker-row:hover { background: var(--tool-light); }
+.picker-row input[type="checkbox"] { accent-color: var(--brand); width: 15px; height: 15px; flex-shrink: 0; }
+.picker-row label { font-size: 13px; cursor: pointer; flex: 1; }
+/* 名单长了先给搜索框（2026-10-29）：sticky 钉在弹层顶部，滚动时不跟着走 */
+.picker-search { position: sticky; top: -12px; z-index: 1;
+  margin: -12px -12px 6px; padding: 12px 12px 8px;
+  background: var(--card); border-bottom: 1px solid var(--line-soft); }
+.picker-search input { width: 100%; box-sizing: border-box; border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 8px; font-size: 12px; outline: none; font-family: inherit; }
+.picker-search input:focus { border-color: var(--brand); }
+/* 刚加进来的人给一下轻微的底色提示，让人知道「加在这儿了」 */
+.picker-row.just-added { background: var(--tool-light); }
+.picker-empty, .picker-none { font-size: 12px; color: var(--muted-2); line-height: 1.6;
+  padding: 8px; }
+.picker-none:empty { display: none; }
+.picker-add { display: flex; align-items: center; gap: 6px; margin-top: 8px;
+  padding-top: 8px; border-top: 1px solid var(--line); }
+.picker-add input { flex: 1; border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px;
+  font-size: 12px; outline: none; }
+.picker-add input:focus { border-color: var(--brand); }
+.picker-add button { padding: 5px 12px; border: none; border-radius: 7px; background: var(--brand);
+  color: #fff; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+
+/* ============ 班次切换（第一天 / 第二天）============ */
+.day-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+.day-tabs { display: inline-flex; gap: 0; padding: 3px; background: var(--bg); border-radius: var(--radius-sm); }
+.day-tab { border: 0; background: transparent; cursor: pointer; padding: 7px 16px; border-radius: 7px;
+  font-size: 13.5px; font-weight: 500; color: var(--muted); display: inline-flex; align-items: center; gap: 7px;
+  transition: background var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout); }
+.day-tab:hover { color: var(--ink); }
+.day-tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.day-tab .dsub { font-size: 11.5px; font-weight: 400; color: var(--muted-2); }
+.day-tab .dcount { font-size: 11px; font-weight: 600; color: var(--muted-2);
+  background: var(--line-soft); border-radius: 999px; padding: 1px 7px; }
+.day-tab.active .dcount { background: var(--tool-soft); color: var(--tool-dark); }
+.day-hint { font-size: 12.5px; color: var(--muted-2); }
+
+/* ============ 时间设置（可自定义）============ */
+.bound-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 12px 0 2px; margin-top: 14px; border-top: 1px solid var(--line-soft); }
+.bound-row .bl { font-size: 12.5px; color: var(--muted-2); letter-spacing: .02em; }
+.bound-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.bound-field input {
+  width: 62px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px;
+  font-size: 12.5px; text-align: center; outline: none; font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease-inout); color: var(--ink);
+}
+.bound-field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,113,227,.12); }
+.bound-field input.bad { border-color: var(--danger); background: var(--danger-soft); }
+.bound-warn { font-size: 12px; color: var(--danger); }
+.bound-warn[hidden] { display: none; }
+
+/* ============ 人员名单（2026-10-29 重做，原「人员配色」）============
+   用户两个诉求：①「人员配色那里只能显示五个名字」（那是写死的示例名，已删）
+              ②「不上班的人也能删掉，下面能删也能加」。
+   所以这里从「只读的色块条」改成「可搜、可加、可删的名单」。
+   设计语言照旧：发丝描边 + 无实心底色，只有能点的东西用品牌蓝。 */
+.pp-bar { display: flex; flex-direction: column; align-items: stretch; gap: 11px;
+  padding: 12px 0 0; margin-top: 14px; border-top: 1px solid var(--line-soft); }
+.pp-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rn-ctl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rn-inp {
+  height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; color: var(--ink); font-size: 12.5px; font-family: inherit; outline: none;
+  transition: border-color var(--dur-fast) var(--ease-inout);
+}
+.rn-inp::placeholder { color: var(--muted-2); }
+.rn-inp:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--tool-soft); }
+.rn-search { width: 122px; }
+.rn-addin { width: 148px; }
+.rn-count { font-size: 12px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+
+/* 🔥 名单区限高 + 内部滚动：几十个人也不会把页面撑长（用户：「人多了排不下」） */
+.rn-list {
+  display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px;
+  max-height: 176px; overflow-y: auto; overscroll-behavior: contain;
+  padding: 2px; border-radius: var(--radius-sm);
+}
+.rn-item {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 6px 0 5px; border-radius: 9px;
+  border: 1px solid var(--line-soft); background: transparent;
+  font-size: 12.5px; color: var(--ink); user-select: none;
+  transition: border-color var(--dur-fast) var(--ease-inout);
+}
+.rn-item:hover { border-color: var(--line); }
+.rn-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 色块 17→22px（用户：「三十个人挤成一片小灰点，找一个人太费眼」） */
+.pp-swatch { position: relative; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.12); cursor: pointer; display: inline-block; flex-shrink: 0; }
+/* 出厂白点：面板上的色块也必须是白的，而且要能看出「这是个空色块」 */
+.pp-swatch.is-white { background: #fff !important; border-color: rgba(0,0,0,.26); }
+.pp-swatch input { position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.rn-del {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted-2); font-size: 13px; line-height: 1;
+  cursor: pointer; transition: color var(--dur-fast), background var(--dur-fast);
+}
+.rn-del:hover { color: var(--danger); background: var(--danger-soft); }
+.rn-empty { font-size: 12.5px; color: var(--muted-2); padding: 9px 2px; line-height: 1.6; }
+
+/* 删人二选一弹层（fixed，跟登机口弹层同一套定位） */
+#rnPop {
+  position: fixed; z-index: 320; display: none; width: 252px; padding: 6px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+#rnPop.open { display: block; animation: fadeUp .16s ease both; }
+#rnPop.no-anim { animation: none; }
+.rn-pop-btn {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: 0; border-radius: 7px; background: transparent; cursor: pointer; font-family: inherit;
+}
+.rn-pop-btn:hover { background: var(--tool-light); }
+.rn-pop-t { display: block; font-size: 13px; color: var(--ink); }
+.rn-pop-d { display: block; font-size: 11.5px; color: var(--muted-2); margin-top: 2px; }
+.rn-pop-btn[data-act="all"] .rn-pop-t { color: var(--danger); }
+.rn-pop-btn[disabled] { opacity: .38; cursor: default; }
+.rn-pop-btn[disabled]:hover { background: transparent; }
+
+/* ============ 名字字体控件（2026-10-27）============
+   只作用于「负责人名字」，不是整张表 —— 列宽是死宽的（到站 108 / 登机口 92…），
+   整表放大直接串列。发丝描边 + 无底色，选中才用品牌蓝，跟导出配色同一套语言。 */
+.ff-ctl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ff-sel {
+  -webkit-appearance: none; appearance: none;
+  height: 26px; padding: 0 24px 0 9px; border-radius: 7px;
+  border: 1px solid var(--line); background-color: #fff; color: var(--ink);
+  font-size: 12.5px; font-family: inherit; cursor: pointer; outline: none;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center; background-size: 11px 11px;
+  transition: border-color var(--dur-fast) var(--ease-inout);
+}
+.ff-sel:hover { border-color: var(--muted-2); }
+.ff-sel:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px var(--tool-soft); }
+.ff-bold {
+  width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line);
+  background: #fff; color: var(--ink-2); cursor: pointer; font-size: 12.5px; font-weight: 700;
+  font-family: Georgia, "Times New Roman", serif; line-height: 1; padding: 0;
+  transition: border-color var(--dur-fast) var(--ease-inout), color var(--dur-fast), background var(--dur-fast);
+}
+.ff-bold:hover { border-color: var(--muted-2); }
+.ff-bold[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); background: var(--tool-light); }
+.ff-preview { font-size: 12.5px; color: var(--muted-2); }
+
+/* ============ 导出配色控件（2026-10-26，与 05 KN 出港统计同一套语言）============
+   发丝描边 + 无底色，只有「可点」的东西用品牌蓝（选中环）。
+   只给两个色板是有意的：整张图是「几级灰度 + 数据含义色」建的层次，
+   颜色全开放的话深底一配就糊 —— 其余层级由这两个颜色推导。 */
+.color-ctl { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 0 4px; }
+.cc-label { font-size: 12.5px; color: var(--muted-2); letter-spacing: .02em; }
+.cc-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.cc-field input[type=color] {
+  -webkit-appearance: none; appearance: none; width: 22px; height: 22px; padding: 0;
+  border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; overflow: hidden; }
+.cc-field input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+.cc-field input[type=color]::-webkit-color-swatch { border: 0; border-radius: 5px; }
+.cc-sep { width: 1px; height: 18px; background: var(--line); }
+.cc-presets { display: inline-flex; align-items: center; gap: 8px; }
+.cc-dot { width: 21px; height: 21px; padding: 0; border: 1px solid var(--line); border-radius: 50%;
+  background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: outline-color var(--dur-fast) var(--ease-inout); }
+.cc-dot > i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.cc-dot:hover { outline: 2px solid var(--line); outline-offset: 2px; }
+.cc-dot[aria-pressed="true"] { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cc-reset { background: none; border: 0; padding: 0; font-size: 12.5px; color: var(--muted-2);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.cc-reset:hover { color: var(--ink); }
+/* ⚠️ 不用 flex-basis 100% —— 它现在是 .pp-bar（column 方向）的直接子元素，basis 会变成高度 */
+.cc-warn { font-size: 12.5px; color: var(--amber); }
+.cc-warn[hidden] { display: none; }
+
+/* ============ 时段切换 Tabs ============ */
+.period-tabs { display: flex; gap: 10px; margin: 12px 0 2px; flex-wrap: wrap; }
+.period-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 9px 18px; border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 14px; font-weight: 560; color: var(--ink-2);
+  transition: border-color var(--dur-fast) var(--ease-inout), background var(--dur-fast) var(--ease-inout); }
+.period-tab .pr { font-size: 11px; color: var(--muted-2); font-weight: 400; font-variant-numeric: tabular-nums; }
+.period-tab:hover { border-color: var(--muted-2); }
+.period-tab.active { border-color: var(--brand); background: var(--tool-light); color: var(--brand); }
+.period-tab.active .pr { color: var(--tool-dark); }
+
+.btn-sm { background: #fff; color: var(--ink); border: 1px solid var(--line); cursor: pointer;
+  font-size: 13px; font-weight: 500; padding: 9px 16px; border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-inout), color var(--dur-fast) var(--ease-inout); }
+.btn-sm:hover { border-color: var(--muted-2); }
+.btn-sm.draft { color: var(--ink); }
+.btn-sm.danger { color: var(--danger); border-color: var(--danger-line); }
+.btn-sm.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+.btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+.btn-sm:disabled:hover { border-color: var(--line); }
+.info-hint { font-size: 12.5px; color: var(--muted-2); }
+.draft-note { font-size: 13px; color: var(--muted); margin-right: 10px; }
+
+/* 轻提示 toast */
+.toast {
+  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(20px);
+  background: var(--ink); color: #fff; padding: 12px 22px; border-radius: var(--radius-sm);
+  font-size: 13.5px; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 999;
+  opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; max-width: 90vw;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ============ Stats Bar ============ */
+.stats-bar { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.stat-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px;
+  font-size: 13px; font-weight: 560; background: var(--tool-light); color: var(--tool-dark);
+  border: 1px solid var(--tool-soft); }
+
+  /* 本页主视觉配图：与首页卡片同一张（原创生成，无航司涂装 / 商标）。
+     ⚠️ 必须写在页面里 —— CSS 的 url() 相对**样式表**解析，
+        写进 assets/site.css 会指到 assets/assets/… 去。 */
+  .hero { background-image: url("../assets/tools/03-schedule.webp"); }
+</style>
+<!-- 工具页 v3 设计语言（2026-10-23）。必须排在本页 <style> 之后 ——
+     否则压不住页面里那批旧规则（圆角胶囊按钮 / 灰底统计卡 / 胶囊标签）。 -->
+<link rel="stylesheet" href="../assets/tool-page.css">
+</head>
+<body>
+
+  <!-- ============ 通栏吸顶页眉 + 满屏暗色主视觉（与首页同一套，样式在 assets/site.css）============ -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
+      <span class="nav-tool"><b>03</b>出港排班表</span>
+    </div>
+  </header>
+
+  <!-- ⚠️ 主视觉配图由本页 <style> 里的 .hero 规则给出 —— CSS 的 url() 相对**样式表**解析，
+       写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
+  <section class="hero is-tool">
+    <p class="eyebrow"><span class="no">03</span>航班工作工具集 · FLIGHT TOOLS</p>
+    <h1>航班排班表</h1>
+    <p class="lede">上传航班 Excel，自动排出可编辑的出港排班表；第一天与第二天分开排、分开导。</p>
+  </section>
+
+
+<div class="localnav">
+  <div class="localnav-inner">
+    <span class="ln-t">出港排班表</span>
+    <nav class="ln-links">
+      <a href="#uploadZone">导入数据</a>
+      <a href="#resultArea">排班表</a>
+      <a href="#rulesPanel">规则说明</a>
+    </nav>
+  </div>
+</div>
+  <div class="container anim" id="mainArea">
+    <!-- 上传区 -->
+    <div class="upload-zone anim" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></span>
+    <div class="uz-body">
+      <div class="text">把当天航班 Excel 拖进来</div>
+      <div class="hint">.xls / .xlsx ｜ 只读取出港航班，自动跳过进港与取消</div>
+    </div>
+    <span class="uz-a">选择文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span>
+    <!-- 🔥 选完立刻清空 value：否则「同一个文件再导一次」不会触发 change（浏览器认为没变） -->
+    <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="handleFile(this.files[0]); this.value='';">
+  </div>
+
+    <!-- 草稿恢复入口（仅当存在草稿时显示） -->
+    <div id="draftBar" style="display:none; text-align:center; margin-bottom:28px;">
+      <span class="draft-note" id="draftNote"></span>
+      <button class="btn-sm draft" onclick="loadDraft()">读取上次草稿</button>
+    </div>
+
+    <!-- 班次切换条：有任一班次数据后出现 -->
+    <div class="day-bar" id="dayBar" style="display:none;">
+      <div class="day-tabs" id="dayTabs"></div>
+      <button class="btn-sm" type="button" onclick="document.getElementById('fileInput').click()">导入本班次数据</button>
+      <span class="day-hint" id="dayHint"></span>
+    </div>
+
+    <!-- 结果区 -->
+    <div id="resultArea" style="display:none;">
+      <div class="panel">
+        <h2>出港航班排班表</h2>
+        <div class="stats-bar" id="statsBar"></div>
+
+        <div class="bound-row">
+          <span class="bl">时间设置</span>
+          <label class="bound-field">上班<input type="text" id="bStart" maxlength="5" inputmode="numeric" value="0830" onchange="applyBounds()"></label>
+          <label class="bound-field">早→午<input type="text" id="bM2a" maxlength="5" inputmode="numeric" value="1400" onchange="applyBounds()"></label>
+          <label class="bound-field">午→晚<input type="text" id="bA2e" maxlength="5" inputmode="numeric" value="1830" onchange="applyBounds()"></label>
+          <span class="bound-warn" id="boundWarn" hidden></span>
+        </div>
+
+        <div class="period-tabs" id="periodTabs"></div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table class="sch-table" id="schTable">
+            <thead><tr>
+              <!-- 列宽写成 calc(基准 × --sch-k)：调大整表字号时列宽等比放大，
+                   否则「北京首都」这类四字站名会被重新截成三个字。
+                   到站 108px 是 2026-10-26 从 88px 加上来的（88px 扣掉内边距只剩 64px）。 -->
+              <th style="width:calc(112px * var(--sch-k,1));">出港航班</th><th style="width:calc(108px * var(--sch-k,1));">到站</th><th style="width:calc(68px * var(--sch-k,1));">计离</th>
+              <th style="width:calc(92px * var(--sch-k,1));">登机口</th><th style="width:calc(190px * var(--sch-k,1));">负责</th>
+              <th class="th-note">备注</th><th style="width:calc(152px * var(--sch-k,1));">操作</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="pp-bar">
+          <!-- 人员名单（2026-10-29 重做）：
+               用户：「在人员配色那里，之前只能显示五个名字」+「不上班的人也能删掉，下面能删也能加」。
+               以前这里是「人员配色」，只能点色、不能加也不能删，而且前面永远挡着 5 个写死的示例名字。
+               现在：搜索 / 添加 / 每人一个 × 删除 / 限高内部滚动，名单完全由用户自己维护。 -->
+          <div class="pp-row rn-head">
+            <span class="bl">人员名单</span>
+            <div class="rn-ctl">
+              <input class="rn-inp rn-search" id="rnSearch" type="text" placeholder="搜索姓名"
+                     autocomplete="off" aria-label="搜索姓名" oninput="renderColorPanel()">
+              <input class="rn-inp rn-addin" id="rnAdd" type="text" placeholder="添加姓名，回车"
+                     autocomplete="off" aria-label="添加姓名"
+                     onkeydown="if(event.key==='Enter'){addNameFromPanel();return false;}">
+              <button class="btn-sm" type="button" id="rnAddBtn" onclick="addNameFromPanel()">添加</button>
+              <span class="rn-count" id="rnCount"></span>
+            </div>
+            <button class="btn-sm" type="button" id="ppReset" onclick="resetColors()" title="圆点全部变白 + 底色字色还原">全部恢复出厂</button>
+          </div>
+          <div class="rn-list" id="ppList"></div>
+          <!-- 表格字体（2026-10-27 用户要求）：字号 / 加粗 / 字体**作用于整张表**。
+               列宽跟着字号等比放大（见 thead 的 calc），所以放大不会串列。 -->
+          <div class="pp-row">
+            <span class="bl">表格字体</span>
+            <div class="ff-ctl" id="fontCtl">
+              <select class="ff-sel" id="ffFamily" aria-label="字体">
+                <option value="system">系统默认</option>
+                <option value="pingfang">苹方</option>
+                <option value="heiti">黑体</option>
+                <option value="songti">宋体</option>
+                <option value="kaiti">楷体</option>
+                <option value="mono">等宽</option>
+              </select>
+              <select class="ff-sel" id="ffSize" aria-label="字号">
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="12.5">12.5</option>
+                <option value="13">13</option>
+                <option value="13.5">13.5</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+                <option value="16">16</option>
+              </select>
+              <button class="ff-bold" type="button" id="ffBold" aria-pressed="true" title="加粗">B</button>
+            </div>
+          </div>
+          <!-- 导出配色（2026-10-26）：照 05 KN 出港统计那套，只开放「底色 / 字色」两个色板，
+               表头 / 发丝线 / 输入框边框由这两个颜色推导。选完立刻在页面上生效，导出图同一套。 -->
+          <div class="pp-row">
+            <span class="bl">导出配色</span>
+            <div class="color-ctl" id="colorCtl">
+              <label class="cc-field">底色<input type="color" id="ccBg" value="#ffffff" aria-label="底色"></label>
+              <label class="cc-field">字色<input type="color" id="ccInk" value="#1d1d1f" aria-label="字色"></label>
+              <span class="cc-sep" aria-hidden="true"></span>
+              <div class="cc-presets" id="ccPresets"></div>
+              <button class="cc-reset" type="button" id="ccReset">恢复默认</button>
+            </div>
+          </div>
+          <div class="cc-warn" id="ccWarn" hidden>底色和字色太接近，导出图上的字会看不清。</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="exportExcel()">下载 Excel</button>
+        <button class="btn btn-primary" onclick="exportImage()">导出图片</button>
+        <button class="btn-sm" onclick="exportExcelAll()">导出全部 Excel</button>
+        <button class="btn-sm" onclick="appendRow()">末尾新增一行</button>
+        <button class="btn-sm draft" onclick="saveDraft()">存草稿</button>
+        <button class="btn-sm" onclick="loadDraft()">读取草稿</button>
+        <button class="btn-sm" onclick="clearDraft()">清空草稿</button>
+        <button class="btn-sm" id="undoBtn" onclick="doUndo()" disabled>撤回</button>
+        <button class="btn-sm danger" onclick="clearAll()">一键清空</button>
+        <span class="info-hint">每行可「插入 / 删除」；改登机口、改备注、改颜色都能用「撤回」或 ⌘Z 退回。</span>
+      </div>
+    </div>
+
+  <!-- 规则说明面板 -->
+    <div class="rules-panel anim" id="rulesPanel" style="animation-delay:0.05s">
+      <div class="rules-header" id="rulesHeader" onclick="document.getElementById('rulesPanel').classList.toggle('open')">
+      <div class="title">
+        <span class="r-k">规则</span>
+        <span class="r-t">排班表规则说明</span>
+        <!-- 展开/收起文案用 CSS 切，不写进 JS —— 面板开合只切 .open 类 -->
+        <span class="hint"><span class="when-closed">点击展开</span><span class="when-open">点击收起</span></span>
+      </div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
+      <div class="rules-body">
+        <div class="rules-intro">
+          导入出港航班 Excel 后，系统按下列规则自动生成可编辑排班表：
+        </div>
+        <div class="rules-inner">
+          <ul>
+            <li><b>只取出港航班：</b>仅读取出港方向航班，自动跳过进港及取消记录（机号为 <code>CNL / DEL</code>）。</li>
+            <li><b>两个班次分开排：</b>一个班次从当天 <b>08:30</b> 干到次日 <b>08:30</b>。顶部可切「第一天 / 第二天」，<b>各自导入一份 FIOS 表</b>（一次只能导一天）。第一天只留 08:30 之后的航班，第二天只留 08:30 之前的航班；两份互不影响，导出也是各自一份。</li>
+            <li><b>按计离排序分段：</b>全部航班先按「计离」从早到晚排序，再按早 / 午 / 晚三段分组。<b>三个时间都可以自己改</b>（默认 上班 0830 / 早→午 1400 / 午→晚 1830）：改「上班」会同时改变第一天与第二天怎么切分，改另两个只挪早午晚的分界。改完立即重算，并记在本机。</li>
+            <li><b>登机口：</b>点格子里的号码，弹出 <code>201–224</code> 的号码格，点哪个填哪个；底部可以手输（超出 201–224 也能填），也能一键清空。</li>
+            <li><b>负责人选择：</b>点格子内「＋ / 添加」展开选择器，勾选名单里的人，或当场输入新姓名添加。<b>一个航班最多 3 个负责人</b>；名单长了弹层顶部有搜索框。</li>
+            <li><b>人员名单（能加也能删）：</b>表格下方的「人员名单」就是全部人员的花名册，<b>从空白开始、完全由你自己维护</b>。<br>
+              ① <b>加：</b>在「添加姓名，回车」框里打完名字回车即可；<br>
+              ② <b>搜：</b>左边搜索框打两个字就能定位（几十个人也不用翻）；<br>
+              ③ <b>删：</b>点名字后面的 <b>×</b>，会问你两种 —— <b>「只从这一班去掉」</b>（他还留在名单里，明天照样能勾）或 <b>「从名单彻底删掉」</b>（所有班次里一起清掉，颜色也删）。<br>
+              名单人数多时这一块内部滚动，不会把页面拉长；名单记在本机。</li>
+            <li><b>负责人配色：</b>名字前面那个圆点就是各人的颜色，只用来区分人、不占版面。<b>出厂状态所有圆点都是白的</b>，颜色由你在「人员名单」里自己点（点色块挑色，可随时换）。「全部恢复出厂」把圆点全部变回白色、底色字色一起还原，可撤回。<b>颜色不存本机</b>，刷新后回到白点。</li>
+            <li><b>表格字体：</b>字号 / 加粗 / 字体<b>作用于整张表</b>。列宽会跟着字号等比放大，所以放大不会串列、也不会把四字站名截断；导出的图片同步放大。选择记在本机。</li>
+            <li><b>导出配色：</b>默认纯白底 + 近黑字。也可自选底色与字色，表头、发丝线、输入框描边由这两个颜色自动推导；选完立刻在页面上生效，导出的图片同一套配色。右边的「恢复默认」只还原底色和字色，「全部恢复出厂」是连圆点一起还原。所选配色会记住，下次打开仍生效。</li>
+            <li><b>撤回：</b>改颜色、恢复配色、删行、插行、改登机口、改备注都能撤回，按 <code>⌘Z</code> / <code>Ctrl+Z</code> 或点「撤回」，最多 20 步。</li>
+            <li><b>高客座提醒：</b>订座里那三个数字是三舱人数，系统只把它们加起来判断：<b>合计超过 160</b> 就在备注最前面打上「高客座」，不用自己算，也不再单占一列。</li>
+            <li><b>备注列顺序：</b>备注自动按「高客座 → 预推时间 → 特服 → 航班调时」拼接展示，便于快速读取保障要点。</li>
+            <li><b>本地草稿：</b>编辑后可在本机保存草稿，下次打开可「读取上次草稿」继续；两天各存一份。</li>
+            <li><b>导出：</b>支持导出当前班次当前时段 / 当前班次全部时段为 Excel，以及导出排班图为图片，便于发群或打印。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">航班工作工具集</footer>
+  </div>
+
+<!-- 登机口弹层：必须放在主脚本之前 —— 脚本初始化时会 buildGatePop() 往里填 24 个号码格，
+     放后面的话 document.getElementById('gpGrid') 还是 null，弹层就是空的。
+     也必须在 .table-wrap 之外：那边带 overflow-x:auto，会把绝对定位的弹层裁掉。
+     ⚠️ 这段注释里别写 script 的开标签字面量 —— validate-site.py 按标签切脚本块，会被它骗到。 -->
+<div id="gatePop" role="dialog" aria-label="选择登机口">
+  <div class="gp-grid" id="gpGrid"></div>
+  <div class="gp-foot">
+    <input type="text" id="gpManual" inputmode="numeric" maxlength="4" placeholder="手输，如 225"
+           aria-label="手动输入登机口">
+    <button type="button" class="gp-clear" id="gpClear">清空</button>
+  </div>
+</div>
+
+<!-- 删人二选一（2026-10-29 用户拍板：「两种都留，删前问一句」）：
+     ① 只从这一班去掉  ② 从名单彻底删掉（同时清掉所有班次里的人和颜色）。
+     和登机口弹层一样必须放在 .table-wrap 之外、走 position:fixed。 -->
+<div id="rnPop" role="dialog" aria-label="从名单移除">
+  <button type="button" class="rn-pop-btn" data-act="shift">
+    <span class="rn-pop-t">只从这一班去掉</span>
+    <span class="rn-pop-d">他还留在名单里，明天照样能勾</span>
+  </button>
+  <button type="button" class="rn-pop-btn" data-act="all">
+    <span class="rn-pop-t">从名单彻底删掉</span>
+    <span class="rn-pop-d">所有班次里一起清掉，颜色也删</span>
+  </button>
+</div>
+
+<script>
+// ============================================================
+// 状态
+// ============================================================
+var DAY_LABEL = { 1:'第一天', 2:'第二天' };
+var PERIODS = [
+  { key:'morning',   label:'早上' },
+  { key:'afternoon', label:'下午' },
+  { key:'evening',   label:'晚上' }
+];
+var PERIOD_LABEL = { morning:'早上', afternoon:'下午', evening:'晚上' };
+
+// 时段分界默认值（分钟）。start 同时是「第一天/第二天」的分界。
+var DEFAULT_BOUNDS = { start:510, m2a:840, a2e:1110 };   // 0830 / 1400 / 1830
+
+/* 🔥 出厂 = 圆点全白（2026-10-27 用户纠正，别再改回去）：
+   「我要的恢复出厂是每个人的名字前面的那个色块点变成都变成白色，然后后面是我自己选颜色。
+     你不要搞反了，不是要恢复出厂之后每个人都有自己的专属配色，专属配色就都是白色。」
+   → 这里**不再有**任何「默认专属色」表。没被用户点过 = 白点（'' 表示未上色）。
+
+   🔥 2026-10-29 再改：**写死的示例名单已删除**（原来是五个硬编码的人名）。
+   用户原话：「在人员配色那里，之前只能显示五个名字」—— 那五个就是写死的示例，
+   删不掉、还占着位置，把真正的名单挡在后面。
+   ⚠️ 这里不许再写任何真实姓名（线上仓库公开，见 REF-security.md）。
+   → 现在名单**完全由用户维护**（见「人员名单」面板），并且 allNames() 会把
+     「已经出现在表格里的人」也算进去，所以老草稿里的名字不会凭空消失。 */
+
+var ST = {
+  day: 1,
+  data: { 1: [], 2: [] },
+  period: { 1:'morning', 2:'morning' },
+  bounds: { start:DEFAULT_BOUNDS.start, m2a:DEFAULT_BOUNDS.m2a, a2e:DEFAULT_BOUNDS.a2e },
+  colors: {},          // name -> '#hex'（用户自选的，覆盖出厂色）
+  customNames: [],     // 用户临时加的人
+  undo: [],
+  editKey: null
+};
+// flightData 永远指向「当前班次」的数组，其余逻辑沿用它
+var flightData = ST.data[1];
+var currentPeriod = ST.period[1];
+
+var DRAFT_KEY = 'flight_schedule_draft_v2';
+var CFG_KEY   = 'flight_schedule_cfg_v1';   // bounds + colors + customNames
+
+// ============================================================
+// 颜色工具
+// ============================================================
+function hex2rgb(h){
+  h = String(h||'').replace('#','');
+  if(h.length===3) h = h.charAt(0)+h.charAt(0)+h.charAt(1)+h.charAt(1)+h.charAt(2)+h.charAt(2);
+  var n = parseInt(h,16);
+  return isNaN(n) ? [0,0,0] : [(n>>16)&255,(n>>8)&255,n&255];
+}
+function rgb2hex(a){
+  return '#' + a.map(function(v){
+    v = Math.max(0, Math.min(255, Math.round(v)));
+    return (v<16?'0':'') + v.toString(16);
+  }).join('');
+}
+function mixHex(a, b, t){            // a 往 b 靠 t
+  var A = hex2rgb(a), B = hex2rgb(b);
+  return rgb2hex([A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t]);
+}
+function relLum(hex){
+  var c = hex2rgb(hex).map(function(v){ v/=255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); });
+  return .2126*c[0] + .7152*c[1] + .0722*c[2];
+}
+function contrastRatio(a, b){
+  var la = relLum(a), lb = relLum(b), hi = Math.max(la,lb), lo = Math.min(la,lb);
+  return (hi+.05)/(lo+.05);
+}
+/* 2026-10-26：页面上「色点 + 名字」不再需要「浅底 + 深字 + 同色描边」三件套，chipStyle 已删。
+   ⚠️ 但 chipPalette / fgOf 必须留着 —— **Excel 导出**还在用：
+   xlsx 的单元格里画不了圆点，只能用「浅色底 + 同色字」来区分负责人，
+   所以这两个函数现在专供 writeStyledXlsx，别顺手删（删了导出会 ReferenceError）。 */
+function fgOf(hex){
+  var l = relLum(hex);
+  if(l > .62) return mixHex(hex, '#000000', .58);
+  if(l < .06) return mixHex(hex, '#ffffff', .45);
+  return hex;
+}
+function chipPalette(name){
+  var hex = colorOf(name);
+  /* 没上色（白点）：Excel 里就用白底黑字，等价于「不做标记」。
+     ⚠️ 必须返回真实色值，不能返回 null —— 下面 fillXml() 会拿它拼字符串。 */
+  if(!hex) return { hex:'', bg:'#ffffff', fg:'#1d1d1f', bd:'#d2d2d7' };
+  return {
+    hex: hex,
+    bg:  mixHex(hex, '#ffffff', .88),   // 浅底
+    fg:  fgOf(hex),                    // 深字
+    bd:  mixHex(hex, '#ffffff', .62)   // 同色描边（导出图不用，留作备用）
+  };
+}
+
+// ============================================================
+// 导出配色（2026-10-26，照 05 KN 出港统计同一套）
+// ============================================================
+/* 只开放「底色 / 字色」两个色板。原因跟 KN 一样：整张表是「几级灰度 + 数据含义色」建的层次，
+   颜色全开放的话深底一配就糊 —— 表头 / 发丝线 / 悬停 / 输入框边框全部由这两个颜色推导。
+   数据含义色（负责人色点）不参与推导，那是用来认人的，不能被底色改掉。 */
+var SCH_COLOR_KEY = 'scheduleExportColors.v1';
+var SCH_DEF = { bg:'#ffffff', ink:'#1d1d1f' };
+var SCH_PRESETS = [
+  { n:'纯白',   bg:'#ffffff', ink:'#1d1d1f' },
+  { n:'米白',   bg:'#faf7f2', ink:'#1d1d1f' },
+  { n:'浅灰',   bg:'#f1f1f4', ink:'#1d1d1f' },
+  { n:'深空灰', bg:'#1d1d1f', ink:'#f5f5f7' },
+  { n:'墨黑',   bg:'#000000', ink:'#ffffff' }
+];
+var schColor = { bg: SCH_DEF.bg, ink: SCH_DEF.ink };
+
+/* 🔥 默认配色走「原值直通」不做近似推导 —— 保证不选色时页面与导出图跟改版前逐像素一致。
+   （页面那套发丝线是 #e8e8ed、导出图是 #e5e5ea，两者本来就不一样，所以分开两个键。） */
+function schBuildPalette(bg, ink){
+  if(String(bg).toLowerCase()==='#ffffff' && String(ink).toLowerCase()==='#1d1d1f'){
+    return { bg:'#ffffff', ink:'#1d1d1f', ink2:'#424245', sec:'#6e6e73',
+             rule:'#e5e5ea', ruleStrong:'#d2d2d7',
+             pageRule:'#e8e8ed', pageLine:'#d2d2d7', head:'#fafafa', hover:'#fbfcfd',
+             dotRing:'#c6c6cb' };
+  }
+  return {
+    bg: bg, ink: ink,
+    ink2: mixHex(bg, ink, .86),        // 计离 / 登机口
+    sec:  mixHex(bg, ink, .62),        // 表头 / 备注 / 操作
+    rule: mixHex(bg, ink, .10),        // 导出图行线
+    ruleStrong: mixHex(bg, ink, .18),  // 导出图表头下线
+    pageRule: mixHex(bg, ink, .10),    // 页面行线
+    pageLine: mixHex(bg, ink, .22),    // 输入框 / 卡片描边
+    head: mixHex(bg, ink, .035),       // 表头底色
+    hover: mixHex(bg, ink, .05),
+    dotRing: mixHex(bg, ink, .38)      // 白点轮廓（深底上要够明显）
+  };
+}
+
+function applySchColors(){
+  var P = schBuildPalette(schColor.bg, schColor.ink);
+  var wrap = document.querySelector('.table-wrap');
+  if(wrap){
+    wrap.style.setProperty('--sch-bg', P.bg);
+    wrap.style.setProperty('--sch-ink', P.ink);
+    wrap.style.setProperty('--sch-ink2', P.ink2);
+    wrap.style.setProperty('--sch-sec', P.sec);
+    wrap.style.setProperty('--sch-rule', P.pageRule);
+    wrap.style.setProperty('--sch-line', P.pageLine);
+    wrap.style.setProperty('--sch-head', P.head);
+    wrap.style.setProperty('--sch-hover', P.hover);
+    wrap.style.setProperty('--sch-dot-ring', P.dotRing);
+  }
+  var bgIn = document.getElementById('ccBg'), inkIn = document.getElementById('ccInk');
+  if(bgIn)  bgIn.value  = schColor.bg;
+  if(inkIn) inkIn.value = schColor.ink;
+  var dots = document.querySelectorAll('#ccPresets .cc-dot');
+  for(var i=0;i<dots.length;i++){
+    var on = String(dots[i].getAttribute('data-bg')).toLowerCase()===String(schColor.bg).toLowerCase() &&
+             String(dots[i].getAttribute('data-ink')).toLowerCase()===String(schColor.ink).toLowerCase();
+    dots[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  var warn = document.getElementById('ccWarn');
+  if(warn) warn.hidden = contrastRatio(schColor.bg, schColor.ink) >= 3;
+}
+function saveSchColors(){
+  try{ localStorage.setItem(SCH_COLOR_KEY, JSON.stringify(schColor)); }catch(e){}
+}
+function initColorCtl(){
+  try{
+    var s = JSON.parse(localStorage.getItem(SCH_COLOR_KEY) || 'null');
+    if(s && /^#[0-9a-f]{6}$/i.test(s.bg) && /^#[0-9a-f]{6}$/i.test(s.ink)){
+      schColor.bg = s.bg.toLowerCase();
+      schColor.ink = s.ink.toLowerCase();
+    }
+  }catch(e){}
+
+  var box = document.getElementById('ccPresets');
+  if(box){
+    SCH_PRESETS.forEach(function(p){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cc-dot';
+      b.title = p.n;
+      b.setAttribute('data-color-chip', '');   // 声明为色板：色板本来就该显示任意颜色
+      b.setAttribute('aria-label', '配色：' + p.n);
+      b.setAttribute('data-bg', p.bg);
+      b.setAttribute('data-ink', p.ink);
+      b.style.background = p.bg;
+      var i = document.createElement('i');
+      i.style.background = p.ink;
+      b.appendChild(i);
+      b.addEventListener('click', function(){
+        schColor.bg = p.bg; schColor.ink = p.ink;
+        saveSchColors(); applySchColors();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  var bgIn = document.getElementById('ccBg'), inkIn = document.getElementById('ccInk');
+  function onPick(){
+    if(bgIn)  schColor.bg  = bgIn.value;
+    if(inkIn) schColor.ink = inkIn.value;
+    saveSchColors(); applySchColors();
+  }
+  if(bgIn)  bgIn.addEventListener('input', onPick);
+  if(inkIn) inkIn.addEventListener('input', onPick);
+
+  var rst = document.getElementById('ccReset');
+  if(rst) rst.addEventListener('click', function(){
+    schColor.bg = SCH_DEF.bg; schColor.ink = SCH_DEF.ink;
+    saveSchColors(); applySchColors();
+  });
+
+  applySchColors();
+}
+
+// ============================================================
+// 名字字体（2026-10-27 用户要求：字体大小 / 加粗 / 字体种类）
+// ============================================================
+/* 只作用于「负责人名字」这一列。整表列宽是死宽的（到站 108 / 登机口 92…），
+   整表放大直接串列 —— 所以字号/字体只开给名字，其余列不动。
+   页面走 CSS 变量，导出图走 schFont 同一个对象，两边永远一致。 */
+var SCH_FONT_KEY = 'scheduleFont.v1';
+var SCH_FONT_DEF = { size: 13.5, bold: true, family: 'system' };
+var schFont = { size: SCH_FONT_DEF.size, bold: SCH_FONT_DEF.bold, family: SCH_FONT_DEF.family };
+/* css = 页面用（空串 = 继承页面字体）；canvas = 导出图用（canvas 只认具体字体名，不认 inherit） */
+var FONT_FAMILIES = {
+  system:  { css:'', canvas:'' },
+  pingfang:{ css:'"PingFang SC", "Hiragino Sans GB", sans-serif',
+             canvas:'"PingFang SC", "Hiragino Sans GB", sans-serif' },
+  heiti:   { css:'"Heiti SC", "Microsoft YaHei", sans-serif',
+             canvas:'"Heiti SC", "Microsoft YaHei", sans-serif' },
+  songti:  { css:'"Songti SC", "SimSun", serif',
+             canvas:'"Songti SC", "SimSun", serif' },
+  kaiti:   { css:'"Kaiti SC", "STKaiti", serif',
+             canvas:'"Kaiti SC", "STKaiti", serif' },
+  mono:    { css:'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+             canvas:'"SF Mono", Menlo, Consolas, monospace' }
+};
+function fontCss(){ return (FONT_FAMILIES[schFont.family] || FONT_FAMILIES.system).css; }
+function fontCanvas(){ return (FONT_FAMILIES[schFont.family] || FONT_FAMILIES.system).canvas; }
+function fontWeightCss(){ return schFont.bold ? 640 : 400; }
+
+function applySchFont(){
+  var wrap = document.querySelector('.table-wrap');
+  var k = Math.round((schFont.size / 13.5) * 1000) / 1000;   // 相对 13.5px 的倍数
+  if(wrap){
+    wrap.style.setProperty('--sch-k', String(k));
+    wrap.style.setProperty('--sch-ff', fontCss() || 'inherit');
+    wrap.style.setProperty('--sch-fw', schFont.bold ? '620' : '400');
+    wrap.style.setProperty('--sch-th-fw', schFont.bold ? '700' : '590');
+    wrap.style.setProperty('--resp-fw', schFont.bold ? '640' : '440');
+  }
+  var selF = document.getElementById('ffFamily'), selS = document.getElementById('ffSize');
+  var b = document.getElementById('ffBold');
+  if(selF) selF.value = schFont.family;
+  if(selS) selS.value = String(schFont.size);
+  if(b) b.setAttribute('aria-pressed', schFont.bold ? 'true' : 'false');
+  var pv = document.getElementById('ffPreview');
+  if(pv){
+    pv.style.fontSize = schFont.size + 'px';
+    pv.style.fontWeight = String(fontWeightCss());
+    pv.style.fontFamily = fontCss() || 'inherit';
+  }
+}
+function saveSchFont(){
+  try{ localStorage.setItem(SCH_FONT_KEY, JSON.stringify(schFont)); }catch(e){}
+}
+function initFontCtl(){
+  try{
+    var s = JSON.parse(localStorage.getItem(SCH_FONT_KEY) || 'null');
+    if(s && typeof s === 'object'){
+      if(typeof s.size === 'number' && s.size >= 9 && s.size <= 24) schFont.size = s.size;
+      if(typeof s.bold === 'boolean') schFont.bold = s.bold;
+      if(FONT_FAMILIES[s.family]) schFont.family = s.family;
+    }
+  }catch(e){}
+
+  var selF = document.getElementById('ffFamily'), selS = document.getElementById('ffSize');
+  var b = document.getElementById('ffBold');
+  if(selF) selF.addEventListener('change', function(){
+    schFont.family = this.value; saveSchFont(); applySchFont();
+  });
+  if(selS) selS.addEventListener('change', function(){
+    var v = parseFloat(this.value);
+    schFont.size = (v >= 9 && v <= 24) ? v : SCH_FONT_DEF.size;
+    saveSchFont(); applySchFont();
+  });
+  if(b) b.addEventListener('click', function(){
+    schFont.bold = !schFont.bold; saveSchFont(); applySchFont();
+  });
+  applySchFont();
+}
+
+// ============================================================
+// 负责人配色
+// ============================================================
+/* 名单来源（2026-10-29 重写）：
+   ① 用户自己在「人员名单」面板里加的人（ST.customNames，顺序即名单顺序）
+   ② 已经出现在任意班次里的人（老草稿 / 导入的数据 / 之前加过的）
+   ⇒ 只要他还在表里，名单里就一定找得到他，不会「人凭空消失」。 */
+function allNames(){
+  var out = [];
+  function put(n){
+    n = String(n == null ? '' : n).trim();
+    if(n && out.indexOf(n) < 0) out.push(n);
+  }
+  ST.customNames.forEach(put);
+  [1,2].forEach(function(d){
+    (ST.data[d] || []).forEach(function(r){
+      (r && r.persons ? r.persons : []).forEach(put);
+    });
+  });
+  return out;
+}
+function colorOf(name){
+  return ST.colors[name] || '';   // '' = 白点（出厂状态，等用户自己点色）
+}
+
+// ============================================================
+// 撤回
+// ============================================================
+function snapshot(){
+  return JSON.stringify({
+    d1: ST.data[1], d2: ST.data[2],
+    colors: ST.colors, bounds: ST.bounds, cn: ST.customNames,
+    pal: { bg: schColor.bg, ink: schColor.ink }   // 2026-10-26 加：底色/字色也要能撤回
+  });
+}
+function pushUndo(){
+  ST.undo.push(snapshot());
+  if(ST.undo.length > 20) ST.undo.shift();
+  syncUndoBtn();
+}
+// 连续打字只记一步：同一个编辑会话内不再压栈
+function beginEdit(key){
+  if(ST.editKey === key) return;
+  ST.editKey = key;
+  pushUndo();
+}
+document.addEventListener('focusout', function(){ ST.editKey = null; });
+
+function syncUndoBtn(){
+  var b = document.getElementById('undoBtn');
+  if(!b) return;
+  b.disabled = ST.undo.length === 0;
+  b.textContent = ST.undo.length ? '撤回（'+ST.undo.length+'）' : '撤回';
+}
+function doUndo(){
+  if(!ST.undo.length){ flashHint('没有可撤回的操作'); return; }
+  var s = JSON.parse(ST.undo.pop());
+  ST.data[1] = s.d1 || [];
+  ST.data[2] = s.d2 || [];
+  ST.colors = s.colors || {};
+  ST.bounds = s.bounds || { start:DEFAULT_BOUNDS.start, m2a:DEFAULT_BOUNDS.m2a, a2e:DEFAULT_BOUNDS.a2e };
+  ST.customNames = s.cn || [];
+  /* 老快照里没有 pal（升级前存的）→ 不动当前配色，避免把用户刚选的色撤没了 */
+  if(s.pal && s.pal.bg && s.pal.ink){
+    schColor.bg = s.pal.bg; schColor.ink = s.pal.ink;
+    applySchColors(); saveSchColors();
+  }
+  flightData = ST.data[ST.day];
+  ST.editKey = null;
+  syncBoundInputs();
+  renderAll();
+  syncUndoBtn();
+  flashHint('已撤回一步');
+}
+
+// ============================================================
+// 时间
+// ============================================================
+// "0830" / "08:30" / 830 → 分钟数；解析不了返回 null
+function depTimeToMin(s){
+  if(s===undefined || s===null || s==='') return null;
+  var str = String(s).replace(/[^\d:]/g,'');
+  var m = str.match(/(\d{1,2}):?(\d{2})/);
+  if(!m) return null;
+  var h = parseInt(m[1],10), mm = parseInt(m[2],10);
+  if(h>24 || mm>59) return null;
+  return h*60+mm;
+}
+function fmtHM(min){
+  min = ((min%1440)+1440)%1440;
+  return String(Math.floor(min/60)).padStart(2,'0') + String(min%60).padStart(2,'0');
+}
+// 输入框里的 "8:30" / "0830" → 规范化成 0830；非法返回 null
+function normHM(v){
+  var m = depTimeToMin(v);
+  if(m===null) return null;
+  return fmtHM(m);
+}
+function periodOf(depMin){
+  if(depMin===null) return 'evening';
+  if(depMin < ST.bounds.m2a) return 'morning';
+  if(depMin < ST.bounds.a2e) return 'afternoon';
+  return 'evening';
+}
+// 第一天 = 分界之后；第二天 = 分界之前。时间解析不了一律保留（宁可见到也别悄悄丢）
+function inShift(depMin, day){
+  if(depMin===null) return true;
+  return day===1 ? depMin >= ST.bounds.start : depMin < ST.bounds.start;
+}
+function periodRange(key){
+  var b = ST.bounds;
+  if(key==='morning')   return fmtHM(ST.day===2 ? 0 : b.start) + '–' + fmtHM(b.m2a);
+  if(key==='afternoon') return fmtHM(b.m2a) + '–' + fmtHM(b.a2e);
+  return fmtHM(b.a2e) + ' 以后';
+}
+
+// ============================================================
+// 拖拽上传
+// ============================================================
+var uz = document.getElementById('uploadZone');
+uz.addEventListener('dragover', function(e){ e.preventDefault(); e.stopPropagation(); uz.classList.add('dragover'); });
+uz.addEventListener('dragleave', function(e){ e.preventDefault(); e.stopPropagation(); uz.classList.remove('dragover'); });
+uz.addEventListener('drop', function(e){
+  e.preventDefault(); e.stopPropagation(); uz.classList.remove('dragover');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+// ============================================================
+// 草稿 / 配置
+// ============================================================
+function refreshDraftBar(){
+  var bar = document.getElementById('draftBar');
+  var note = document.getElementById('draftNote');
+  try{
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if(raw){
+      var p = JSON.parse(raw);
+      var d1 = (p && p.day1 && Array.isArray(p.day1.data)) ? p.day1.data.length : 0;
+      var d2 = (p && p.day2 && Array.isArray(p.day2.data)) ? p.day2.data.length : 0;
+      if(d1 + d2 > 0){
+        var when = '';
+        var ts = (p.day1 && p.day1.ts) || (p.day2 && p.day2.ts) || 0;
+        if(ts){ var t=new Date(ts); when='（'+(t.getMonth()+1)+'月'+t.getDate()+'日 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0')+'）'; }
+        note.textContent = '检测到上次保存的草稿'+when+'：第一天 '+d1+' 行 · 第二天 '+d2+' 行';
+        bar.style.display = 'block';
+        return;
+      }
+    }
+  }catch(e){}
+  bar.style.display = 'none';
+}
+
+function saveCfg(){
+  try{
+    /* 🔥 人员颜色**不存本机**（2026-10-27 用户：「本机也不用专门存颜色」）。
+       出厂就是白点，颜色是当下临时认人用的，刷新后自然回到白点。
+       所以这里只存时段分界和自定义姓名。 */
+    localStorage.setItem(CFG_KEY, JSON.stringify({
+      bounds: ST.bounds, customNames: ST.customNames
+    }));
+  }catch(e){}
+}
+function loadCfg(){
+  try{
+    var c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+    if(!c) return;
+    if(c.bounds){
+      ['start','m2a','a2e'].forEach(function(k){
+        if(typeof c.bounds[k] === 'number') ST.bounds[k] = c.bounds[k];
+      });
+    }
+    /* 老版本存过 colors —— 读到了也丢掉，否则「刷新回到白点」这条不成立 */
+    if(Array.isArray(c.customNames)) ST.customNames = c.customNames;
+  }catch(e){}
+}
+
+// ============================================================
+// 解析 Excel
+// ============================================================
+function handleFile(file){
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var raw = XLSX.utils.sheet_to_json(ws, {header:1});
+      if(!raw || raw.length < 2){ alert('文件内容为空或格式不正确'); return; }
+      parseAndRender(raw);
+    }catch(err){
+      alert('解析 Excel 失败：' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseAndRender(raw){
+  var headers = raw[0];
+  function colIdx(name){
+    for(var i=0;i<headers.length;i++) if(String(headers[i]).trim()===name) return i;
+    return -1;
+  }
+  var cFlight = colIdx('出港航班'), cDest = colIdx('到站'), cDep = colIdx('计离');
+  var cBooking = colIdx('出港订座'), cTesfu = colIdx('特服'), cYutui = colIdx('预推'), cNote = colIdx('备注');
+  var cAc = colIdx('机号');
+
+  if(cFlight<0 || cDest<0 || cDep<0){
+    alert('无法识别必要的列名（需要「出港航班」「到站」「计离」）。请确认 Excel 格式正确。'); return;
+  }
+
+  pushUndo();
+  var out = [];
+  for(var r=1;r<raw.length;r++){
+    var row = raw[r];
+    var flight = String(row[cFlight]||'').trim().replace(/[#&]/g, '').trim();
+    if(!flight) continue;
+
+    var ac = (cAc >= 0) ? String(row[cAc]||'').trim().toUpperCase() : '';
+    if(ac==='CNL' || ac==='DEL') continue;      // 取消
+
+    // 订座原样是 "    0|    8|151"（带对齐空格）→ 去掉空格，否则图片里会溢出到左边一列
+    var bookingStr = String(row[cBooking]||'').replace(/\s+/g,'').trim();
+
+    var tesfuFull = String(row[cTesfu]||'').trim();
+    var tesfuDep = '';
+    if(tesfuFull && tesfuFull.indexOf('|')>=0){
+      var parts = tesfuFull.split('|');
+      tesfuDep = parts.length > 1 ? parts[parts.length-1].trim() : '';
+    }
+
+    var yutuiVal = String(row[cYutui]||'').trim();
+    var noteVal  = String(row[cNote]||'').trim();
+
+    var notesArr = [];
+    // 订座原值是三舱人数（如 "0|8|151"）→ 合计 > 160 就是高客座，写进备注当提醒。
+    // 放最前面：备注列窄，放后面会被单行截断看不见。
+    var seatSum = bookingStr.split('|').reduce(function(a, s){
+      var n = parseInt(String(s).replace(/[^0-9]/g, ''), 10);
+      return a + (isNaN(n) ? 0 : n);
+    }, 0);
+    if(seatSum > 160) notesArr.push('高客座');
+    if(yutuiVal) notesArr.push('预推时间 '+yutuiVal);
+    if(tesfuDep) notesArr.push('特服:'+tesfuDep);
+    if(noteVal && noteVal.indexOf('调时')>=0) notesArr.push('航班调时');
+
+    var depMin = depTimeToMin(row[cDep]);
+    if(!inShift(depMin, ST.day)) continue;      // 不属于当前班次
+
+    out.push({
+      flight: flight,
+      dest: String(row[cDest]||'').trim(),
+      depTime: String(row[cDep]||'').trim(),
+      booking: bookingStr,
+      bookingRaw: bookingStr,
+      tesfu: tesfuDep,
+      yutui: yutuiVal,
+      note: notesArr.join('；'),
+      /* 2026-10-26：不再预填 '2'。登机口改成「点格子选」，预填一个 2 会看着像已经分配好了。 */
+      gate: '',
+      persons: [],
+      period: periodOf(depMin)
+    });
+  }
+
+  out.sort(function(a,b){
+    var ma = depTimeToMin(a.depTime), mb = depTimeToMin(b.depTime);
+    var ka = (ma===null) ? Number.MAX_SAFE_INTEGER : ma;
+    var kb = (mb===null) ? Number.MAX_SAFE_INTEGER : mb;
+    return ka - kb;
+  });
+
+  ST.data[ST.day] = out;
+  flightData = out;
+  autoSelectPeriod();
+  showResult();
+  renderAll();
+  flashHint('已导入'+DAY_LABEL[ST.day]+' '+out.length+' 班');
+}
+
+// 自动选择第一个有数据的时段
+function autoSelectPeriod(){
+  var d = ST.data[ST.day];
+  for(var i=0;i<PERIODS.length;i++){
+    var k = PERIODS[i].key;
+    if(d.some(function(x){ return x.period===k; })){ ST.period[ST.day] = k; currentPeriod = k; return; }
+  }
+  ST.period[ST.day] = 'morning'; currentPeriod = 'morning';
+}
+
+// ============================================================
+// 渲染
+// ============================================================
+function showResult(){
+  document.getElementById('uploadZone').style.display = 'none';
+  document.getElementById('resultArea').style.display = 'block';
+  document.getElementById('dayBar').style.display = 'flex';
+}
+
+function renderAll(){
+  currentPeriod = ST.period[ST.day];
+  renderDayTabs();
+  renderStats();
+  renderPeriodTabs();
+  renderTable();
+  renderColorPanel();
+  syncUndoBtn();
+}
+
+function renderDayTabs(){
+  var box = document.getElementById('dayTabs');
+  if(!box) return;
+  var html = '';
+  [1,2].forEach(function(d){
+    var n = ST.data[d].length;
+    var active = (d===ST.day) ? ' active' : '';
+    var sub = (d===1) ? (fmtHM(ST.bounds.start) + ' 后') : (fmtHM(ST.bounds.start) + ' 前');
+    html += '<button class="day-tab'+active+'" type="button" onclick="switchDay('+d+')">'+
+              DAY_LABEL[d]+'<span class="dsub">'+sub+'</span>'+
+              '<span class="dcount">'+n+'</span></button>';
+  });
+  box.innerHTML = html;
+  var hint = document.getElementById('dayHint');
+  if(hint){
+    var other = ST.day===1 ? 2 : 1;
+    hint.textContent = ST.data[other].length
+      ? ('另一班次已有 '+ST.data[other].length+' 班，可直接切换查看')
+      : ('另一个班次还没导入数据 —— 一次只能导一天，切过去再导一份');
+  }
+}
+
+function switchDay(d){
+  if(d===ST.day) return;
+  ST.day = d;
+  flightData = ST.data[d];
+  ST.editKey = null;
+  autoSelectPeriod();
+  renderAll();
+}
+
+function renderStats(){
+  var data = ST.data[ST.day];
+  var counts = {morning:0, afternoon:0, evening:0};
+  data.forEach(function(x){ counts[x.period] = (counts[x.period]||0)+1; });
+  document.getElementById('statsBar').innerHTML =
+    '<span class="stat-pill">本班次 <b>'+data.length+'</b> 班</span>' +
+    '<span class="stat-pill">早 <b>'+counts.morning+'</b></span>' +
+    '<span class="stat-pill">午 <b>'+counts.afternoon+'</b></span>' +
+    '<span class="stat-pill">晚 <b>'+counts.evening+'</b></span>';
+}
+
+function renderPeriodTabs(){
+  var box = document.getElementById('periodTabs');
+  if(!box) return;
+  var html = '';
+  PERIODS.forEach(function(p){
+    var active = (p.key===currentPeriod) ? ' active' : '';
+    html += '<button class="period-tab'+active+'" type="button" onclick="switchPeriod(\''+p.key+'\')">'+
+              p.label+'<span class="pr">'+periodRange(p.key)+'</span></button>';
+  });
+  box.innerHTML = html;
+}
+function switchPeriod(p){
+  currentPeriod = p;
+  ST.period[ST.day] = p;
+  renderAll();
+}
+
+function renderTable(){
+  var data = ST.data[ST.day];
+  var html = '';
+  data.forEach(function(item, idx){
+    if(item.period !== currentPeriod) return;
+    html += '<tr data-idx="'+idx+'">';
+    if(item.editable)
+      html += '<td class="flight-num"><input class="cell-input" type="text" value="'+esc(item.flight)+'" oninput="updateField('+idx+',\'flight\',this.value)"></td>';
+    else
+      html += '<td class="flight-num">'+esc(item.flight)+'</td>';
+
+    if(item.editable)
+      html += '<td><input class="cell-input" type="text" value="'+esc(item.dest)+'" oninput="updateField('+idx+',\'dest\',this.value)"></td>';
+    else
+      html += '<td>'+esc(item.dest)+'</td>';
+
+    if(item.editable)
+      html += '<td class="dep-cell"><input class="cell-input" type="text" value="'+esc(item.depTime)+'" oninput="updateField('+idx+',\'depTime\',this.value)"></td>';
+    else
+      html += '<td class="dep-cell">'+esc(item.depTime)+'</td>';
+
+    html += '<td class="gate-cell">'+gateTrigger(idx, item.gate)+'</td>';
+
+    html += '<td>'+renderRespCell(idx, item.persons)+'</td>';
+
+    if(item.editable)
+      html += '<td class="note-cell"><input class="cell-input note-input" type="text" value="'+esc(item.note)+'" oninput="updateField('+idx+',\'note\',this.value)"></td>';
+    else
+      html += '<td class="note-cell">'+esc(item.note)+'</td>';
+
+    html += '<td class="op-cell">'+
+              '<button class="row-btn" type="button" title="在当前行上方插入一个空行" onclick="insertRow('+idx+')">＋插入</button>'+
+              '<button class="row-btn danger" type="button" title="删除此行" onclick="deleteRow('+idx+')">删除</button>'+
+            '</td>';
+    html += '</tr>';
+  });
+
+  if(!data.length){
+    html = '<tr><td colspan="7" class="empty-cell">'+
+      DAY_LABEL[ST.day]+'还没有数据 —— 点上方「导入本班次数据」，选一份该天的 FIOS 表。</td></tr>';
+  } else if(!html){
+    html = '<tr><td colspan="7" class="empty-cell">'+
+      '本班次在这个时段（'+PERIOD_LABEL[currentPeriod]+'）没有航班。</td></tr>';
+  }
+  document.getElementById('tbody').innerHTML = html;
+}
+
+function esc(s){ var d=document.createElement('div'); d.textContent = (s==null?'':s); return d.innerHTML; }
+/* 属性值专用：esc() 不转义引号，放进 data-xxx="…" 会把属性截断 */
+function escA(s){ return esc(s).replace(/"/g, '&quot;'); }
+
+// ============================================================
+// 人员名单面板（原「人员配色」，2026-10-29 重做）
+// ============================================================
+function rnFilter(){
+  var s = document.getElementById('rnSearch');
+  return s ? String(s.value || '').trim().toLowerCase() : '';
+}
+function renderColorPanel(){
+  var box = document.getElementById('ppList');
+  if(!box) return;
+  var names = allNames();
+  var q = rnFilter();
+  var shown = q ? names.filter(function(n){ return String(n).toLowerCase().indexOf(q) >= 0; }) : names;
+
+  var cnt = document.getElementById('rnCount');
+  if(cnt) cnt.textContent = names.length ? (q ? (shown.length + ' / ' + names.length + ' 人') : (names.length + ' 人')) : '';
+
+  if(!names.length){
+    box.innerHTML = '<div class="rn-empty">名单还是空的 —— 在上面输入姓名回车，就能加进来。<br>'+
+                    '加进来的人会出现在表格每一行的「加号」里，勾上就是这一班的负责人。</div>';
+    return;
+  }
+  if(!shown.length){
+    box.innerHTML = '<div class="rn-empty">没有叫「'+esc(q)+'」的人。</div>';
+    return;
+  }
+  var html = '';
+  shown.forEach(function(n){
+    var hex = colorOf(n);   // '' = 白点（出厂）
+    html += '<span class="rn-item" data-name="'+escA(n)+'">'+
+              '<label class="pp-swatch'+(hex?'':' is-white')+'" data-swatch="'+escA(n)+'"'+
+                ' style="background:'+(hex||'#ffffff')+'" title="点这里给 '+esc(n)+' 选颜色">'+
+                '<input type="color" value="'+(hex||'#ffffff')+'" data-name="'+escA(n)+'" '+
+                  'oninput="onColorInput(this)" onchange="endColorEdit()">'+
+              '</label>'+
+              '<span class="rn-name" title="'+escA(n)+'">'+esc(n)+'</span>'+
+              '<button class="rn-del" type="button" data-del="'+escA(n)+'" '+
+                'title="从名单移除 '+escA(n)+'" aria-label="从名单移除 '+escA(n)+'" '+
+                'onclick="askRemoveName(event,this)">&times;</button>'+
+            '</span>';
+  });
+  box.innerHTML = html;
+}
+
+/* 让某个名字滚进可视区（名单区内部滚动 + 页面滚动都管） */
+function scrollNameIntoView(name){
+  var box = document.getElementById('ppList');
+  if(!box) return;
+  var el = null, items = box.querySelectorAll('.rn-item');
+  for(var i=0;i<items.length;i++){
+    if(items[i].getAttribute('data-name') === name){ el = items[i]; break; }
+  }
+  if(!el) return;
+  var br = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+  if(er.top < br.top || er.bottom > br.bottom){
+    box.scrollTop += (er.top - br.top) - 8;
+  }
+}
+
+// ---------- 删人：二选一（2026-10-29 用户拍板「两种都留，删前问一句」）----------
+var rnTarget = null, rnAnchor = null;
+function inCurrentDay(name){
+  var d = ST.data[ST.day] || [];
+  for(var i=0;i<d.length;i++){ if((d[i].persons||[]).indexOf(name) >= 0) return true; }
+  return false;
+}
+function askRemoveName(evt, btn){
+  evt.stopPropagation();
+  evt.preventDefault();
+  var name = btn.getAttribute('data-del');
+  if(!name) return;
+  rnTarget = name; rnAnchor = btn;
+  var pop = document.getElementById('rnPop');
+  if(!pop) return;
+  // 当前这一班没有他 → 第一项没意义，直接禁用（别让人点了发现什么也没变）
+  var shiftBtn = pop.querySelector('[data-act="shift"]');
+  if(shiftBtn) shiftBtn.disabled = !inCurrentDay(name);
+  pop.classList.add('open');
+  placePop(pop, btn, 'left');
+}
+function closeRnPop(){
+  var pop = document.getElementById('rnPop');
+  if(pop) pop.classList.remove('open');
+  rnTarget = null; rnAnchor = null;
+}
+function doRemoveName(act){
+  var name = rnTarget;
+  if(!name) return;
+  if(act === 'shift'){
+    if(!inCurrentDay(name)){ closeRnPop(); return; }
+    pushUndo();
+    [ST.day].forEach(function(d){
+      (ST.data[d]||[]).forEach(function(r){
+        var i = (r.persons||[]).indexOf(name);
+        if(i >= 0) r.persons.splice(i,1);
+      });
+    });
+    closeRnPop();
+    renderAll();
+    flashHint('已把「'+name+'」从这一班去掉 —— 他还留在名单里，随时能勾回来');
+    return;
+  }
+  // 彻底删：名单 + 所有班次 + 颜色，一起清
+  pushUndo();
+  var ci = ST.customNames.indexOf(name);
+  if(ci >= 0) ST.customNames.splice(ci,1);
+  [1,2].forEach(function(d){
+    (ST.data[d]||[]).forEach(function(r){
+      var i = (r.persons||[]).indexOf(name);
+      if(i >= 0) r.persons.splice(i,1);
+    });
+  });
+  delete ST.colors[name];
+  saveCfg();
+  closeRnPop();
+  renderAll();
+  flashHint('已把「'+name+'」从名单里彻底删掉 —— 要退回点「撤回」');
+}
+
+/* 🔥 拖色时**绝不重建面板**（2026-10-27 修，用户：「一点这个色彩就马上就关掉…不能拖动」）：
+   旧版每次 input 都 renderColorPanel() → <input type=color> 被删掉 →
+   Chrome 立刻关掉系统取色面板（实测 stillInDom:false），所以根本拖不动。
+   现在只改「这一个色块 + 表格里同名的圆点」，DOM 结构一个字节都不动。 */
+var colorEditName = null;
+function onColorInput(inp){
+  var name = inp.dataset.name, hex = inp.value;
+  if(colorEditName !== name){ beginEdit('color:'+name); colorEditName = name; }  // 整段拖动只记一条撤回
+  ST.colors[name] = hex;
+  paintName(name, hex);
+}
+function endColorEdit(){ colorEditName = null; ST.editKey = null; }
+
+/* 只更新这一个名字的色块与圆点，不碰 DOM 结构 */
+function paintName(name, hex){
+  var sws = document.querySelectorAll('#ppList .pp-swatch');
+  for(var i=0;i<sws.length;i++){
+    if(sws[i].getAttribute('data-swatch') !== name) continue;
+    sws[i].style.background = hex;
+    sws[i].classList.remove('is-white');
+    var inp = sws[i].querySelector('input');
+    if(inp && String(inp.value).toLowerCase() !== String(hex).toLowerCase()) inp.value = hex;
+  }
+  var dots = document.querySelectorAll('#tbody .resp-dot');
+  for(var j=0;j<dots.length;j++){
+    if(dots[j].getAttribute('data-name') !== name) continue;
+    dots[j].style.background = hex;
+    dots[j].classList.add('has-color');
+  }
+}
+
+/* 程序化设置某人颜色（探针用；与拖色走同一套局部更新） */
+function setColor(name, hex){
+  beginEdit('color:'+name);
+  ST.colors[name] = hex;
+  paintName(name, hex);
+}
+
+/* 恢复出厂 = 全量复位（2026-10-27 按用户口径重写）：
+   出厂状态是「圆点全白 + 纯白底 + 近黑字」—— 不是「每人一个专属色」。
+   用户原话：「我要的恢复出厂是每个人的名字前面的那个色块点变成都变成白色，
+              然后后面是我自己选颜色。你不要搞反了。」
+   以前只清 ST.colors，所以在深色底上点它「什么也没变」，看着像按钮坏了。 */
+function resetColors(){
+  var hasPeople = Object.keys(ST.colors).length > 0;
+  var hasPalette = String(schColor.bg).toLowerCase() !== SCH_DEF.bg ||
+                   String(schColor.ink).toLowerCase() !== SCH_DEF.ink;
+  if(!hasPeople && !hasPalette){ flashHint('已经是出厂状态（圆点全白 + 白底黑字）'); return; }
+  pushUndo();
+  ST.colors = {};
+  schColor.bg = SCH_DEF.bg;
+  schColor.ink = SCH_DEF.ink;
+  applySchColors();
+  saveSchColors();
+  renderTable();
+  renderColorPanel();
+  flashHint('已恢复出厂 —— 圆点全部变白、底色字色还原，要退回点「撤回」');
+}
+
+// ============================================================
+// 时段分界
+// ============================================================
+function syncBoundInputs(){
+  var a = document.getElementById('bStart'), b = document.getElementById('bM2a'), c = document.getElementById('bA2e');
+  if(a) a.value = fmtHM(ST.bounds.start);
+  if(b) b.value = fmtHM(ST.bounds.m2a);
+  if(c) c.value = fmtHM(ST.bounds.a2e);
+  [a,b,c].forEach(function(el){ if(el) el.classList.remove('bad'); });
+  var w = document.getElementById('boundWarn');
+  if(w) w.hidden = true;
+}
+
+function applyBounds(){
+  var a = document.getElementById('bStart'), b = document.getElementById('bM2a'), c = document.getElementById('bA2e');
+  var w = document.getElementById('boundWarn');
+  var s = normHM(a.value), m = normHM(b.value), e = normHM(c.value);
+  var mins = [depTimeToMin(s), depTimeToMin(m), depTimeToMin(e)];
+
+  function bad(el, msg){
+    [a,b,c].forEach(function(x){ x.classList.remove('bad'); });
+    if(el) el.classList.add('bad');
+    w.textContent = msg; w.hidden = false;
+    flashHint(msg);
+  }
+  if(mins[0]===null){ bad(a, '「早从」要填 HHMM，比如 0830'); return; }
+  if(mins[1]===null){ bad(b, '「早→午」要填 HHMM'); return; }
+  if(mins[2]===null){ bad(c, '「午→晚」要填 HHMM'); return; }
+  if(!(mins[0] < mins[1] && mins[1] < mins[2])){
+    bad(b, '三个时间必须递增：上班 < 早→午 < 午→晚'); return;
+  }
+
+  pushUndo();
+  ST.bounds.start = mins[0];
+  ST.bounds.m2a   = mins[1];
+  ST.bounds.a2e   = mins[2];
+  saveCfg();
+  syncBoundInputs();
+  // 分界变了 → 每行属于哪一段、属不属于本班次，全部重算
+  [1,2].forEach(function(d){
+    ST.data[d] = ST.data[d].filter(function(x){
+      var mm = depTimeToMin(x.depTime);
+      if(x.editable && (x.depTime===''||mm===null)) return true;   // 手填的空行别筛掉
+      return inShift(mm, d);
+    });
+    ST.data[d].forEach(function(x){ x.period = periodOf(depTimeToMin(x.depTime)); });
+  });
+  flightData = ST.data[ST.day];
+  autoSelectPeriod();
+  renderAll();
+  flashHint('时间设置已更新');
+}
+
+// ============================================================
+// 行编辑
+// ============================================================
+// ============================================================
+// 弹层定位（负责人的选择菜单 + 登机口号码格共用）
+// ============================================================
+/* 两个弹层都用 position:fixed，坐标由这里算。
+   为什么不能靠 CSS 的 top:100%：.table-wrap 有 overflow-x:auto，
+   按规范 overflow-y 会一起变成 auto ⇒ 绝对定位的弹层会被裁掉（最后几行根本点不到）。
+   fixed 不受祖先 overflow 裁剪（只要祖先没有 transform/filter 建包含块）。
+
+   🔥🔥 2026-10-27 重写（用户：「这个人名框经常飞到天上去了，不在我那个加号的边上」）：
+   旧实现有三个坑，叠在一起就「飞走」了：
+     ① 弹层没限高 —— 12 个名字时 448px 高，比可用空间还大，只能被顶到屏幕最上面（已改 CSS 限高）；
+     ② 量尺寸的时机太早 —— 刚 display:block 时量到 132px（真实 448），按错的尺寸算，
+        结果落到按钮**上面** 157px 处，正好盖住加号；
+     ③ 开了以后滚动/缩放**不重算**（登机口弹层绑了 scroll，人员弹层漏了）——
+        页面一滚它还钉在原屏幕位置，看着就像「飞到天上」。
+   现在：限高 → 算位置 → 下一帧再校一次 → 滚动/缩放跟着重算（见 repositionPops）。 */
+function placePop(pop, anchor, align, noRetry){
+  if(!pop || !anchor) return;
+  pop._anchor = anchor;
+  pop._align = align || 'center';
+
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var r = anchor.getBoundingClientRect();
+
+  // ① 先保证「装得下」：比视口还高时把上限压到视口内（CSS 已经限过一次，这里兜底）
+  var ph0 = pop.offsetHeight;
+  if(ph0 > vh - 16){
+    pop.style.maxHeight = Math.max(120, vh - 16) + 'px';
+  }
+  var pw = pop.offsetWidth, ph = pop.offsetHeight;
+
+  /* ②🔥🔥 祖先只要有 transform / filter / will-change，position:fixed 就**不再相对视口**，
+      而是相对那个祖先定位。本页 `#mainArea` 的入场动画（.anim）就留了一个
+      `transform: matrix(1,0,0,1,0,2.5e-08)`，于是写视口坐标会整体偏移 310px ——
+      这就是用户说的「人名框飞到天上去了，不在加号边上」的真凶（登机口弹层同样中招）。
+      解法：先把弹层归零，读一次「0 点」在视口里的真实位置，再把视口坐标换算成相对坐标。
+      ⚠️ 量的时候必须临时关掉自己的淡入动画 —— `fadeUp` 的 translateY 会让「0 点」跟着平移，
+         算出来的位置会整体高 6px（实测：间距从 6px 变成 0.5px）。 */
+  var prevAnim = pop.style.animation;
+  pop.style.animation = 'none';
+  pop.style.left = '0px'; pop.style.top = '0px';
+  var z = pop.getBoundingClientRect();
+  var ox = z.left, oy = z.top;
+  pop.style.animation = prevAnim;
+
+  var left = (align === 'left') ? r.left : r.left + r.width/2 - pw/2;
+  left = Math.max(8, Math.min(left, vw - pw - 8));
+  var top = r.bottom + 6;
+  if(top + ph > vh - 8){
+    var up = r.top - ph - 6;
+    top = up >= 8 ? up : Math.max(8, vh - ph - 8);
+  }
+  pop.style.left = Math.round(left - ox) + 'px';
+  pop.style.top  = Math.round(top  - oy) + 'px';
+
+  // ③ 下一帧再校一次（只校一次，别递归）：字体/滚动条还没定的时候量到的高度会偏小
+  if(!noRetry){
+    requestAnimationFrame(function(){
+      if(pop.classList.contains('open')) placePop(pop, anchor, align, true);
+    });
+  }
+}
+
+/* ③ 滚动 / 缩放时让开着的弹层跟着锚点走（锚点被重绘销毁就关掉） */
+function repositionPops(){
+  var menus = document.querySelectorAll('.picker-menu.open');
+  for(var i=0;i<menus.length;i++){
+    var m = menus[i];
+    if(!m._anchor || !document.contains(m._anchor)){ m.classList.remove('open'); continue; }
+    placePop(m, m._anchor, m._align || 'center', true);
+  }
+  var gp = document.getElementById('gatePop');
+  if(gp && gp.classList.contains('open') && gp._anchor && document.contains(gp._anchor)){
+    placePop(gp, gp._anchor, 'center', true);
+  }
+  var rp = document.getElementById('rnPop');
+  if(rp && rp.classList.contains('open')){
+    if(!rp._anchor || !document.contains(rp._anchor)){ closeRnPop(); }
+    else placePop(rp, rp._anchor, 'left', true);
+  }
+}
+
+// ============================================================
+// 登机口选择器（2026-10-26）
+// ============================================================
+/* 登机口只有 201–224 这 24 个值，手打后两位既慢又容易打错。
+   现在：点格子里那个号码 → 弹出 6×4 号码格 → 点哪个填哪个；
+   底部留一个手输框兜底（以后加了 225 也能直接填）。
+   ⚠️ 范围只在这里改一处 —— 页面和导出都读 GATE_FIRST / GATE_LAST。 */
+var GATE_FIRST = 201, GATE_LAST = 224;
+var gateIdx = -1;
+
+function gateTrigger(idx, val){
+  var v = String(val == null ? '' : val).trim();
+  return '<button type="button" class="gate-trigger'+(v?'':' is-empty')+'" '+
+           'data-gate-idx="'+idx+'" onclick="openGatePop(event,'+idx+')" title="选择登机口">'+
+           (v ? esc(v) : '选择')+
+           '<svg class="gt-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '+
+             'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:10px;height:10px">'+
+             '<path d="M6 9l6 6 6-6"/></svg>'+
+         '</button>';
+}
+
+function buildGatePop(){
+  var grid = document.getElementById('gpGrid');
+  if(!grid) return;
+  var html = '';
+  for(var g = GATE_FIRST; g <= GATE_LAST; g++){
+    html += '<button type="button" class="gp-cell" data-g="'+g+'" onclick="setGate('+g+')">'+g+'</button>';
+  }
+  grid.innerHTML = html;
+
+  var manual = document.getElementById('gpManual');
+  if(manual){
+    // 只让打数字，最多 4 位
+    manual.addEventListener('input', function(){
+      var v = this.value.replace(/[^\d]/g, '').slice(0, 4);
+      if(v !== this.value) this.value = v;
+    });
+    manual.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); applyManualGate(); }
+      else if(e.key === 'Escape'){ closeGatePop(); }
+    });
+  }
+  var clr = document.getElementById('gpClear');
+  if(clr) clr.addEventListener('click', function(){ setGate(''); });
+
+  document.addEventListener('click', function(e){
+    var pop = document.getElementById('gatePop');
+    if(!pop || !pop.classList.contains('open')) return;
+    if(e.target.closest('#gatePop') || e.target.closest('.gate-trigger')) return;
+    closeGatePop();
+  });
+  window.addEventListener('resize', closeGatePop);
+  window.addEventListener('scroll', closeGatePop, true);   // 表格横向滚动时也关掉，免得飘走
+}
+
+function applyManualGate(){
+  var manual = document.getElementById('gpManual');
+  var v = manual ? manual.value.trim() : '';
+  if(!v) return;
+  setGate(v);
+}
+
+function openGatePop(evt, idx){
+  evt.stopPropagation();
+  closeAllPickers();
+  var pop = document.getElementById('gatePop');
+  if(!pop) return;
+  gateIdx = idx;
+  pop.classList.add('open');
+
+  var cur = String(ST.data[ST.day][idx].gate == null ? '' : ST.data[ST.day][idx].gate).trim();
+  var manual = document.getElementById('gpManual');
+  // 范围外的值（比如以后填了 225）回填到手输框，否则手输框留空
+  var outOfRange = /^\d+$/.test(cur) && (+cur < GATE_FIRST || +cur > GATE_LAST);
+  if(manual) manual.value = outOfRange ? cur : '';
+
+  var cells = pop.querySelectorAll('.gp-cell');
+  for(var i=0;i<cells.length;i++){
+    cells[i].setAttribute('aria-pressed', cells[i].getAttribute('data-g') === cur ? 'true' : 'false');
+  }
+  placePop(pop, evt.currentTarget, 'center');
+}
+
+function setGate(val){
+  if(gateIdx < 0) return;
+  beginEdit('gate:'+gateIdx);
+  ST.data[ST.day][gateIdx].gate = String(val == null ? '' : val).trim();
+  closeGatePop();
+  renderAll();
+}
+
+function closeGatePop(){
+  var pop = document.getElementById('gatePop');
+  if(pop) pop.classList.remove('open');
+  gateIdx = -1;
+}
+function updateField(idx, field, val){
+  beginEdit('f:'+idx+':'+field);
+  ST.data[ST.day][idx][field] = val;
+}
+
+function deleteRow(idx){
+  pushUndo();
+  ST.data[ST.day].splice(idx, 1);
+  renderAll();
+}
+function insertRow(idx){
+  pushUndo();
+  var p = (ST.data[ST.day][idx] && ST.data[ST.day][idx].period) ? ST.data[ST.day][idx].period : currentPeriod;
+  ST.data[ST.day].splice(idx, 0, blankRow(p));
+  renderAll();
+}
+function appendRow(){
+  pushUndo();
+  ST.data[ST.day].push(blankRow(currentPeriod));
+  renderAll();
+}
+function blankRow(period){
+  return { flight:'', dest:'', depTime:'', booking:'', bookingRaw:'',
+           tesfu:'', yutui:'', note:'', gate:'', persons:[], editable:true,
+           period: period || 'morning' };
+}
+
+// ============================================================
+// 负责人
+// ============================================================
+/* 2026-10-26：从「彩色胶囊」改成「色点 + 名字」。
+   胶囊的三个毛病见 CSS 那段注释；这里的关键是**整格只渲染成一行**，
+   多人用「·」分隔 —— 这样两个人的名字必然在同一条基线上，不会再上下不对齐。 */
+function renderPersons(idx, persons){
+  if(!persons || !persons.length) return '<span class="resp-empty">—</span>';
+  var html = '';
+  persons.forEach(function(n,i){
+    if(i) html += '<span class="resp-sep">·</span>';
+    var hex = colorOf(n);   // '' = 白点（出厂，等用户自己点色）
+    html += '<span class="resp-item">'+
+              '<i class="resp-dot'+(hex?' has-color':'')+'" data-name="'+escA(n)+'" '+
+                'style="background:'+(hex||'#ffffff')+'"></i>'+esc(n)+
+              '<span class="rm-btn" title="移除" onclick="removePerson('+idx+','+i+')">&times;</span>'+
+            '</span>';
+  });
+  return html;
+}
+function removePerson(idx, pi){
+  pushUndo();
+  ST.data[ST.day][idx].persons.splice(pi, 1);
+  renderAll();
+}
+function addPerson(idx, name){
+  name = String(name||'').trim();
+  if(!name) return;
+  var added = false;
+  if(ST.customNames.indexOf(name) < 0){
+    ST.customNames.push(name);
+    saveCfg();
+    added = true;
+  }
+  if(ST.data[ST.day][idx].persons.indexOf(name)<0){
+    pushUndo();
+    ST.data[ST.day][idx].persons.push(name);
+    renderAll();
+  }
+  // 新加的人排在名单末尾 —— 弹层重开时必须滚到他，否则用户会以为「没加上」
+  return { name: name, added: added };
+}
+
+/* 在「人员名单」面板里直接加人（2026-10-29 新增）：
+   以前只能钻进表格每一行的加号弹层最底下才能加，藏得太深。
+   这里加完不往任何班次里塞，只进名单，颜色随时可点。 */
+function addNameFromPanel(){
+  var inp = document.getElementById('rnAdd');
+  if(!inp) return;
+  var name = String(inp.value || '').trim();
+  if(!name){ inp.focus(); return; }
+  if(ST.customNames.indexOf(name) >= 0){
+    flashHint('名单里已经有「'+name+'」了');
+    inp.value = '';
+    return;
+  }
+  pushUndo();
+  ST.customNames.push(name);
+  saveCfg();
+  inp.value = '';
+  var s = document.getElementById('rnSearch');
+  if(s && s.value) s.value = '';        // 清掉搜索，否则新加的人可能被过滤掉
+  renderColorPanel();
+  scrollNameIntoView(name);
+  flashHint('已把「'+name+'」加进名单 —— 在表格里点加号就能勾他');
+}
+
+/* 负责格 = [名字区（居中）] + [+ （钉在右边）]
+   有人的时候也保留「+」，位置不跟着名字漂 —— 一列 10 行的 + 对齐成一条竖线。 */
+function renderRespCell(idx, persons){
+  return '<div class="resp-cell">'+
+           '<div class="resp-list">'+renderPersons(idx, persons)+'</div>'+
+           renderPicker(idx)+
+         '</div>';
+}
+function renderPicker(idx){
+  return '<div class="picker-wrap">'+
+           '<button class="resp-add" type="button" title="添加 / 修改负责人" onclick="togglePickerMenu(event,'+idx+')">'+
+             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'+
+           '</button>'+
+           '<div class="picker-menu" id="pm_'+idx+'">'+pickerInner(idx)+'</div>'+
+         '</div>';
+}
+function pickerInner(idx){
+  var allNamesList = allNames();
+  var checks = '';
+  if(allNamesList.length > 8){
+    // 名单长的时候先给个搜索框，否则 30 个人要一行行找（2026-10-29）
+    checks += '<div class="picker-search"><input type="text" id="pkSearch_'+idx+'" '+
+              'placeholder="搜索姓名" autocomplete="off" aria-label="搜索姓名" '+
+              'oninput="filterPicker('+idx+',this.value)" '+
+              'onkeydown="if(event.key===\'Enter\'){event.preventDefault();}"></div>';
+  }
+  allNamesList.forEach(function(n){
+    var checked = ST.data[ST.day][idx].persons.indexOf(n)>=0 ? ' checked' : '';
+    checks += '<div class="picker-row" data-name="'+escA(n)+'">'+
+              '<input type="checkbox" id="ck_'+idx+'_'+safeId(n)+'"'+checked+
+             ' onchange="togglePerson('+idx+',\''+escAttr(n)+'\',this.checked)"><label for="ck_'+idx+'_'+safeId(n)+'">'+
+             esc(n)+'</label></div>';
+  });
+  if(!allNamesList.length){
+    checks += '<div class="picker-empty">名单还是空的 —— 在下面输入姓名添加，或到表格下面的「人员名单」里批量加。</div>';
+  }
+  checks += '<div class="picker-add"><input type="text" placeholder="自定义姓名..." id="customIn_'+idx+'" '+
+            'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPersonAndReopen('+idx+',this.value);this.value=\'\';return false;}">' +
+            '<button type="button" onclick="var inp=document.getElementById(\'customIn_'+idx+'\');if(inp&&inp.value.trim()){addPersonAndReopen('+idx+',inp.value.trim());inp.value=\'\';}">添加</button></div>';
+  return checks;
+}
+/* 加人 + 重开弹层 + 滚到新加的那个人（2026-10-29） */
+function addPersonAndReopen(idx, val){
+  var name = String(val == null ? '' : val).trim();
+  if(!name) return;
+  addPerson(idx, name);
+  reopenPicker(idx, name);
+}
+/* 弹层里按名字过滤（只是隐藏，勾选状态不受影响） */
+function filterPicker(idx, q){
+  var menu = document.getElementById('pm_'+idx);
+  if(!menu) return;
+  q = String(q||'').trim().toLowerCase();
+  var rows = menu.querySelectorAll('.picker-row');
+  var shown = 0;
+  for(var i=0;i<rows.length;i++){
+    var n = String(rows[i].getAttribute('data-name')||'').toLowerCase();
+    var hit = !q || n.indexOf(q) >= 0;
+    rows[i].style.display = hit ? '' : 'none';
+    if(hit) shown++;
+  }
+  var em = menu.querySelector('.picker-none');
+  if(!em){
+    em = document.createElement('div');
+    em.className = 'picker-none';
+    menu.insertBefore(em, menu.querySelector('.picker-add'));
+  }
+  em.textContent = shown ? '' : '没有匹配的姓名';
+  em.style.display = shown ? 'none' : '';
+  menu.scrollTop = 0;
+}
+function safeId(s){ return String(s).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'_'); }
+function escAttr(s){ return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function togglePickerMenu(evt, idx){
+  evt.stopPropagation();
+  var menu = document.getElementById('pm_'+idx);
+  if(!menu) return;
+  var isOpen = menu.classList.contains('open');
+  closeAllPickers();
+  closeGatePop();
+  if(!isOpen){
+    menu.classList.remove('no-anim');   // 用户主动点开：允许淡入
+    menu.classList.add('open');
+    placePop(menu, evt.currentTarget, 'center');   // 先显示再量尺寸，否则 offsetWidth 是 0
+  }
+}
+/* 勾完名字弹层不关（2026-10-27 用户：「选人名的时候这个人名框经常飞走」）：
+   勾选会重绘整张表 → 弹层被销毁 → 只能重新点「+」，而且新弹层位置又算一次。
+   现在重绘后立刻把这一行的弹层重新打开并贴回「+」旁边。
+
+   🔥 2026-10-29：新增 scrollTo —— 刚加进来的人排在名单最末尾，
+   弹层重开时是从顶部开始的，不滚过去就等于「没加上」（用户就是这么被坑的）。 */
+function reopenPicker(idx, scrollTo){
+  var tr = document.querySelector('#tbody tr[data-idx="'+idx+'"]');
+  if(!tr) return;
+  var btn = tr.querySelector('.resp-add');
+  var menu = tr.querySelector('.picker-menu');
+  if(!btn || !menu) return;
+  menu.classList.add('open', 'no-anim');   // 重开不淡入，否则勾一个名字闪一下
+  placePop(menu, btn, 'center');
+  if(scrollTo){
+    var rows = menu.querySelectorAll('.picker-row');
+    for(var i=0;i<rows.length;i++){
+      var lb = rows[i].querySelector('label');
+      if(lb && lb.textContent.trim() === scrollTo){
+        var mb = menu.getBoundingClientRect(), rb = rows[i].getBoundingClientRect();
+        if(rb.top < mb.top || rb.bottom > mb.bottom){
+          menu.scrollTop += (rb.top - mb.top) - 10;
+        }
+        rows[i].classList.add('just-added');
+        break;
+      }
+    }
+  }
+}
+function togglePerson(idx, name, checked){
+  if(checked){
+    addPerson(idx, name);
+  }else{
+    var i = ST.data[ST.day][idx].persons.indexOf(name);
+    if(i < 0) return;
+    pushUndo();
+    ST.data[ST.day][idx].persons.splice(i, 1);
+    renderAll();
+  }
+  reopenPicker(idx);
+}
+function closeAllPickers(){
+  var menus = document.querySelectorAll('.picker-menu.open');
+  for(var i=0;i<menus.length;i++) menus[i].classList.remove('open');
+}
+document.addEventListener('click', function(e){
+  if(e.target && e.target.closest && e.target.closest('.picker-wrap')) return;
+  closeAllPickers();
+});
+
+/* 删人弹层：点选项执行，点别处关掉（2026-10-29） */
+document.addEventListener('click', function(e){
+  var pop = document.getElementById('rnPop');
+  if(!pop || !pop.classList.contains('open')) return;
+  var btn = e.target && e.target.closest ? e.target.closest('.rn-pop-btn') : null;
+  if(btn){
+    if(btn.disabled) return;
+    doRemoveName(btn.getAttribute('data-act'));
+    return;
+  }
+  if(e.target === pop || (e.target.closest && e.target.closest('#rnPop'))) return;
+  closeRnPop();
+});
+window.addEventListener('resize', closeRnPop);
+
+// ============================================================
+// 草稿
+// ============================================================
+function saveDraft(){
+  var n1 = ST.data[1].length, n2 = ST.data[2].length;
+  if(!n1 && !n2){ flashHint('暂无可保存的数据'); return; }
+  try{
+    var now = Date.now();
+    var prev = {};
+    try{ prev = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') || {}; }catch(e){}
+    var payload = {
+      day1: n1 ? { ts:now, data:ST.data[1] } : (prev.day1 || { ts:0, data:[] }),
+      day2: n2 ? { ts:now, data:ST.data[2] } : (prev.day2 || { ts:0, data:[] }),
+      /* 🔥 草稿也不存人员颜色（2026-10-27 用户：「本机也不用专门存颜色」）*/
+      bounds: ST.bounds, customNames: ST.customNames
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    var t = new Date(now);
+    flashHint('草稿已保存（'+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0')+
+              '，第一天 '+n1+' 行 · 第二天 '+n2+' 行）');
+    refreshDraftBar();
+  }catch(e){ alert('保存草稿失败：'+e.message); }
+}
+
+function loadDraft(){
+  try{
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw){ flashHint('暂无可恢复的草稿'); return; }
+    var p = JSON.parse(raw);
+    if(!p){ flashHint('草稿格式无效'); return; }
+    pushUndo();
+    var fix = function(arr){
+      return (Array.isArray(arr) ? arr : []).map(function(it){
+        return {
+          flight: it.flight||'', dest: it.dest||'', depTime: it.depTime||'',
+          booking: it.booking||'', bookingRaw: it.bookingRaw||it.booking||'',
+          tesfu: it.tesfu||'', yutui: it.yutui||'', note: it.note||'',
+          gate: it.gate||'', persons: Array.isArray(it.persons)?it.persons:[],
+          editable: it.editable!==undefined ? it.editable : true,
+          period: it.period || 'morning'
+        };
+      });
+    };
+    ST.data[1] = fix(p.day1 && p.day1.data);
+    ST.data[2] = fix(p.day2 && p.day2.data);
+    /* 老草稿里存过 colors —— 读到了也丢掉，否则「刷新回到白点」这条不成立 */
+    if(p.bounds) ST.bounds = p.bounds;
+    if(Array.isArray(p.customNames)) ST.customNames = p.customNames;
+    flightData = ST.data[ST.day];
+    syncBoundInputs();
+    autoSelectPeriod();
+    showResult();
+    renderAll();
+    saveCfg();
+    flashHint('已读取草稿（第一天 '+ST.data[1].length+' 行 · 第二天 '+ST.data[2].length+' 行）');
+  }catch(e){ alert('读取草稿失败：'+e.message); }
+}
+
+function clearDraft(){
+  if(!localStorage.getItem(DRAFT_KEY)){ flashHint('暂无可清空的草稿'); return; }
+  if(!confirm('确定删除本地保存的草稿吗？此操作不可恢复。')) return;
+  localStorage.removeItem(DRAFT_KEY);
+  refreshDraftBar();
+  flashHint('草稿已清空');
+}
+
+function clearAll(){
+  if(!confirm('确定清空当前班次（'+DAY_LABEL[ST.day]+'）的排班表吗？此操作可用「撤回」恢复。')) return;
+  pushUndo();
+  ST.data[ST.day] = [];
+  flightData = ST.data[ST.day];
+  autoSelectPeriod();
+  renderAll();
+  flashHint('已清空'+DAY_LABEL[ST.day]);
+}
+
+// 轻提示
+function flashHint(msg){
+  var t = document.getElementById('toast');
+  if(!t){ t = document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2600);
+}
+
+// ============================================================
+// 撤回快捷键
+// ============================================================
+document.addEventListener('keydown', function(e){
+  if(!(e.metaKey || e.ctrlKey)) return;
+  if(String(e.key).toLowerCase() !== 'z') return;
+  var t = e.target;
+  if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;  // 输入框内交给浏览器
+  e.preventDefault();
+  doUndo();
+});
+
+// ============================================================
+// 导出 Excel
+// ============================================================
+// ⚠️ SheetJS 免费版**不写单元格样式**（实测导出的 xlsx 里 cellXfs count="1"，
+//    颜色/加粗/居中全被丢掉，只剩列宽）。所以这里走「导出后自己把样式塞进压缩包」：
+//    用 JSZip 打开 xlsx，重写 xl/styles.xml，再给每个 <c> 补 s="n"。
+//    01 名单的红星号富文本也是同一套路。
+function buildSheet(rows){
+  var headers = ['出港航班','到站','计离','登机口','负责','备注'];
+  var aoa = [headers];
+  rows.forEach(function(item){
+    aoa.push([
+      item.flight, item.dest, item.depTime,
+      (item.gate || ''), item.persons.join('、'), item.note
+    ]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:11},{wch:9},{wch:9},{wch:22},{wch:42}];
+  return ws;
+}
+
+var FONT_CN = '';
+// 🔥 不写死字体名：写「微软雅黑」在没装该字体的机器（Mac / LibreOffice）上会整列中文消失。
+//    留空 → Excel 用默认西文字体 + 自动回退中文字体，哪台机器都能正常显示。
+function fontXml(opts){
+  return '<font>' + (opts.b ? '<b/>' : '') +
+    '<sz val="'+(opts.sz||11)+'"/>' +
+    '<color rgb="'+opts.rgb+'"/>' +
+    (FONT_CN ? '<name val="'+FONT_CN+'"/><charset val="134"/>' : '') +
+  '</font>';
+}
+function fillXml(rgb){
+  return '<fill><patternFill patternType="solid"><fgColor rgb="'+rgb+'"/><bgColor indexed="64"/></patternFill></fill>';
+}
+
+// 生成 styles.xml：0 默认 / 1 表头 / 2 正文居中 / 3 航班号加粗 / 4 备注左对齐 / 5+ 各负责人
+function buildStylesXml(persons){
+  var fonts = [
+    fontXml({rgb:'FF1D1D1F'}),
+    fontXml({b:true, rgb:'FF424245'}),
+    fontXml({b:true, rgb:'FF1D1D1F'})
+  ];
+  var fills = [
+    '<fill><patternFill patternType="none"/></fill>',
+    '<fill><patternFill patternType="gray125"/></fill>',
+    fillXml('FFF2F2F4')                       // 表头底色
+  ];
+  var xfs = [
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>',
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>',
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>',
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>',
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
+  ];
+  var personXf = {};
+  (persons || []).forEach(function(name, i){
+    var p = chipPalette(name);
+    fonts.push(fontXml({rgb:'FF' + p.fg.replace('#','').toUpperCase()}));
+    fills.push(fillXml('FF' + p.bg.replace('#','').toUpperCase()));
+    xfs.push('<xf numFmtId="0" fontId="'+(3+i)+'" fillId="'+(3+i)+'" borderId="1" xfId="0" ' +
+             'applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' +
+             '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>');
+    personXf[name] = 5 + i;
+  });
+
+  return {
+    personXf: personXf,
+    xml: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="'+fonts.length+'">' + fonts.join('') + '</fonts>' +
+      '<fills count="'+fills.length+'">' + fills.join('') + '</fills>' +
+      '<borders count="2">' +
+        '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+        '<border><left/><right/><top/><bottom style="thin"><color rgb="FFE5E5EA"/></bottom><diagonal/></border>' +
+      '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="'+xfs.length+'">' + xfs.join('') + '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+      '<dxfs count="0"/>' +
+      '<tableStyles count="0" defaultTableStyle="TableStyleMedium9" defaultPivotStyle="PivotStyleMedium4"/>' +
+      '</styleSheet>'
+  };
+}
+
+// 给 sheet xml 补 s= / 行高 / 冻结首行 / 打印设置
+function patchSheetXml(xml, rows, personXf){
+  // 行高：表头 30，数据 24
+  xml = xml.replace(/<row r="(\d+)"([^>]*)>/g, function(m, r, rest){
+    if(/\bht=/.test(rest)) return m;
+    var h = (r === '1') ? 30 : 24;
+    return '<row r="'+r+'" ht="'+h+'" customHeight="1"'+rest+'>';
+  });
+
+  // 单元格样式（列：A 航班 / B 到站 / C 计离 / D 登机口 / E 负责 / F 备注）
+  xml = xml.replace(/<c r="([A-Z]+)(\d+)"/g, function(m, col, r){
+    var row = parseInt(r, 10);
+    var s;
+    if(row === 1) s = 1;
+    else if(col === 'A') s = 3;
+    else if(col === 'F') s = 4;
+    else if(col === 'E'){
+      var it = rows[row - 2];
+      var first = (it && it.persons && it.persons.length) ? it.persons[0] : '';
+      s = (first && personXf[first] !== undefined) ? personXf[first] : 2;
+    }
+    else s = 2;
+    return '<c r="'+col+r+'" s="'+s+'"';
+  });
+
+  // 冻结首行（两种写法都要兼容：自闭合 / 带子节点）
+  if(xml.indexOf('<pane ') < 0){
+    var pane = '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>';
+    if(/<sheetView[^>]*\/>/.test(xml)){
+      xml = xml.replace(/<sheetView([^>]*?)\/>/, '<sheetView$1>' + pane + '</sheetView>');
+    }else{
+      xml = xml.replace(/<sheetView([^>]*)>/, '<sheetView$1>' + pane);
+    }
+  }
+
+  // 打印：A4 横向、缩放适应页宽、水平居中
+  if(xml.indexOf('<sheetPr') < 0){
+    xml = xml.replace(/<worksheet([^>]*)>/, '<worksheet$1><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+  }
+  var tail = '<printOptions horizontalCentered="1"/>' +
+             '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>' +
+             '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
+  // schema 顺序：pageSetup 必须排在 ignoredErrors 之前
+  if(xml.indexOf('<ignoredErrors') >= 0){
+    xml = xml.replace('<ignoredErrors', tail + '<ignoredErrors');
+  }else{
+    xml = xml.replace('</worksheet>', tail + '</worksheet>');
+  }
+  return xml;
+}
+
+function collectPersons(rows){
+  var out = [];
+  rows.forEach(function(it){
+    (it.persons || []).forEach(function(n){ if(n && out.indexOf(n) < 0) out.push(n); });
+  });
+  return out;
+}
+
+function downloadBlob(blob, filename){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+
+// 带样式导出：sheets = [{name, rows}]
+async function writeStyledXlsx(sheets, filename){
+  var wb = XLSX.utils.book_new();
+  sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb, buildSheet(s.rows), s.name); });
+
+  var allRows = [];
+  sheets.forEach(function(s){ allRows = allRows.concat(s.rows); });
+  var persons = collectPersons(allRows);
+  var built = buildStylesXml(persons);
+
+  if(typeof JSZip === 'undefined') throw new Error('JSZip 未加载');
+
+  var buf = XLSX.write(wb, {type:'array', bookType:'xlsx'});
+  var zip = await JSZip.loadAsync(buf);
+  zip.file('xl/styles.xml', built.xml);
+
+  for(var i=0; i<sheets.length; i++){
+    var p = 'xl/worksheets/sheet' + (i+1) + '.xml';
+    var f = zip.file(p);
+    if(!f) continue;
+    var xml = await f.async('string');
+    zip.file(p, patchSheetXml(xml, sheets[i].rows, built.personXf));
+  }
+
+  var blob = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    compression: 'DEFLATE'
+  });
+  downloadBlob(blob, filename);
+}
+
+function exportName(extra){
+  return '航班排班表_'+DAY_LABEL[ST.day]+(extra?('_'+extra):'')+'.xlsx';
+}
+
+async function exportExcel(){
+  var rows = ST.data[ST.day].filter(function(d){ return d.period===currentPeriod; });
+  if(!rows.length){ alert('当前班次（'+DAY_LABEL[ST.day]+'）的「'+PERIOD_LABEL[currentPeriod]+'」没有数据'); return; }
+  // sheet 名带上班次，Excel 底部标签就能看出是第一天还是第二天
+  var sname = DAY_LABEL[ST.day] + '-' + PERIOD_LABEL[currentPeriod];
+  try{
+    await writeStyledXlsx([{name: sname, rows: rows}], exportName(PERIOD_LABEL[currentPeriod]));
+    flashHint('已导出 Excel（带表头底色 / 负责人配色 / 冻结首行）');
+  }catch(e){
+    console.error(e);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, buildSheet(rows), sname);
+    XLSX.writeFile(wb, exportName(PERIOD_LABEL[currentPeriod]));
+    flashHint('样式写入失败，已导出无样式版：' + e.message);
+  }
+}
+
+async function exportExcelAll(){
+  var data = ST.data[ST.day];
+  if(!data.length){ alert('当前班次没有数据'); return; }
+  var sheets = [];
+  PERIODS.forEach(function(p){
+    var rows = data.filter(function(d){ return d.period===p.key; });
+    if(rows.length) sheets.push({ name: DAY_LABEL[ST.day] + '-' + p.label, rows: rows });
+  });
+  if(!sheets.length){ alert('当前班次没有数据'); return; }
+  try{
+    await writeStyledXlsx(sheets, exportName('全部'));
+    flashHint('已导出 Excel（'+sheets.length+' 个时段）');
+  }catch(e){
+    console.error(e);
+    var wb = XLSX.utils.book_new();
+    sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb, buildSheet(s.rows), s.name); });
+    XLSX.writeFile(wb, exportName('全部'));
+    flashHint('样式写入失败，已导出无样式版：' + e.message);
+  }
+}
+
+// ============================================================
+// 导出图片
+// ============================================================
+function exportImage(){
+  var data = ST.data[ST.day].filter(function(d){ return d.period===currentPeriod; });
+  if(!data.length){ alert('当前班次（'+DAY_LABEL[ST.day]+'）的「'+PERIOD_LABEL[currentPeriod]+'」没有数据'); return; }
+
+  var F = fontCanvas() || '"PingFang SC","Microsoft YaHei",sans-serif';
+  var M = '"SF Mono","Menlo",ui-monospace';
+  /* 配色由「底色 + 字色」推导（默认值时 schBuildPalette 直通旧版原值，导出的图跟以前一模一样） */
+  var P = schBuildPalette(schColor.bg, schColor.ink);
+  var INK = P.ink, SEC = P.sec, TIME = P.ink2,
+      RULE = P.rule, RULE_STRONG = P.ruleStrong;
+
+  /* 整表字号放大时导出图等比放大：列宽 / 行高 / 字号一起 ×K。
+     只放大字号不放大列宽的话，「北京首都」会被挤掉最后一个字。 */
+  var K = Math.max(.75, Math.min(1.6, schFont.size / 13.5));
+  function fs(v){ return (v*K).toFixed(1); }
+  var cols = [
+    {t:'出港航班', k:'flight',  w:Math.round(136*K), a:'left',  pl:0},
+    {t:'到站',     k:'dest',    w:Math.round(150*K), a:'left',  pl:12},
+    {t:'计离',     k:'depTime', w:Math.round(88*K),  a:'right'},
+    {t:'登机口',   k:'gate',    w:Math.round(88*K),  a:'right'},
+    {t:'负责',     k:'persons', w:Math.round(210*K), a:'center'},
+    {t:'备注',     k:'note',    w:Math.round(340*K), a:'left',  pl:12}
+  ];
+  var tableW = cols.reduce(function(a,c){ return a+c.w; },0);
+  var pad = 56;
+  var W = tableW + pad*2;
+
+  var rowH = Math.round(54*K), headerH = Math.round(40*K);
+  var headTop = pad;
+  var bodyH = headerH + rowH*data.length;
+  var H = headTop + bodyH + pad;
+
+  var scale = 2;
+  var cv = document.createElement('canvas');
+  cv.width = W*scale; cv.height = H*scale;
+  var ctx = cv.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = P.bg; ctx.fillRect(0,0,W,H);
+  var x0 = pad, xw = tableW;
+
+  // 只出表格本身：标题 / 日期时间 / 航班量 / 人次 一律不画（用户要求）
+
+  function tracked(s,x,y,sp){
+    ctx.textAlign='left';
+    var chars=Array.from(s), sx=x;
+    for(var i=0;i<chars.length;i++){ ctx.fillText(chars[i], Math.round(sx), Math.round(y)); sx+=ctx.measureText(chars[i]).width+sp; }
+  }
+  function tw(s,sp){
+    var chars=Array.from(s), w=0;
+    for(var i=0;i<chars.length;i++) w+=ctx.measureText(chars[i]).width+sp;
+    return w-sp;
+  }
+
+  // ── 表头 ──
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = SEC; ctx.font = '500 ' + fs(12) + 'px ' + F;
+  var cx = x0;
+  cols.forEach(function(c){
+    var w = tw(c.t, 1.2);
+    /* 表头跟着内容对齐：右对齐列（计离/登机口）靠右，居中对齐列（负责）居中，其余靠左。
+       🔥 负责这一列原来写死 a:'left' —— 但 drawPersons 是把名字居中的，
+          结果表头贴左、名字居中，同一列里两套对齐，看着像错位。 */
+    var tx = c.a === 'right'  ? cx + c.w - 12 - w :
+             c.a === 'center' ? cx + (c.w - w) / 2 :
+                                cx + (c.pl || 0);
+    tracked(c.t, tx, headTop + headerH/2 + 1, 1.2);
+    cx += c.w;
+  });
+  ctx.strokeStyle = RULE_STRONG; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x0, headTop + headerH + .5); ctx.lineTo(x0 + xw, headTop + headerH + .5); ctx.stroke();
+
+  var ry = headTop + headerH;
+
+  function drawRow(item){
+    var base = ry + rowH/2;
+    ctx.textBaseline = 'middle';
+    var px = x0;
+
+    ctx.fillStyle = INK; ctx.font = (schFont.bold?'700 ':'600 ') + fs(15) + 'px ' + M; ctx.textAlign='left';
+    ctx.fillText(item.flight, px, base + 1); px += cols[0].w;
+
+    ctx.fillStyle = INK; ctx.font = (schFont.bold?'500 ':'400 ') + fs(15) + 'px ' + F;
+    ctx.fillText(item.dest, px + cols[1].pl, base + 1); px += cols[1].w;
+
+    ctx.fillStyle = TIME; ctx.font = '500 ' + fs(14) + 'px ' + M; ctx.textAlign='right';
+    ctx.fillText(item.depTime, px + cols[2].w - 12, base + 1); px += cols[2].w;
+
+    ctx.fillStyle = TIME; ctx.font = '500 ' + fs(14) + 'px ' + M;
+    ctx.fillText(String(item.gate||''), px + cols[3].w - 12, base + 1); px += cols[3].w;
+
+    drawPersons(ctx, item.persons, px, ry, cols[4].w, rowH, F, P); px += cols[4].w;
+
+    // 备注：单行截断，避免长文本糊成一团
+    var note = String(item.note||'');
+    ctx.fillStyle = SEC; ctx.font = '400 ' + fs(12.5) + 'px ' + F; ctx.textAlign='left';
+    ctx.save();
+    ctx.beginPath(); ctx.rect(px + cols[5].pl, ry + 6, cols[5].w - 12, rowH - 12); ctx.clip();
+    ctx.fillText(note, px + cols[5].pl, base + 1);
+    ctx.restore();
+
+    ctx.strokeStyle = RULE; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, ry + rowH + .5); ctx.lineTo(x0 + xw, ry + rowH + .5); ctx.stroke();
+    ry += rowH;
+  }
+
+  data.forEach(drawRow);
+
+  var a = document.createElement('a');
+  a.href = cv.toDataURL('image/png');
+  a.download = '出港排班表_'+DAY_LABEL[ST.day]+'_'+PERIOD_LABEL[currentPeriod]+'.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  flashHint('已导出图片');
+}
+
+// 负责人：浅底胶囊 + 深字（和网页一致，所见即所得）
+/* 负责人：色点 + 名字，与页面同一套写法。
+   整格只画一行 —— 多人的名字必然落在同一条基线上（旧的胶囊版会换行，上下错开）。
+   放不下先缩字号，还放不下就裁切，不换行。
+   🔥 2026-10-27：字号 / 字重 / 字体改读 schFont（跟页面「名字字体」控件同一个对象），
+      所以「页面调多大、导出图就多大」；没上色的人画成白点 + 描边。 */
+function drawPersons(ctx, persons, cx, ry, cw, rowH, F, P){
+  if(!persons || !persons.length) return;
+  var base = ry + rowH/2 + 1;
+  var pad = 12, gapDot = 6, gapSep = 8, dot = 9.5;
+  /* 🔥🔥 必须先抢回 textAlign —— 上一列「登机口」是右对齐（ctx.textAlign='right' 一直留着），
+     不重置的话名字会以 x 为右边缘往左画，正好压在色点上（用户：「导出的图片名字前面那一点颜色和名字重叠了」）。
+     这一行是修 bug 的关键，别删。 */
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  var fam = fontCanvas() || F;
+  var wt  = schFont.bold ? '600 ' : '400 ';
+  var avail = cw - pad*2;
+  var s0 = Math.max(9, Math.min(20, schFont.size));
+  var sizes = [s0, s0-1, s0-2, s0-3];
+  var size = s0, total = 0;
+
+  for(var s=0; s<sizes.length; s++){
+    size = sizes[s];
+    ctx.font = wt + size + 'px ' + fam;
+    total = 0;
+    for(var i=0;i<persons.length;i++){
+      if(!persons[i]) continue;
+      if(i) total += gapSep*2 + ctx.measureText('·').width;
+      total += dot + gapDot + ctx.measureText(persons[i]).width;
+    }
+    if(total <= avail) break;
+  }
+  ctx.font = wt + size + 'px ' + fam;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cx + pad, ry + 4, avail, rowH - 8); ctx.clip();
+
+  var x = cx + pad + Math.max(0, (avail - total)/2);
+  for(var k=0;k<persons.length;k++){
+    var n = persons[k]; if(!n) continue;
+    if(k){
+      ctx.fillStyle = P.sec;
+      ctx.fillText('·', x, base);
+      x += ctx.measureText('·').width + gapSep*2;
+    }
+    // 色点：没上色 = 白点 + 描边（跟页面一致，否则白点落在白底上会完全消失）
+    var hex = colorOf(n);
+    ctx.beginPath();
+    ctx.arc(x + dot/2, base - 1, dot/2, 0, Math.PI*2);
+    if(hex){
+      ctx.fillStyle = hex; ctx.fill();
+    }else{
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.strokeStyle = P.dotRing || '#c6c6cb';
+      ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    x += dot + gapDot;
+    ctx.fillStyle = P.ink;
+    ctx.fillText(n, x, base);
+    x += ctx.measureText(n).width;
+  }
+  ctx.restore();
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  if(w < 2*r) r = w/2;
+  if(h < 2*r) r = h/2;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+loadCfg();
+syncBoundInputs();
+syncUndoBtn();
+refreshDraftBar();
+initColorCtl();
+initFontCtl();
+buildGatePop();
+renderColorPanel();   // 名单可能在本机存过，进页面就该显示出来（不用等导入 Excel）
+/* 弹层跟着锚点走：滚动（含表格横向滚动，所以用 capture）和窗口缩放都重算一次 */
+window.addEventListener('scroll', repositionPops, true);
+window.addEventListener('resize', repositionPops);
+</script>
+</body>
+</html>
