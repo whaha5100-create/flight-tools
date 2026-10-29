@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KN航班出港统计 · 航班工作工具集</title>
+<title>航班出港统计 · 航班工作工具集</title>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <meta name="description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="KN航班出港统计 · 航班工作工具集">
+<meta property="og:title" content="航班出港统计 · 航班工作工具集">
 <meta property="og:description" content="导入 FIOS 出港 Excel，筛选 KN 航班、计算截载时间与订座人数、汇总早始发人数，导出图片。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/kn-stats/index.html">
 <meta name="theme-color" content="#ffffff">
@@ -105,7 +105,7 @@ tbody tr:nth-child(even) { background:#fafafa; }
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
-      <span class="nav-tool"><b>05</b>KN航班出港统计</span>
+      <span class="nav-tool"><b>05</b>航班出港统计</span>
     </div>
   </header>
 
@@ -113,14 +113,14 @@ tbody tr:nth-child(even) { background:#fafafa; }
        写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">05</span>航班工作工具集 · FLIGHT TOOLS</p>
-    <h1>KN航班出港统计</h1>
+    <h1>航班出港统计</h1>
     <p class="lede">上传 FIOS 导出 Excel，自动筛出次日 KN 出港航班，算出截载时间与订座人数。</p>
   </section>
 
 
 <div class="localnav">
   <div class="localnav-inner">
-    <span class="ln-t">KN航班出港统计</span>
+    <span class="ln-t">航班出港统计</span>
     <nav class="ln-links">
       <a href="#uploadArea">导入数据</a>
       <a href="#resultArea">统计结果</a>
@@ -668,7 +668,7 @@ tbody tr:nth-child(even) { background:#fafafa; }
 
     var a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
-    a.download = 'KN航班出港统计_' + dateStr + '.png';
+    a.download = '航班出港统计_' + dateStr + '.png';
     a.click();
   }
 

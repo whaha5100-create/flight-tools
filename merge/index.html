@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>东上联日数据汇总 · 航班工作工具集</title>
+<title>航班日数据汇总 · 航班工作工具集</title>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <meta name="description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="东上联日数据汇总 · 航班工作工具集">
+<meta property="og:title" content="航班日数据汇总 · 航班工作工具集">
 <meta property="og:description" content="整合航班数据统计与运量汇总，导入 FIOS 航班表与指挥长周报 PDF，生成东上联表与总表。">
 <meta property="og:url" content="https://whaha5100-create.github.io/flight-tools/merge/index.html">
 <meta name="theme-color" content="#ffffff">
@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="../assets/site.css">
 <script src="../assets/nav-scroll.js" defer></script>
 <style>
-  /* ============ 东上联日数据汇总 · 页面特有 ============ */
+  /* ============ 航班日数据汇总 · 页面特有 ============ */
   /* 2026-10-02 全站统一配色：本页不再自持工具识别色，直接继承 site.css 的
      --tool: var(--brand) 与品牌蓝四档阶梯。原先写死在这里的 4 个色值已删除。 */
 
@@ -122,7 +122,7 @@
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a class="nav-back" href="../index.html"><svg class="ic" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.2 3.4 5.6 8l4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回导航页</a>
-      <span class="nav-tool"><b>06</b>东上联日数据汇总</span>
+      <span class="nav-tool"><b>06</b>航班日数据汇总</span>
     </div>
   </header>
 
@@ -130,13 +130,13 @@
        写进共享层会指到 assets/assets/… 去。配图与本工具在首页卡片上是同一张（原创生成，无航司涂装 / 商标）。 -->
   <section class="hero is-tool">
     <p class="eyebrow"><span class="no">06</span>航班工作工具集 · FLIGHT TOOLS</p>
-    <h1>东上联日数据汇总</h1>
+    <h1>航班日数据汇总</h1>
     <p class="lede">导入 FIOS 航班表与指挥长周报 PDF、录入运量，一键生成东上联表与总表。</p>
   </section>
 
 <div class="localnav">
   <div class="localnav-inner">
-    <span class="ln-t">东上联日数据汇总</span>
+    <span class="ln-t">航班日数据汇总</span>
     <nav class="ln-links">
       <a href="#uploadZone">导入 FIOS</a>
       <a href="#airlineTable">录入运量</a>
@@ -852,7 +852,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   const wsT = XLSX.utils.aoa_to_sheet(aoaT);
   wsT['!cols'] = COLS_TOTAL.map(() => ({ wch: 16 }));
   XLSX.utils.book_append_sheet(wb, wsT, '总表');
-  XLSX.writeFile(wb, '东上联日数据汇总' + (d ? '_' + d : '') + '.xlsx');
+  XLSX.writeFile(wb, '航班日数据汇总' + (d ? '_' + d : '') + '.xlsx');
 });
 // 单个单元格取值（用于导出 Excel）
 function cellVal(r, c) {
