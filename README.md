@@ -37,11 +37,13 @@
 
 | 工具 | 路径 | 说明 |
 |---|---|---|
-| 航班日报生成器 | `/daily-report/` | 左侧填写、右侧实时预览「生产情况汇总」日报，**导出真正的 .docx**（1:1 复刻官方版式）。仍可正常使用，只是首页 04 位置现在放的是**机组名单导出** |
 | 航班数据统计 | `/stats/` | 功能已被 **06 航班日数据汇总** 覆盖 |
 | 航班运量汇总 | `/summary/` | 同上 |
 
-> 三个目录**原地保留、代码未改动**，老链接照常能打开；后续如确认不再需要，可随时整体删除。
+> 两个目录**原地保留、代码未改动**，老链接照常能打开；后续如确认不再需要，可随时整体删除。
+
+**已下线（不再部署）**：航班日报生成器（`/daily-report/`）—— 原 04，现由**机组名单导出**取代。
+代码只保留在本地，**线上已删除**，`/daily-report/` 会返回 404。
 
 ## 重点功能说明
 
@@ -189,7 +191,7 @@
   的班数与正常率，便于判断差距到底来自哪里。
 - 录入内容与选中的目标档位存 localStorage 草稿，刷新不丢。
 
-### 航班日报生成器（`/daily-report/`，不在导航页）
+### 航班日报生成器（`/daily-report/`，已下线）
 
 把每天要报的「生产情况汇总」做成一页表单：**左边填、右边实时看到 A4 成品，导出可直接编辑的 .docx**。
 
@@ -241,7 +243,7 @@
 ├── kn-stats/  merge/  todo/  early-ontime/  checkin/  monthly/
 │   ├── index.html          # 每个工具自包含：CSS / JS 内联
 │   └── libs/               # 该工具自己的依赖（xlsx / pdf.js / xlsx-populate / jszip / tesseract 等）
-├── daily-report/           # 日报工具（不在导航页，页面仍可访问）
+├── daily-report/           # 日报工具（已下线，不部署；仅本地保留）
 ├── stats/  summary/        # 已封存：不在导航页，功能已被 merge/ 覆盖（页面仍可访问）
 └── README.md
 ```
@@ -256,9 +258,9 @@
   解密加密的 Excel —— 仅 `/manifest/` 使用，且**按需加载**（642 KB，只在遇到加密文件时才拉取）
 - [pdf.js](https://mozilla.github.io/pdf.js/)（`libs/pdfjs/pdf.min.mjs`）读取指挥长周报 PDF 与 GD 单 —— `/merge/`、`/crew-decl/` 使用
 - [tesseract.js](https://github.com/naptha/tesseract.js)（`libs/tesseract/`）识别扫描版 GD 单 —— 仅 `/crew-decl/` 使用，且**按需加载**
-- [JSZip](https://stuk.github.io/jszip/)（`libs/jszip.min.js`）+ 手写 OOXML 生成**真正的 .docx** —— `/daily-report/`、`/monthly/` 使用
+- [JSZip](https://stuk.github.io/jszip/)（`libs/jszip.min.js`）+ 手写 OOXML 生成**真正的 .docx** —— `/monthly/` 使用
 - Canvas 2 倍分辨率绘制导出图片 —— `/schedule/`、`/kn-stats/`
-- localStorage 本地持久化草稿 / 待办 —— `/schedule/`、`/todo/`、`/daily-report/`
+- localStorage 本地持久化草稿 / 待办 —— `/schedule/`、`/todo/`
 
 ## 设计系统
 
@@ -285,7 +287,8 @@
 
 1. **同步**：把本目录内容 `rsync` 到 git 工作副本
    （`~/WorkBuddy/2026-07-14-22-40-54/github-pages-prep/flight-tools/`），排除
-   `.DS_Store` / `.workbuddy-ai/` / `.workbuddy/` / `.git/`，以及**只留在本地、含真实业务数据的目录**（不上传）。
+   `.DS_Store` / `.workbuddy-ai/` / `.workbuddy/` / `.git/`、**只留在本地、含真实业务数据的目录**，
+   以及**已下线目录 `daily-report/`**（不上传）。
    ⚠️ 不要加 `--delete`：仓库根有 `.nojekyll`，加了会被误删
 2. **推 GitHub**：`git add -A && git commit && git push origin main` → GitHub Pages 自动重新构建
    - 走代理时 `git push` 经常被 502 / HTTP2 framing 打回 → 用 `git -c http.version=HTTP/1.1` 并循环重试（实测可能要几十次）
