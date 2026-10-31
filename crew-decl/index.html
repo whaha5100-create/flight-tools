@@ -674,10 +674,10 @@ function pdfErrText(e){
       + 'Win7 上 Chrome 最高只能升到 109，如果已经是最新还报这个，'
       + '请换一台电脑处理，或直接照着原件手录。' + raw;
   }
-  // 2) 引擎文件没加载到（断网 / 公司网络拦截 / 浏览器太老解析不了模块）
+  // 2) 引擎文件没加载到（旧缓存 / 断网 / 公司网络拦截）
   if (/Unexpected token|SyntaxError|dynamically imported module|Importing a module script failed|Failed to fetch/i.test(msg)){
-    return 'PDF 引擎没加载成功。请先刷新页面重试；'
-      + '如果一直这样，多半是浏览器太旧或公司网络拦了脚本，换 Chrome 119 以上再试。' + raw;
+    return 'PDF 引擎没加载成功。请先按 <b>Ctrl+F5</b> 强制刷新一次（清掉旧缓存）再拖单子；'
+      + '如果刷新后还是这样，多半是公司网络把脚本拦了，换个网络再试。' + raw;
   }
   // 3) 真的加密了
   if (name === 'PasswordException' || /password/i.test(msg)){
@@ -707,7 +707,13 @@ async function loadPdf(file){
 
   try {
     var pdfjs = await import('./libs/pdfjs/pdf.min.mjs');
-    pdfjs.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
+    /* ⚠️ 必须给**绝对地址**（2026-10-31 踩坑）：
+       pdf.js 退化到「主线程跑 worker」时，是在 pdf.min.mjs 内部执行
+       import(workerSrc) —— 相对地址会按 libs/pdfjs/ 再解析一次，
+       变成 libs/pdfjs/libs/pdfjs/pdf.worker.min.mjs → 404 → PDF 全打不开。
+       用 new URL(..., location.href) 先算成完整地址，就不会拼错。 */
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      new URL('libs/pdfjs/pdf.worker.min.mjs', location.href).href;
     var buf = await file.arrayBuffer();
     pdfDoc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
 
