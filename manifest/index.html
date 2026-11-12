@@ -895,17 +895,54 @@ async function doConvert() {
         : '已自动去掉密码里的空格 / 后缀 / 隐藏字符';
     }
 
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // 2026-11-12：WPS / Excel 另存后，数据有时不在第一张表（第一张是空表或说明页），
+    // 老代码只取 wb.SheetNames[0] → 读出 0 行 → 导出空白。逐张扫前 12 行找像表头的那张；
+    // 全都找不到时仍退回第一张，保持老行为。
+    const HEAD_KEYS = ['名称','姓名','证件号码','证件号','国籍','性别','生日',
+                       '出生日期','航班日期','实际承运人','实际航班号','起飞地','目的地','记录号'];
+    const normHead = (v) => String(v == null ? '' : v)
+      .replace(/[\uFEFF\u200B-\u200D\u00A0]/g, '')
+      .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/\s+/g, '').toLowerCase().trim();
+    function sheetScore(rows) {
+      let best = 0;
+      for (let i = 0; i < Math.min(rows.length, 12); i++) {
+        const cells = (rows[i] || []).map(normHead);
+        let n = 0;
+        for (const k of HEAD_KEYS) if (cells.indexOf(k) >= 0) n++;
+        if (n > best) best = n;
+      }
+      return best;
+    }
+    let sheet = wb.Sheets[wb.SheetNames[0]];
+    let sheetName = wb.SheetNames[0];
+    let bestSheetScore = -1;
+    for (const name of wb.SheetNames) {
+      const probe = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+      const sc = sheetScore(probe);
+      if (sc > bestSheetScore) { bestSheetScore = sc; sheet = wb.Sheets[name]; sheetName = name; }
+    }
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
     const res = convertManifest(rows);
 
     loading.classList.remove('active');
 
-    if (!res.ok) { showError('' + res.error); return; }
+    if (!res.ok) { showError(escapeHtml('' + res.error)); return; }
 
     renderSummary(res.meta);
     renderPreview(res.outRows);
     renderSkipped(res.skipped);
+
+    // 一行都没转出来时，把「读到了什么」摆出来，别让人对着 0 条干瞪眼
+    if (res.outRows.length <= 2 && res.skipped.length) {
+      const d = res.diag || {};
+      const heads = (d.headers || []).slice(0, 10).join('、') || '（没读到表头）';
+      showError('读到了 ' + res.skipped.length + ' 行，但全部被删掉，多半是<b>表头没对上</b>。'
+        + '工作表「' + escapeHtml(sheetName) + '」共 ' + (d.totalRows || rows.length) + ' 行，'
+        + '识别到的表头：' + escapeHtml(heads) + '。<br>'
+        + '请确认源文件里有「名称 / 证件号码 / 国籍 / 性别 / 生日」这些列，或直接上传系统导出的原始名单。'
+        + '被删原因见下方「已删除的记录」。');
+    }
 
     controls.style.display = 'flex';
     const outName = buildOutName(res.meta, file);

@@ -353,26 +353,61 @@
       return { ok: false, error: '文件为空' };
     }
 
-    var header = rawRows[0];
+    // ---- 2026-11-12：表头自动定位 + 列名容错 ----
+    // 公司电脑上出现「航班号 —、旅客 0、导出空白」：老代码死认第一行是表头，
+    // 一旦系统导出多一行标题、或 WPS 另存把表头挪走 / 改名，所有列都取不到，
+    // 每一行都会被判成「缺姓名/证件/国籍」而删光，看起来就像「什么都识别不到」。
+    function normHeader(v) {
+      if (v === null || v === undefined) return '';
+      return String(v)
+        .replace(/[\uFEFF\u200B-\u200D\u00A0]/g, '')                 // BOM / 零宽 / 不换行空格
+        .replace(/[\uFF01-\uFF5E]/g, function (c) {                  // 全角 → 半角
+          return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+        })
+        .replace(/\s+/g, '')                                          // 列名里夹的空格 / 换行
+        .toLowerCase()
+        .trim();
+    }
+    var KEYS = ['名称','姓名','证件号码','证件号','国籍','性别','生日','出生日期',
+                '航班日期','实际承运人','实际航班号','起飞地','目的地','pnr号','记录号'];
+    function headerScore(r) {
+      var cells = (r || []).map(normHeader), n = 0;
+      for (var i = 0; i < KEYS.length; i++) if (cells.indexOf(KEYS[i]) >= 0) n++;
+      return n;
+    }
+    // 前 12 行里找「最像表头」的一行；命中不足 2 列就维持老行为（第 0 行）
+    var headerRow = 0, bestScore = -1;
+    for (var hi = 0; hi < Math.min(rawRows.length, 12); hi++) {
+      var sc = headerScore(rawRows[hi]);
+      if (sc > bestScore) { bestScore = sc; headerRow = hi; }
+    }
+    if (bestScore < 2) headerRow = 0;
+
+    var header = rawRows[headerRow] || [];
     var col = {};
     header.forEach(function (h, i) {
-      if (h !== null && h !== undefined && String(h).trim() !== '') {
-        col[String(h).trim()] = i;
-      }
+      var key = normHeader(h);
+      if (key) col[key] = i;
     });
-
+    function colOf() {
+      for (var a = 0; a < arguments.length; a++) {
+        var k = normHeader(arguments[a]);
+        if (col[k] !== undefined) return col[k];
+      }
+      return undefined;
+    }
     var idx = {
-      '航班日期': col['航班日期'],
-      '实际承运人': col['实际承运人'],
-      '实际航班号': col['实际航班号'],
-      '起飞地': col['起飞地'],
-      '目的地': col['目的地'],
-      '名称': col['名称'],
-      '性别': col['性别'],
-      '生日': col['生日'],
-      '国籍': col['国籍'],
-      '证件号码': col['证件号码'],
-      'pnr号': col['pnr号']
+      '航班日期': colOf('航班日期'),
+      '实际承运人': colOf('实际承运人','承运人'),
+      '实际航班号': colOf('实际航班号','航班号'),
+      '起飞地': colOf('起飞地','出发地'),
+      '目的地': colOf('目的地','到达地'),
+      '名称': colOf('名称','姓名','旅客姓名'),
+      '性别': colOf('性别','性别代码'),
+      '生日': colOf('生日','出生日期'),
+      '国籍': colOf('国籍','国籍代码'),
+      '证件号码': colOf('证件号码','证件号','护照号'),
+      'pnr号': colOf('pnr号','pnr')
     };
 
     function cell(r, key) {
@@ -381,12 +416,23 @@
       return (i < r.length) ? r[i] : null;
     }
 
-    var data_rows = rawRows.slice(1).filter(function (r) {
-      return r[0] !== null && r[0] !== undefined && String(r[0]).trim() !== '';
+    // 老规则：第一列（记录号）非空。再补一条兜底：表头列错位时，
+    // 只要姓名列或证件号列有值也算数据行，避免整表被丢光。
+    var data_rows = rawRows.slice(headerRow + 1).filter(function (r) {
+      if (!r) return false;
+      var first = r[0];
+      var firstOk = first !== null && first !== undefined && String(first).trim() !== '';
+      if (firstOk && headerScore(r) < 2) return true;      // 顺手排除重复表头行
+      var ni = idx['名称'], di = idx['证件号码'];
+      var hasName = ni !== undefined && r[ni] != null && String(r[ni]).trim() !== '';
+      var hasId   = di !== undefined && r[di] != null && String(r[di]).trim() !== '';
+      return hasName || hasId;
     });
 
     if (!data_rows.length) {
-      return { ok: false, error: '没有数据行' };
+      var seen = header.map(normHeader).filter(Boolean).slice(0, 10).join('、');
+      return { ok: false, error: '没有数据行（表头下面没有旅客记录）。识别到的表头：'
+        + (seen || '无') + '。请确认上传的是系统导出的原始名单。' };
     }
 
     var first = data_rows[0];
@@ -458,6 +504,15 @@
         direction: direction,
         counterpart: counterpart,
         passengers: seq - 1
+      },
+      // 0 条时给页面看的诊断信息（不参与导出，方便远程一眼看出表头对没对上）
+      diag: {
+        totalRows: rawRows.length,
+        headerRow: headerRow,
+        headerScore: bestScore,
+        headers: header.map(normHeader).filter(Boolean).slice(0, 15),
+        foundCols: Object.keys(idx).filter(function (k) { return idx[k] !== undefined; }),
+        dataRows: data_rows.length
       }
     };
   }
