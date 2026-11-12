@@ -97,7 +97,7 @@
       文件密码
     </label>
     <input type="password" id="pwdInput" placeholder="文件没有密码就留空" autocomplete="off" spellcheck="false">
-    <span class="pwd-hint" id="pwdHint">加密的名单直接在这里填密码，不用先手工去密码</span>
+    <span class="pwd-hint" id="pwdHint">文件名就是密码时会自动带入；复制粘贴也行，多余的空格和后缀会自动去掉</span>
   </div>
 
   <!-- 显式开始转换按钮（选文件后出现） -->
@@ -244,6 +244,7 @@ fileInput.addEventListener('change', () => {
     document.getElementById('convertRow').style.display = 'flex';
     document.getElementById('convertInfo').textContent = '已选择 ' + fileInput.files[0].name + '，点击开始转换';
     resetPwdState();
+    autoFillPassword(fileInput.files[0]);   // 文件名就是密码 → 不用手输（见下方密码清洗区）
   }
 });
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -258,7 +259,29 @@ uploadZone.addEventListener('drop', (e) => {
     document.getElementById('convertRow').style.display = 'flex';
     document.getElementById('convertInfo').textContent = '已选择 ' + f.name + '，点击开始转换';
     resetPwdState();
+    autoFillPassword(f);
   }
+});
+
+// ================ 密码框：粘贴即清洗 ================
+// 从微信 / 钉钉 / 访达复制文件名时，常会夹带尾随空格、扩展名、全角空格、
+// 零宽字符、BOM 等肉眼看不见的东西 → 粘进密码框就解密失败，手打同样的字却成功。
+// 这里接管 paste，把杂质洗掉再写入；同时也保留「原样输入」作为解密时的第一候选，
+// 万一真密码本身首尾带空格也不会被误伤。
+pwdInput.addEventListener('paste', (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (!text) return;
+  e.preventDefault();
+  const cleaned = cleanPassword(text);
+  const start = pwdInput.selectionStart == null ? pwdInput.value.length : pwdInput.selectionStart;
+  const end   = pwdInput.selectionEnd   == null ? start : pwdInput.selectionEnd;
+  pwdInput.value = pwdInput.value.slice(0, start) + cleaned + pwdInput.value.slice(end);
+  const pos = start + cleaned.length;
+  pwdInput.setSelectionRange(pos, pos);
+  pwdRow.classList.remove('needed');
+  pwdHint.textContent = (cleaned !== text)
+    ? '已把粘贴内容里的空格 / 后缀 / 隐藏字符去掉'
+    : PWD_HINT_DEFAULT;
 });
 
 // 点击「开始转换」按钮触发转换
@@ -750,7 +773,56 @@ async function decryptWorkbook(arrayBuffer, password) {
   const blob = await wb.outputAsync();          // 浏览器环境下返回 Blob
   return await blob.arrayBuffer();
 }
-const PWD_HINT_DEFAULT = '加密的名单直接在这里填密码，不用先手工去密码';
+
+// ---------- 密码清洗：让「复制粘贴」和「手输」结果一致（2026-11-12）----------
+// 系统导出的名单把密码写在文件名里（例：kHJeJ2Eb .xlsx 的密码是 kHJeJ2Eb，
+// 注意 Eb 后面那个空格）。复制文件名粘贴进密码框时，空格 / .xlsx / 全角空格 /
+// 零宽字符 / BOM 会一起带进来 → 解密失败，手打同样的字母却成功。
+// ① 清洗只动首尾和明显的杂质，中间字符一律保留；
+// ② 解密时永远先试「用户输入的原样」，所以真密码首尾带空格也不会被误伤；
+// ③ 选文件后若密码框是空的且文件名看着像随机密码，直接带入，手输都省了。
+function cleanPassword(raw) {
+  let s = String(raw == null ? '' : raw);
+  s = s.replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))  // 全角 → 半角
+       .replace(/\u3000/g, ' ')                       // 全角空格
+       .replace(/\u00A0/g, ' ');                     // 不换行空格
+  s = s.replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF\u00AD]/g, '');  // 零宽 / 双向控制 / BOM / 软连字符
+  s = s.trim();
+  s = s.replace(/\.(xlsx|xls|xlsm)$/i, '').trim();  // 复制了整段文件名
+  if (/^["'“‘].*["'”’]$/.test(s) && s.length > 2) s = s.slice(1, -1).trim();  // 被引号包住
+  return s;
+}
+// 只认「6–24 位字母数字」这种随机串文件名，中文名单名不会被误当密码
+function passwordFromFileName(name) {
+  const s = cleanPassword(String(name || ''));
+  return /^[A-Za-z0-9!@#$%^&*_\-]{6,24}$/.test(s) ? s : '';
+}
+function passwordCandidates(rawPwd, fileName) {
+  const list = [];
+  const add = (v) => { if (v && !list.includes(v)) list.push(v); };
+  add(String(rawPwd || ''));          // 原样优先
+  add(cleanPassword(rawPwd));        // 去掉粘贴带来的杂质
+  add(passwordFromFileName(fileName)); // 文件名兜底
+  return list;
+}
+async function decryptWithCandidates(buf, pwd, fileName) {
+  let lastErr = null;
+  for (const c of passwordCandidates(pwd, fileName)) {
+    try { return { plain: await decryptWorkbook(buf, c), used: c }; }
+    catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('解密失败');
+}
+// 选文件后自动带入（只在密码框空着、文件名确实像密码时）
+function autoFillPassword(file) {
+  if (!file || pwdInput.value.trim()) return;
+  const guess = passwordFromFileName(file.name);
+  if (!guess) return;
+  pwdInput.value = guess;
+  pwdHint.textContent = '已从文件名自动带入密码（可以直接改）';
+}
+
+const PWD_HINT_DEFAULT = '文件名就是密码时会自动带入；复制粘贴也行，多余的空格和后缀会自动去掉';
 // 换文件时把密码行的提示状态复位（不清空已输入的密码）
 function resetPwdState() {
   pwdRow.classList.remove('needed');
@@ -793,9 +865,11 @@ async function doConvert() {
         promptPassword('这个文件已加密，请在上方「文件密码」里填入密码，再点一次「开始转换」。');
         return;
       }
-      let plain;
+      let plain, usedPwd;
       try {
-        plain = await decryptWorkbook(buf, pwd);
+        // 依次试：原样 → 清洗后的粘贴内容 → 文件名推导，哪个能解开用哪个
+        const r = await decryptWithCandidates(buf, pwd, file.name);
+        plain = r.plain; usedPwd = r.used;
       } catch (de) {
         loading.classList.remove('active');
         const dmsg = (de && de.message) ? de.message : ('' + de);
@@ -816,7 +890,9 @@ async function doConvert() {
         return;
       }
       pwdRow.classList.remove('needed');
-      pwdHint.textContent = '已用密码解密';
+      pwdHint.textContent = (usedPwd === pwd)
+        ? '已用密码解密'
+        : '已自动去掉密码里的空格 / 后缀 / 隐藏字符';
     }
 
     const sheet = wb.Sheets[wb.SheetNames[0]];
