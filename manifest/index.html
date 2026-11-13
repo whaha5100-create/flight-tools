@@ -13,6 +13,8 @@
 <meta name="theme-color" content="#ffffff">
 <!-- 优先加载本地 SheetJS（自包含，不依赖外网 CDN）；若本地缺失则回退 CDN -->
 <script src="libs/xlsx.full.min.js"></script>
+<!-- 旧版 Standard 加密（二进制头）解密，纯 JS 无依赖；Agile 仍走 xlsx-populate -->
+<script src="libs/standard-decrypt.js"></script>
 <script>
   if (typeof XLSX === 'undefined') {
     document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"><\/script>');
@@ -768,8 +770,16 @@ function loadDecryptLib() {
   return decryptLibPromise;
 }
 async function decryptWorkbook(arrayBuffer, password) {
+  // 2026-11-13：系统名单出现了 ECMA-376 Standard（4.2 二进制头，AES-ECB）加密。
+  // xlsx-populate 只认 Agile（4.4 XML 头），遇到 Standard 会把二进制当 XML 解析并报错，
+  // 页面却统一提示「密码不对」。这里先分辨加密类型，各走各的解密实现。
+  const SD = window.OfficeStandardDecrypt;
+  const u8 = new Uint8Array(arrayBuffer);
+  if (SD && SD.detect(u8) === 'standard') {
+    return SD.decrypt(u8, password);          // 纯 JS，不用加载 642KB 的 Agile 组件
+  }
   await loadDecryptLib();
-  const wb = await XlsxPopulate.fromDataAsync(new Uint8Array(arrayBuffer), { password: password });
+  const wb = await XlsxPopulate.fromDataAsync(u8, { password: password });
   const blob = await wb.outputAsync();          // 浏览器环境下返回 Blob
   return await blob.arrayBuffer();
 }
@@ -847,13 +857,16 @@ async function doConvert() {
 
   try {
     const buf = await file.arrayBuffer();
+    // 只要是加密的 Excel（OLE 复合文档），不管 SheetJS 抛什么错，都按「需要密码」处理
+    const SD = window.OfficeStandardDecrypt;
+    const encKind = SD ? SD.detect(new Uint8Array(buf)) : null;
     let wb;
     try {
       // 未加密的文件走这条老路 —— 行为与加密码功能之前完全一致
       wb = XLSX.read(buf, { type: 'array', cellDates: true });
     } catch (e) {
       const msg = (e && e.message) ? e.message : ('' + e);
-      if (!/password/i.test(msg)) {          // 不是加密问题 → 维持原来的报错
+      if (!/password/i.test(msg) && !encKind) {   // 不是加密问题 → 维持原来的报错
         loading.classList.remove('active');
         showError('读取文件失败：' + msg + '。');
         return;
@@ -873,9 +886,17 @@ async function doConvert() {
       } catch (de) {
         loading.classList.remove('active');
         const dmsg = (de && de.message) ? de.message : ('' + de);
-        // 「组件没加载出来」和「密码不对」必须分开报，否则会把人往密码上带
+        // 「组件没加载出来」「密码不对」「加密方式不支持」「文件损坏」必须分开报，
+        // 否则一律说「密码不对」，会把人往错误方向带（2026-11-13 吃过这个亏）。
         if (/加载失败|未初始化/.test(dmsg)) {
           showError('解密组件未能加载，请刷新页面后重试。');
+        } else if (de && de.code === 'UNSUPPORTED') {
+          showError('这份名单用的是本页暂不支持的加密方式（' + dmsg
+            + '）。请用 Excel 打开后另存为无密码的 .xlsx，再上传一次。');
+        } else if (de && de.code === 'BAD_DATA') {
+          showError('文件解密后内容不完整，可能是传输时损坏了，请重新导出一份再试。');
+        } else if (de && de.code === 'BAD_PASSWORD') {
+          promptPassword('密码不对，请重新输入（注意区分大小写）。');
         } else {
           promptPassword('解密失败：请确认密码是否正确（区分大小写）。若密码无误仍失败，'
             + '说明该文件的加密方式本页暂不支持，需要先转成无密码版再上传。');

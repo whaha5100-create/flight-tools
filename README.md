@@ -62,11 +62,18 @@
   - **复制粘贴也能用**：粘贴时自动去掉尾随空格、`.xlsx` 后缀、全角字符、零宽字符 / BOM 等隐藏杂质；
     即使没走粘贴事件，解密时也会依次试「原样 → 清洗后 → 文件名推导」三个候选。
     （2026-11-12：系统导出名单文件名里带空格，复制粘贴进密码框会解密失败、手打却正常）
-  - 回归脚本：`.workbuddy-ai/tools/pwd-paste-check.py --enc <加密xlsx> --password <密码> --file-name "<原文件名>"`
-  - 解密全部在浏览器本地完成（`libs/xlsx-populate.min.js` 的 ECMA-376 Agile 解密，走浏览器自带 WebCrypto），
-    那个库有 642 KB，**只在真的遇到加密文件时才加载**
-  - ⚠️ 目前只支持 **ECMA-376 Agile** 这一种加密方式（Office 2010 以后的默认方式）。
-    如果你的文件是更老的 Standard / RC4 加密，页面会明确提示不支持，需要先转成无密码版再上传。
+  - 回归脚本：`.workbuddy-ai/tools/pwd-paste-check.py --enc <加密xlsx> --password <密码> --file-name "<原文件名>"`；
+    端到端等价性：`.workbuddy-ai/tools/encrypted-upload-check.py manifest/index.html --enc <加密xlsx> --plain <明文xlsx> --password <密码>`
+    （Agile / Standard 两种样本都适用）
+  - 解密全部在浏览器本地完成，不上传文件；页面先分辨加密类型，再选对应实现：
+    - **ECMA-376 Agile**（XML 加密头，Office 2010+ 默认）→ `libs/xlsx-populate.min.js`
+      （642 KB，走浏览器自带 WebCrypto，**只在遇到这类加密文件时才加载**）
+    - **ECMA-376 Standard**（2.2 / 3.2 / 4.2 二进制加密头，AES-ECB + SHA1）→ `libs/standard-decrypt.js`
+      （纯 JS、无依赖、约 12 KB，离线 `file://` 和老浏览器都能跑；2026-11-13 新增）
+  - 2026-11-13：系统名单的加密方式从 Agile 换成 Standard，旧版页面把二进制加密头当 XML 解析，
+    却统一提示「密码不对」，实际密码是对的。现在两种都支持；错误提示也按
+    「密码不对 / 加密方式不支持 / 文件损坏 / 组件没加载」分开报。
+  - ⚠️ 更老的 RC4 加密（常见于 .xls）仍不支持，会明确提示用 Excel 另存为无密码的 .xlsx 再上传。
 - 转换规则：国籍 → 3 字码（305 条字典 + ISO 二字转三字 + 中文名）、性别 `1/2` → `M/F`、
   按航班号判定出入境与往来地（航线表内置：马德里 / 罗马 / 曼谷）
 - **导出文件名**：按海关要求的格式自动命名 ——
